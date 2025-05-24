@@ -2,14 +2,18 @@ package com.asaf.whatnext.models;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.mapping.Document;
+import jakarta.persistence.Entity;
+import jakarta.persistence.ManyToMany;
+import java.util.List;
 
 @Data
-@Document(collection = "actors")
+@Entity
 @EqualsAndHashCode(callSuper = true)
-public class Actor extends BaseEntity{
+public class Actor extends BaseEntity {
     private String name;
     private String biography;
     private String birthDate;
+    
+    @ManyToMany(mappedBy = "actors")
+    private List<PerformingArt> events;
 }

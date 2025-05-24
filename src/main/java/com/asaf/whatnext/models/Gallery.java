@@ -2,14 +2,18 @@ package com.asaf.whatnext.models;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.mapping.Document;
+import jakarta.persistence.Entity;
+import jakarta.persistence.OneToMany;
+import java.util.List;
 
 @Data
+@Entity
 @EqualsAndHashCode(callSuper = true)
-@Document(collection = "galleries")
-public class Gallery extends BaseEntity{
+public class Gallery extends BaseEntity {
     private String name;
     private String location;
     private String description;
+    
+    @OneToMany(mappedBy = "gallery")
+    private List<ExhibitionEvent> events;
 }
