@@ -1,5 +1,6 @@
 package com.asaf.whatnext.utils;
 
+import com.asaf.whatnext.enums.Biletino.BiletinoCategory;
 import com.asaf.whatnext.enums.EventSourceType;
 import com.asaf.whatnext.enums.EventType;
 import com.asaf.whatnext.enums.PerformanceType;
@@ -121,8 +122,8 @@ public class EventUtils {
         String lowerTitle = title.toLowerCase();
         String lowerDesc = description.toLowerCase();
 
-        if (lowerTitle.contains("stand") || lowerDesc.contains("stand up") || 
-            lowerTitle.contains("stand-up") || lowerDesc.contains("stand-up")) {
+        if (lowerTitle.contains("stand") || lowerDesc.contains("stand up") ||
+                lowerTitle.contains("stand-up") || lowerDesc.contains("stand-up")) {
             return EventType.STANDUP;
         } else if (lowerTitle.contains("konser") || lowerDesc.contains("konser")) {
             return EventType.CONCERT;
@@ -131,9 +132,18 @@ public class EventUtils {
         } else if (lowerTitle.contains("sergi") || lowerDesc.contains("sergi")) {
             return EventType.EXHIBITION;
         }
-
         return defaultType;
     }
+
+    public static EventType categoryToEventType(BiletinoCategory category) {
+        switch (category) {
+            case MUSIC:    return EventType.CONCERT;
+            case THEATRE:  return EventType.THEATER;
+            case COMEDY:   return EventType.STANDUP;
+            default:       return EventType.EXHIBITION;
+        }
+    }
+
 
     public static String extractArtistName(String title, String description) {
         if (title.contains("-")) {
