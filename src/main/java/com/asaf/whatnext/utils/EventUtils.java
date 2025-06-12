@@ -20,6 +20,7 @@ import com.asaf.whatnext.services.EventInfo;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.Collections;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -39,7 +40,7 @@ public class EventUtils {
         event.setSource(EventSourceType.BILETIX);
 
         if (ticketUrl != null && !ticketUrl.isEmpty()) {
-            event.setTicketUrl(ticketUrl);
+            event.addTicketUrl(ticketUrl);
         }
     }
 
@@ -52,69 +53,63 @@ public class EventUtils {
         }
     }
 
-    public static ConcertEvent createConcertEvent(EventInfo info) {
+    public static ConcertEvent createConcertEvent(EventInfo info, EventType eventType) {
         ConcertEvent concert = new ConcertEvent();
         setCommonEventProperties(concert, info.getTitle(), "", info.getDateStr(), info.getTicketUrl());
-
+        concert.setType(eventType);
         Artist artist = new Artist();
         artist.setName(extractArtistName(info.getTitle(), ""));
         concert.setArtist(artist);
-
         setVenueProperties(concert, info.getVenueName(), info.getLocation());
-
         return concert;
     }
 
     public static PerformingArt createTheaterEvent(EventInfo info, EventType eventType) {
         PerformingArt theater = new PerformingArt();
         setCommonEventProperties(theater, info.getTitle(), "", info.getDateStr(), info.getTicketUrl());
-
+        theater.setType(eventType);
         if (eventType == EventType.STANDUP) {
             theater.setPerformanceType(PerformanceType.STANDUP);
         } else {
             theater.setPerformanceType(PerformanceType.THEATER);
         }
-
         return theater;
     }
 
-    public static ExhibitionEvent createExhibitionEvent(EventInfo info) {
+    public static ExhibitionEvent createExhibitionEvent(EventInfo info, EventType eventType) {
         ExhibitionEvent exhibition = new ExhibitionEvent();
         setCommonEventProperties(exhibition, info.getTitle(), "", info.getDateStr(), info.getTicketUrl());
-
+        exhibition.setType(eventType);
         return exhibition;
     }
 
-    public static ConcertEvent createDetailedConcertEvent(DetailedEventInfo info) {
+    public static ConcertEvent createDetailedConcertEvent(DetailedEventInfo info, EventType eventType) {
         ConcertEvent concert = new ConcertEvent();
         setCommonEventProperties(concert, info.getTitle(), info.getDescription(), info.getDateStr(), info.getTicketUrl());
-
+        concert.setType(eventType);
         Artist artist = new Artist();
         artist.setName(extractArtistName(info.getTitle(), info.getDescription()));
         concert.setArtist(artist);
-
         setVenueProperties(concert, info.getVenueName(), info.getLocation());
-
         return concert;
     }
 
     public static PerformingArt createDetailedTheaterEvent(DetailedEventInfo info, EventType eventType) {
         PerformingArt theater = new PerformingArt();
         setCommonEventProperties(theater, info.getTitle(), info.getDescription(), info.getDateStr(), info.getTicketUrl());
-
+        theater.setType(eventType);
         if (eventType == EventType.STANDUP) {
             theater.setPerformanceType(PerformanceType.STANDUP);
         } else {
             theater.setPerformanceType(PerformanceType.THEATER);
         }
-
         return theater;
     }
 
-    public static ExhibitionEvent createDetailedExhibitionEvent(DetailedEventInfo info) {
+    public static ExhibitionEvent createDetailedExhibitionEvent(DetailedEventInfo info, EventType eventType) {
         ExhibitionEvent exhibition = new ExhibitionEvent();
         setCommonEventProperties(exhibition, info.getTitle(), info.getDescription(), info.getDateStr(), info.getTicketUrl());
-
+        exhibition.setType(eventType);
         return exhibition;
     }
 

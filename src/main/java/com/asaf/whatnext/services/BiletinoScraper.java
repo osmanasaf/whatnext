@@ -10,6 +10,7 @@ import com.asaf.whatnext.service.ArtistService;
 import com.asaf.whatnext.service.ConcertEventService;
 import com.asaf.whatnext.service.TheaterEventService;
 import com.asaf.whatnext.service.VenueService;
+import com.asaf.whatnext.utils.EventUtils;
 import com.asaf.whatnext.utils.WebScraperUtils;
 import org.jsoup.nodes.Document;
 import org.openqa.selenium.*;
@@ -75,7 +76,7 @@ public class BiletinoScraper implements EventSource {
         return allEvents;
     }
 
-    private List<Event> processCategory(BiletinoCategory category) {
+    public List<Event> processCategory(BiletinoCategory category) {
         List<Event> events = new ArrayList<>();
         try {
             initializeBrowser();
@@ -363,6 +364,31 @@ public class BiletinoScraper implements EventSource {
         }
     }
 
+    private LocalDate extractStartDateTime(String dateStr) {
+        if (dateStr == null || dateStr.isEmpty()) return null;
+        String[] parts = dateStr.split("-");
+        String startPart = parts[0].trim();
+        try {
+            String[] tokens = startPart.split(" ");
+            if (tokens.length >= 5) {
+                String day = tokens[0];
+                String month = tokens[1];
+                String year = tokens[2];
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.ENGLISH);
+                return LocalDate.parse(String.format("%s %s %s", day, month, year), formatter);
+            } else if (tokens.length >= 4) {
+                String day = tokens[0];
+                String month = tokens[1];
+                String year = tokens[2];
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.ENGLISH);
+                return LocalDate.parse(String.format("%s %s %s", day, month, year), formatter);
+            }
+        } catch (Exception e) {
+            return null;
+        }
+        return null;
+    }
+
     private Event createEventFromDetailedInfo(EventType eventType, EventInfo basicInfo, DetailedEventInfo detailedInfo) {
         String title = !detailedInfo.getTitle().isEmpty() ? detailedInfo.getTitle() : basicInfo.getTitle();
         String dateStr = !detailedInfo.getDateStr().isEmpty() ? detailedInfo.getDateStr() : basicInfo.getDateStr();
@@ -370,13 +396,32 @@ public class BiletinoScraper implements EventSource {
         String location = !detailedInfo.getLocation().isEmpty() ? detailedInfo.getLocation() : basicInfo.getLocation();
         String ticketUrl = !detailedInfo.getTicketUrl().isEmpty() ? detailedInfo.getTicketUrl() : basicInfo.getTicketUrl();
         String description = detailedInfo.getDescription();
+        LocalDate parsedStartDate = extractStartDateTime(dateStr);
+        String date = parsedStartDate != null ? parsedStartDate.format(DateTimeFormatter.ofPattern("dd/MM/yy")) : dateStr;
+
+        Venue venue = null;
+        if (venueName != null && !venueName.isEmpty()) {
+            venue = venueService.findByName(venueName);
+            if (venue == null) {
+                venue = new Venue();
+                venue.setName(venueName);
+                venue.setLocation(location);
+                venue = venueService.save(venue);
+            }
+        }
+
         switch (eventType) {
             case CONCERT:
-                return createDetailedConcertEvent(title, description, dateStr, venueName, location, ticketUrl);
+                ConcertEvent concert = EventUtils.createDetailedConcertEvent(
+                    new DetailedEventInfo(title, description, date, venueName, location, ticketUrl), eventType);
+                if (venue != null) concert.setVenue(venue);
+                return concert;
             case THEATER:
-                return createDetailedTheaterEvent(title, description, dateStr, venueName, location, ticketUrl, eventType);
             case STANDUP:
-                return createDetailedTheaterEvent(title, description, dateStr, venueName, location, ticketUrl, eventType);
+                PerformingArt theater = EventUtils.createDetailedTheaterEvent(
+                    new DetailedEventInfo(title, description, date, venueName, location, ticketUrl), eventType);
+                if (venue != null) theater.setVenue(venue);
+                return theater;
             default:
                 return null;
         }
@@ -408,116 +453,6 @@ public class BiletinoScraper implements EventSource {
         }
     }
 
-    private ConcertEvent createDetailedConcertEvent(String title, String description, String dateStr,
-                                                    String venueName, String location, String ticketUrl) {
-        ConcertEvent concert = new ConcertEvent();
-        setCommonEventProperties(concert, title, description, dateStr, ticketUrl);
-        Artist artist = new Artist();
-        artist.setName(extractArtistName(title));
-        concert.setArtist(artist);
-        if (!venueName.isEmpty() || !location.isEmpty()) {
-            Venue venue = new Venue();
-            venue.setName(venueName);
-            venue.setLocation(location);
-            concert.setVenue(venue);
-        }
-        return concert;
-    }
-
-    private PerformingArt createDetailedTheaterEvent(String title, String description, String dateStr,
-                                                     String venueName, String location, String ticketUrl,
-                                                     EventType eventType) {
-        PerformingArt theater = new PerformingArt();
-        setCommonEventProperties(theater, title, description, dateStr, ticketUrl);
-        if (eventType == EventType.STANDUP) {
-            theater.setPerformanceType(PerformanceType.STANDUP);
-        } else {
-            theater.setPerformanceType(PerformanceType.THEATER);
-        }
-        return theater;
-    }
-
-    private <T extends Event> void setCommonEventProperties(T event, String title, String description, String dateStr, String ticketUrl) {
-        event.setTitle(title);
-        if (description != null && !description.isEmpty()) event.setDescription(description);
-        if (dateStr != null && !dateStr.isEmpty()) {
-            if (dateStr.contains(" - ")) {
-                String[] dates = dateStr.split(" - ");
-                if (dates.length >= 2) {
-                    event.setStartDate(parseDetailedDate(dates[0]));
-                    LocalDate endDate = parseDetailedDate(dates[1]);
-                    if (endDate != null) event.setEndDate(endDate);
-                }
-            } else {
-                event.setStartDate(parseDetailedDate(dateStr));
-            }
-        }
-        event.setSource(EventSourceType.BILETINO);
-        if (ticketUrl != null && !ticketUrl.isEmpty()) event.setTicketUrl(ticketUrl);
-    }
-
-    private LocalDate parseDetailedDate(String dateStr) {
-        if (dateStr == null || dateStr.isEmpty()) return null;
-        try {
-            String[] parts = dateStr.split("\\s+");
-            if (parts.length >= 3) {
-                int day = Integer.parseInt(parts[0]);
-                String month = parts[1];
-                int year = Integer.parseInt(parts[2]);
-                int monthNum = getMonthNumber(month);
-                return LocalDate.of(year, monthNum, day);
-            }
-            return parseDate(dateStr);
-        } catch (Exception e) {
-            return parseDate(dateStr);
-        }
-    }
-
-    private String extractArtistName(String title) {
-        if (title.contains("-")) return title.split("-")[0].trim();
-        return title.trim();
-    }
-
-    private LocalDate parseDate(String dateStr) {
-        if (dateStr == null || dateStr.isEmpty()) return null;
-        try {
-            return LocalDate.parse(dateStr, SEARCH_RESULT_DATE_FORMATTER);
-        } catch (Exception e) {
-            try {
-                String[] parts = dateStr.split("\\s+");
-                if (parts.length >= 2) {
-                    int day = Integer.parseInt(parts[0]);
-                    String month = parts[1];
-                    int year = LocalDate.now().getYear();
-                    int monthNum = getMonthNumber(month);
-                    return LocalDate.of(year, monthNum, day);
-                }
-                return null;
-            } catch (Exception ex) {
-                return null;
-            }
-        }
-    }
-
-    private int getMonthNumber(String monthName) {
-        if (monthName == null || monthName.isEmpty()) return 1;
-        String lowerMonth = monthName.toLowerCase();
-        switch (lowerMonth) {
-            case "jan": case "january": case "ocak": case "oca": return 1;
-            case "feb": case "february": case "şubat": case "şub": return 2;
-            case "mar": case "march": case "mart": return 3;
-            case "apr": case "april": case "nisan": case "nis": return 4;
-            case "may": case "mayıs": return 5;
-            case "jun": case "june": case "haziran": case "haz": return 6;
-            case "jul": case "july": case "temmuz": case "tem": return 7;
-            case "aug": case "august": case "ağustos": case "ağu": return 8;
-            case "sep": case "september": case "eylül": case "eyl": return 9;
-            case "oct": case "october": case "ekim": case "eki": return 10;
-            case "nov": case "november": case "kasım": case "kas": return 11;
-            case "dec": case "december": case "aralık": case "ara": return 12;
-            default: return 1;
-        }
-    }
 
     private String[] processLocationString(String fullLocation) {
         String venueName = "";

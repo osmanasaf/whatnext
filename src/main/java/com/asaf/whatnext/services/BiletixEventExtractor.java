@@ -158,13 +158,13 @@ public class BiletixEventExtractor {
     private Event createEventFromInfo(EventType eventType, EventInfo info) {
         switch (eventType) {
             case CONCERT:
-                return EventUtils.createConcertEvent(info);
+                return EventUtils.createConcertEvent(info, eventType);
             case THEATER:
                 return EventUtils.createTheaterEvent(info, eventType);
             case STANDUP:
                 return EventUtils.createTheaterEvent(info, eventType);
             case EXHIBITION:
-                return EventUtils.createExhibitionEvent(info);
+                return EventUtils.createExhibitionEvent(info, eventType);
             default:
                 LOGGER.warning("Unknown event type: " + eventType);
                 return null;
@@ -241,13 +241,13 @@ public class BiletixEventExtractor {
     private Event createDetailedEventFromInfo(EventType eventType, DetailedEventInfo info) {
         switch (eventType) {
             case CONCERT:
-                return EventUtils.createDetailedConcertEvent(info);
+                return EventUtils.createDetailedConcertEvent(info, eventType);
             case THEATER:
                 return EventUtils.createDetailedTheaterEvent(info, eventType);
             case STANDUP:
                 return EventUtils.createDetailedTheaterEvent(info, eventType);
             case EXHIBITION:
-                return EventUtils.createDetailedExhibitionEvent(info);
+                return EventUtils.createDetailedExhibitionEvent(info, eventType);
             default:
                 LOGGER.warning("Unknown event type: " + eventType);
                 return null;

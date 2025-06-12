@@ -32,5 +32,6 @@ public class PerformingArt extends Event {
     )
     private List<Stage> stages;
     
+    @Enumerated(EnumType.STRING)
     private PerformanceType performanceType;
 }

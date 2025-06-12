@@ -9,5 +9,6 @@ public enum EventSourceType {
     PASSO,
     MOBILET,
     BILETINO,
-    MANUAL
+    MANUAL,
+    BILETINIAL
 }
