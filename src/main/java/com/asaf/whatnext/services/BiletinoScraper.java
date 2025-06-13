@@ -421,6 +421,7 @@ public class BiletinoScraper implements EventSource {
                 PerformingArt theater = EventUtils.createDetailedTheaterEvent(
                     new DetailedEventInfo(title, description, date, venueName, location, ticketUrl), eventType);
                 if (venue != null) theater.setVenue(venue);
+                theater.setPerformanceType(eventType == EventType.STANDUP ? PerformanceType.STANDUP : PerformanceType.THEATER);
                 return theater;
             default:
                 return null;

@@ -37,7 +37,7 @@ public class EventUtils {
             event.setStartDate(parseDate(dateStr));
         }
 
-        event.setSource(EventSourceType.BILETIX);
+        event.setSource(EventSourceType.BILETINO);
 
         if (ticketUrl != null && !ticketUrl.isEmpty()) {
             event.addTicketUrl(ticketUrl);
