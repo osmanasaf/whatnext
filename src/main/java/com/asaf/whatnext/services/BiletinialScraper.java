@@ -21,6 +21,10 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.io.InputStream;
+import java.util.Base64;
 
 @Service
 public class BiletinialScraper implements EventSource {
@@ -37,6 +41,7 @@ public class BiletinialScraper implements EventSource {
     private static final String SMALL_TAG = "<small>";
     private static final String SMALL_TAG_CLOSE = "</small>";
     private static final String DATE_SEPARATOR = " - ";
+    private static final String IMAGE_SELECTOR = "img[src*='merlincdn.net']";
 
     private final ConcertEventService concertEventService;
     private final TheaterEventService theaterEventService;
@@ -144,9 +149,41 @@ public class BiletinialScraper implements EventSource {
             }
 
             EventType eventType = determineEventType(title, category);
-            return createEvent(eventType, title, dateStr, location, ticketUrl);
+            Event event = createEvent(eventType, title, dateStr, location, ticketUrl);
+            
+            // Extract and save image
+            try {
+                WebElement imgElement = card.findElement(By.cssSelector(IMAGE_SELECTOR));
+                String imageUrl = imgElement.getAttribute("src");
+                if (imageUrl != null && !imageUrl.isEmpty()) {
+                    String imageData = downloadImageAsBase64(imageUrl);
+                    if (imageData != null) {
+                        event.setImage(imageData, "image/jpeg", imageUrl);
+                    }
+                }
+            } catch (Exception e) {
+                LOGGER.log(Level.WARNING, "Error extracting image from card", e);
+            }
+            
+            return event;
         } catch (Exception e) {
             LOGGER.log(Level.WARNING, "Error extracting event from card", e);
+            return null;
+        }
+    }
+
+    private String downloadImageAsBase64(String imageUrl) {
+        try {
+            URL url = new URL(imageUrl);
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestProperty("User-Agent", "Mozilla/5.0");
+            
+            try (InputStream in = connection.getInputStream()) {
+                byte[] imageBytes = in.readAllBytes();
+                return Base64.getEncoder().encodeToString(imageBytes);
+            }
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Error downloading image: " + imageUrl, e);
             return null;
         }
     }

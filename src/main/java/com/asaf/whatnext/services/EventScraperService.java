@@ -24,9 +24,9 @@ public class EventScraperService {
             BiletinialScraper biletinialScraper,
             EventService eventService) {
         this.scrapers = new ArrayList<>();
-        this.scrapers.add(biletixScraper);
-        this.scrapers.add(biletinoScraper);
         this.scrapers.add(biletinialScraper);
+        this.scrapers.add(biletinoScraper);
+        this.scrapers.add(biletixScraper);
         this.eventService = eventService;
     }
 

@@ -55,7 +55,14 @@ public class Event extends BaseEntity {
     @Column(name = "ticket_url")
     private List<String> ticketUrls = new ArrayList<>();
 
-    private String imageUrl;
+    @Column(columnDefinition = "TEXT")
+    private String imageData;
+
+    @Column
+    private String imageType;
+
+    @Column
+    private String imageSourceUrl;
 
     @ManyToOne
     @JoinColumn(name = "venue_id")
@@ -84,5 +91,11 @@ public class Event extends BaseEntity {
     public void removeStage(Stage stage) {
         stages.remove(stage);
         stage.setEvent(null);
+    }
+
+    public void setImage(String imageData, String imageType, String sourceUrl) {
+        this.imageData = imageData;
+        this.imageType = imageType;
+        this.imageSourceUrl = sourceUrl;
     }
 }

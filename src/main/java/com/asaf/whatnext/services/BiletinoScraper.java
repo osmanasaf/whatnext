@@ -13,12 +13,16 @@ import com.asaf.whatnext.service.VenueService;
 import com.asaf.whatnext.utils.EventUtils;
 import com.asaf.whatnext.utils.WebScraperUtils;
 import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
 import org.openqa.selenium.*;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -33,6 +37,8 @@ import static com.asaf.whatnext.utils.EventUtils.determineEventType;
 @Service
 public class BiletinoScraper implements EventSource {
     private static final Logger LOGGER = Logger.getLogger(BiletinoScraper.class.getName());
+    private static final String IMAGE_SELECTOR = "img.swiper-lazy";
+    
     private final ConcertEventService concertEventService;
     private final TheaterEventService theaterEventService;
     private final ArtistService artistService;
@@ -268,12 +274,45 @@ public class BiletinoScraper implements EventSource {
                 );
 
                 Event event = createEventFromDetailedInfo(eventType, basicInfo, detailedInfo);
-                if (event != null) events.add(event);
+                if (event != null) {
+                    // Extract and save image
+                    try {
+                        Element imgElement = doc.select(IMAGE_SELECTOR).first();
+                        if (imgElement != null) {
+                            String imageUrl = imgElement.attr("src");
+                            if (imageUrl != null && !imageUrl.isEmpty()) {
+                                String imageData = downloadImageAsBase64(imageUrl);
+                                if (imageData != null) {
+                                    event.setImage(imageData, "image/jpeg", imageUrl);
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        LOGGER.log(Level.WARNING, "Error extracting image from card", e);
+                    }
+                    events.add(event);
+                }
             } catch (Exception e) {
                 LOGGER.log(Level.WARNING, "Error processing event card", e);
             }
         }
         return events;
+    }
+
+    private String downloadImageAsBase64(String imageUrl) {
+        try {
+            URL url = new URL(imageUrl);
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestProperty("User-Agent", "Mozilla/5.0");
+            
+            try (InputStream in = connection.getInputStream()) {
+                byte[] imageBytes = in.readAllBytes();
+                return Base64.getEncoder().encodeToString(imageBytes);
+            }
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Error downloading image: " + imageUrl, e);
+            return null;
+        }
     }
 
     public static EventType categoryToEventType(BiletinoCategory category) {
