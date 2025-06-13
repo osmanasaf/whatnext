@@ -14,7 +14,11 @@ import java.util.List;
 public interface EventRepository extends JpaRepository<Event, Long> {
     List<Event> findByType(EventType type);
     List<Event> findBySource(EventSourceType source);
-    List<Event> findByVenueId(Long venueId);
+    List<Event> findByVenue(Venue venue);
     List<Event> findByStartDate(LocalDate startDate);
-    List<Event> findByStartDateAndVenue(LocalDate startDate, Venue venue);
+    List<Event> findByVenue_LocationContaining(String location);
+    List<Event> findByStartDateBetween(LocalDate startDate, LocalDate endDate);
+    List<Event> findByStartDateBetweenAndType(LocalDate startDate, LocalDate endDate, EventType type);
+    List<Event> findByStartDateBetweenAndVenue_LocationContaining(LocalDate startDate, LocalDate endDate, String location);
+    List<Event> findByStartDateBetweenAndTypeAndVenue_LocationContaining(LocalDate startDate, LocalDate endDate, EventType type, String location);
 } 

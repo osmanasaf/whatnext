@@ -3,6 +3,7 @@ package com.asaf.whatnext.models;
 import java.lang.String;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.Data;
@@ -18,9 +19,11 @@ import jakarta.persistence.JoinColumn;
 import com.asaf.whatnext.enums.EventSourceType;
 import com.asaf.whatnext.enums.EventType;
 import jakarta.persistence.*;
+import lombok.NoArgsConstructor;
 
 @Data
 @Entity
+@NoArgsConstructor
 @Inheritance(strategy = InheritanceType.SINGLE_TABLE)
 @EqualsAndHashCode(callSuper = true)
 public class Event extends BaseEntity {
@@ -58,6 +61,11 @@ public class Event extends BaseEntity {
     @JoinColumn(name = "venue_id")
     private Venue venue;
 
+    private String city;
+
+    @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<Stage> stages = new ArrayList<>();
+
     public void setVenue(Venue venue) {
         this.venue = venue;
     }
@@ -66,5 +74,15 @@ public class Event extends BaseEntity {
         if (!ticketUrls.contains(url)) {
             ticketUrls.add(url);
         }
+    }
+
+    public void addStage(Stage stage) {
+        stages.add(stage);
+        stage.setEvent(this);
+    }
+
+    public void removeStage(Stage stage) {
+        stages.remove(stage);
+        stage.setEvent(null);
     }
 }

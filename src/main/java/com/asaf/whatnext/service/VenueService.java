@@ -5,6 +5,8 @@ import com.asaf.whatnext.repository.VenueRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.Optional;
+
 @Service
 public class VenueService {
     private final VenueRepository venueRepository;
@@ -12,6 +14,10 @@ public class VenueService {
     @Autowired
     public VenueService(VenueRepository venueRepository) {
         this.venueRepository = venueRepository;
+    }
+
+    public Optional<Venue> findById(Long id) {
+        return venueRepository.findById(id);
     }
 
     public Venue findByName(String name) {
@@ -30,5 +36,9 @@ public class VenueService {
 
     public Venue save(Venue venue) {
         return venueRepository.save(venue);
+    }
+
+    public void deleteById(Long id) {
+        venueRepository.deleteById(id);
     }
 }

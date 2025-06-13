@@ -1,26 +1,24 @@
 package com.asaf.whatnext.models;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.ManyToMany;
+import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
-import lombok.ToString;
-
-import java.util.List;
+import lombok.NoArgsConstructor;
 
 @Data
 @Entity
-public class Stage {
-    @Id
-    private Long id;
+@NoArgsConstructor
+@EqualsAndHashCode(callSuper = true)
+public class Stage extends BaseEntity {
     private String name;
-    private String location;
+    private Integer capacity;
     private String description;
-    private int seatingCapacity;
 
-    @ManyToMany(mappedBy = "stages")
-    @EqualsAndHashCode.Exclude
-    @ToString.Exclude
-    private List<PerformingArt> events;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "event_id")
+    private Event event;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "venue_id")
+    private Venue venue;
 }
