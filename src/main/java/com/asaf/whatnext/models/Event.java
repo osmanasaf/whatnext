@@ -55,10 +55,10 @@ public class Event extends BaseEntity {
     @Column(name = "ticket_url")
     private List<String> ticketUrls = new ArrayList<>();
 
-    @OneToOne(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToOne(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private EventImage eventImage;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "venue_id")
     private Venue venue;
 

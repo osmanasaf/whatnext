@@ -3,7 +3,10 @@ package com.asaf.whatnext.controllers;
 import com.asaf.whatnext.enums.EventSourceType;
 import com.asaf.whatnext.enums.EventType;
 import com.asaf.whatnext.models.Event;
+import com.asaf.whatnext.models.EventImage;
+import com.asaf.whatnext.models.Stage;
 import com.asaf.whatnext.models.Venue;
+import com.asaf.whatnext.repository.EventImageRepository;
 import com.asaf.whatnext.service.EventService;
 import com.asaf.whatnext.service.VenueService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,11 +23,13 @@ public class EventController {
 
     private final EventService eventService;
     private final VenueService venueService;
+    private final EventImageRepository eventImageRepository;
 
     @Autowired
-    public EventController(EventService eventService, VenueService venueService) {
+    public EventController(EventService eventService, VenueService venueService, EventImageRepository eventImageRepository) {
         this.eventService = eventService;
         this.venueService = venueService;
+        this.eventImageRepository = eventImageRepository;
     }
 
     @GetMapping
@@ -130,6 +135,27 @@ public class EventController {
         } else {
             return ResponseEntity.ok(eventService.findByDateRange(startDateStr, endDateStr));
         }
+    }
+
+    @GetMapping("/{id}/image")
+    public ResponseEntity<EventImage> getEventImage(@PathVariable Long id) {
+        return eventImageRepository.findByEventId(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/{id}/stages")
+    public ResponseEntity<List<Stage>> getEventStages(@PathVariable Long id) {
+        return eventService.findById(id)
+                .map(event -> ResponseEntity.ok(event.getStages()))
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/{id}/venue")
+    public ResponseEntity<Venue> getEventVenue(@PathVariable Long id) {
+        return eventService.findById(id)
+                .map(event -> ResponseEntity.ok(event.getVenue()))
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @DeleteMapping("/{id}")

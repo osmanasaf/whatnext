@@ -6,9 +6,6 @@ package com.asaf.whatnext.enums;
  */
 public enum EventSourceType {
     BILETIX,
-    PASSO,
-    MOBILET,
     BILETINO,
-    MANUAL,
     BILETINIAL
 }
