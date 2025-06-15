@@ -55,14 +55,8 @@ public class Event extends BaseEntity {
     @Column(name = "ticket_url")
     private List<String> ticketUrls = new ArrayList<>();
 
-    @Column(columnDefinition = "TEXT")
-    private String imageData;
-
-    @Column
-    private String imageType;
-
-    @Column
-    private String imageSourceUrl;
+    @OneToOne(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
+    private EventImage eventImage;
 
     @ManyToOne
     @JoinColumn(name = "venue_id")
@@ -94,8 +88,12 @@ public class Event extends BaseEntity {
     }
 
     public void setImage(String imageData, String imageType, String sourceUrl) {
-        this.imageData = imageData;
-        this.imageType = imageType;
-        this.imageSourceUrl = sourceUrl;
+        if (this.eventImage == null) {
+            this.eventImage = new EventImage();
+            this.eventImage.setEvent(this);
+        }
+        this.eventImage.setImageData(imageData);
+        this.eventImage.setImageType(imageType);
+        this.eventImage.setImageSourceUrl(sourceUrl);
     }
 }
