@@ -2,6 +2,7 @@ package com.asaf.whatnext.service;
 
 import com.asaf.whatnext.enums.EventSourceType;
 import com.asaf.whatnext.enums.EventType;
+import com.asaf.whatnext.enums.City;
 import com.asaf.whatnext.models.*;
 import com.asaf.whatnext.repository.EventRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -54,8 +55,8 @@ public class EventService {
         return eventRepository.findByStartDate(java.time.LocalDate.parse(date));
     }
 
-    public List<Event> findByCity(String city) {
-        return eventRepository.findByVenue_LocationContaining(city);
+    public List<Event> findByCity(City city) {
+        return eventRepository.findByVenue_LocationContaining(city.getDisplayName());
     }
 
     public List<Event> findByDateRange(String startDate, String endDate) {
@@ -65,28 +66,28 @@ public class EventService {
         );
     }
 
-    public List<Event> findByDateRangeAndType(String startDate, String endDate, String type) {
+    public List<Event> findByDateRangeAndType(String startDate, String endDate, EventType type) {
         return eventRepository.findByStartDateBetweenAndType(
             java.time.LocalDate.parse(startDate),
             java.time.LocalDate.parse(endDate),
-            EventType.valueOf(type)
+            type
         );
     }
 
-    public List<Event> findByDateRangeAndCity(String startDate, String endDate, String city) {
+    public List<Event> findByDateRangeAndCity(String startDate, String endDate, City city) {
         return eventRepository.findByStartDateBetweenAndVenue_LocationContaining(
             java.time.LocalDate.parse(startDate),
             java.time.LocalDate.parse(endDate),
-            city
+            city.getDisplayName()
         );
     }
 
-    public List<Event> findByDateRangeAndTypeAndCity(String startDate, String endDate, String type, String city) {
+    public List<Event> findByDateRangeAndTypeAndCity(String startDate, String endDate, EventType type, City city) {
         return eventRepository.findByStartDateBetweenAndTypeAndVenue_LocationContaining(
             java.time.LocalDate.parse(startDate),
             java.time.LocalDate.parse(endDate),
-            EventType.valueOf(type),
-            city
+            type,
+            city.getDisplayName()
         );
     }
 

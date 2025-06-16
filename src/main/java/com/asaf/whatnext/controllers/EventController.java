@@ -2,6 +2,7 @@ package com.asaf.whatnext.controllers;
 
 import com.asaf.whatnext.enums.EventSourceType;
 import com.asaf.whatnext.enums.EventType;
+import com.asaf.whatnext.enums.City;
 import com.asaf.whatnext.models.Event;
 import com.asaf.whatnext.models.EventImage;
 import com.asaf.whatnext.models.Stage;
@@ -67,15 +68,15 @@ public class EventController {
     }
 
     @GetMapping("/city/{city}")
-    public ResponseEntity<List<Event>> getEventsByCity(@PathVariable String city) {
+    public ResponseEntity<List<Event>> getEventsByCity(@PathVariable City city) {
         return ResponseEntity.ok(eventService.findByCity(city));
     }
 
     @GetMapping("/daily")
     public ResponseEntity<List<Event>> getDailyEvents(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
-            @RequestParam(required = false) String type,
-            @RequestParam(required = false) String city) {
+            @RequestParam(required = false) EventType type,
+            @RequestParam(required = false) City city) {
         
         LocalDate targetDate = date != null ? date : LocalDate.now();
         String dateStr = targetDate.toString();
@@ -94,8 +95,8 @@ public class EventController {
     @GetMapping("/weekly")
     public ResponseEntity<List<Event>> getWeeklyEvents(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam(required = false) String type,
-            @RequestParam(required = false) String city) {
+            @RequestParam(required = false) EventType type,
+            @RequestParam(required = false) City city) {
         
         LocalDate targetStartDate = startDate != null ? startDate : LocalDate.now();
         LocalDate targetEndDate = targetStartDate.plusDays(6);
@@ -117,14 +118,35 @@ public class EventController {
     @GetMapping("/monthly")
     public ResponseEntity<List<Event>> getMonthlyEvents(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
-            @RequestParam(required = false) String type,
-            @RequestParam(required = false) String city) {
+            @RequestParam(required = false) EventType type,
+            @RequestParam(required = false) City city) {
         
         LocalDate targetStartDate = startDate != null ? startDate : LocalDate.now();
         LocalDate targetEndDate = targetStartDate.plusMonths(1).minusDays(1);
         
         String startDateStr = targetStartDate.toString();
         String endDateStr = targetEndDate.toString();
+
+        if (type != null && city != null) {
+            return ResponseEntity.ok(eventService.findByDateRangeAndTypeAndCity(startDateStr, endDateStr, type, city));
+        } else if (type != null) {
+            return ResponseEntity.ok(eventService.findByDateRangeAndType(startDateStr, endDateStr, type));
+        } else if (city != null) {
+            return ResponseEntity.ok(eventService.findByDateRangeAndCity(startDateStr, endDateStr, city));
+        } else {
+            return ResponseEntity.ok(eventService.findByDateRange(startDateStr, endDateStr));
+        }
+    }
+
+    @GetMapping("/range")
+    public ResponseEntity<List<Event>> getEventsByDateRange(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
+            @RequestParam(required = false) EventType type,
+            @RequestParam(required = false) City city) {
+        
+        String startDateStr = startDate.toString();
+        String endDateStr = endDate != null ? endDate.toString() : startDateStr;
 
         if (type != null && city != null) {
             return ResponseEntity.ok(eventService.findByDateRangeAndTypeAndCity(startDateStr, endDateStr, type, city));
