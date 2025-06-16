@@ -62,14 +62,18 @@ public class BiletixScraperConfig {
     }
 
     public String buildSearchUrl(BiletixCategory category) {
+        return buildSearchUrl(category, DEFAULT_CITY);
+    }
+
+    public String buildSearchUrl(BiletixCategory category, BiletixCity city) {
         return String.format(
                 "%s/search/TURKIYE/tr?category_sb=%s&date_sb=%s&city_sb=%s#!category_sb:%s,city_sb:%s,date_sb:%s",
                 BASE_URL,
                 category.getValue(),
                 DEFAULT_DATE.getValue(),
-                DEFAULT_CITY.getValue(),
+                city.getValue(),
                 category.getValue(),
-                DEFAULT_CITY.getValue(),
+                city.getValue(),
                 DEFAULT_DATE.getValue()
         );
     }

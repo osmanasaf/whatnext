@@ -26,11 +26,33 @@ public class ScraperController {
         }
     }
 
+    @PostMapping("/run-all/{city}")
+    public ResponseEntity<String> runAllScrapersForCity(@PathVariable String city) {
+        try {
+            eventScraperService.scrapeAllEvents(city);
+            return ResponseEntity.ok("All scrapers completed successfully for city: " + city);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error running scrapers: " + e.getMessage());
+        }
+    }
+
     @PostMapping("/run/{source}")
     public ResponseEntity<String> runScraperBySource(@PathVariable String source) {
         try {
             eventScraperService.scrapeEventsBySource(source);
             return ResponseEntity.ok("Scraper " + source + " completed successfully");
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error running scraper: " + e.getMessage());
+        }
+    }
+
+    @PostMapping("/run/{source}/{city}")
+    public ResponseEntity<String> runScraperBySourceAndCity(@PathVariable String source, @PathVariable String city) {
+        try {
+            eventScraperService.scrapeEventsBySource(source, city);
+            return ResponseEntity.ok("Scraper " + source + " completed successfully for city: " + city);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {

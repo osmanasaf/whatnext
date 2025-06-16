@@ -1,6 +1,7 @@
 package com.asaf.whatnext.services;
 
 import com.asaf.whatnext.enums.Biletinial.BiletinialCategory;
+import com.asaf.whatnext.enums.Biletinial.BiletinialCity;
 import com.asaf.whatnext.enums.EventSourceType;
 import com.asaf.whatnext.enums.EventType;
 import com.asaf.whatnext.enums.PerformanceType;
@@ -13,6 +14,7 @@ import com.asaf.whatnext.utils.WebScraperUtils;
 import org.openqa.selenium.*;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -32,7 +34,7 @@ public class BiletinialScraper implements EventSource {
     private static final String CHROME_PATH = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
     private static final int WAIT_TIMEOUT = 60;
     private static final String BASE_URL = "https://biletinial.com";
-    private static final String SEARCH_URL_TEMPLATE = "%s/tr-tr/%s/istanbul?date=%s&filmtypeid=0&loc=0&thisweekend=";
+    private static final String SEARCH_URL_TEMPLATE = "%s/tr-tr/%s/%s?date=%s&filmtypeid=0&loc=0&thisweekend=";
     private static final String EVENT_CARD_SELECTOR = "#kategori__etkinlikler li";
     private static final String TITLE_SELECTOR = "h3 a";
     private static final String DATE_SELECTOR = "span";
@@ -42,6 +44,8 @@ public class BiletinialScraper implements EventSource {
     private static final String SMALL_TAG_CLOSE = "</small>";
     private static final String DATE_SEPARATOR = " - ";
     private static final String IMAGE_SELECTOR = "img[src*='merlincdn.net']";
+
+    private final BiletinialCity city = BiletinialCity.ISTANBUL;
 
     private final ConcertEventService concertEventService;
     private final TheaterEventService theaterEventService;
@@ -74,11 +78,21 @@ public class BiletinialScraper implements EventSource {
 
     @Override
     public List<Event> fetchEvents() {
+        return fetchEvents(BiletinialCity.ISTANBUL.getValue());
+    }
+
+    @Override
+    public List<Event> fetchEvents(String city) {
         List<Event> allEvents = new ArrayList<>();
         try {
-            allEvents.addAll(processCategory(BiletinialCategory.THEATRE));
-            allEvents.addAll(processCategory(BiletinialCategory.MUSIC));
-            allEvents.addAll(processCategory(BiletinialCategory.STANDUP));
+            BiletinialCity selectedCity = Arrays.stream(BiletinialCity.values())
+                    .filter(c -> c.getValue().equalsIgnoreCase(city))
+                    .findFirst()
+                    .orElse(BiletinialCity.ISTANBUL);
+
+            allEvents.addAll(processCategory(BiletinialCategory.THEATRE, selectedCity));
+            allEvents.addAll(processCategory(BiletinialCategory.MUSIC, selectedCity));
+            allEvents.addAll(processCategory(BiletinialCategory.STANDUP, selectedCity));
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Error fetching events from Biletinial", e);
         }
@@ -86,16 +100,20 @@ public class BiletinialScraper implements EventSource {
     }
 
     public List<Event> processCategory(BiletinialCategory category) {
+        return processCategory(category, BiletinialCity.ISTANBUL);
+    }
+
+    public List<Event> processCategory(BiletinialCategory category, BiletinialCity city) {
         List<Event> events = new ArrayList<>();
         try {
             initializeBrowser();
-            LOGGER.info("Processing category: " + category.name());
+            LOGGER.info("Processing category: " + category.name() + " for city: " + city.getValue());
             
             LocalDate today = LocalDate.now();
             for (int i = 0; i < 7; i++) {
                 LocalDate date = today.plusDays(i);
                 String dateStr = date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
-                String searchUrl = buildSearchUrl(category, dateStr);
+                String searchUrl = buildSearchUrl(category, dateStr, city);
                 
                 LOGGER.info("Fetching events for date: " + dateStr);
                 List<Event> dateEvents = fetchEventsByDate(searchUrl, category);
@@ -112,7 +130,11 @@ public class BiletinialScraper implements EventSource {
     }
 
     private String buildSearchUrl(BiletinialCategory category, String date) {
-        return String.format(SEARCH_URL_TEMPLATE, BASE_URL, category.getValue(), date);
+        return buildSearchUrl(category, date, BiletinialCity.ISTANBUL);
+    }
+
+    private String buildSearchUrl(BiletinialCategory category, String date, BiletinialCity city) {
+        return String.format(SEARCH_URL_TEMPLATE, BASE_URL, category.getValue(), city.getValue(), date);
     }
 
     private List<Event> fetchEventsByDate(String searchUrl, BiletinialCategory category) {

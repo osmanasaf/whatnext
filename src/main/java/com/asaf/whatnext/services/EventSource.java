@@ -5,6 +5,7 @@ import java.util.List;
 
 public interface EventSource {
     List<Event> fetchEvents();
+    List<Event> fetchEvents(String city);
     String getSourceName();
     boolean isAvailable();
     String getSourceUrl();

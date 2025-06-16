@@ -1,13 +1,13 @@
-package com.asaf.whatnext.enums.Biletix;
+package com.asaf.whatnext.enums.Biletinial;
 
-public enum BiletixCity {
+public enum BiletinialCity {
     ISTANBUL("istanbul"),
     ANKARA("ankara"),
     IZMIR("izmir");
 
     private final String value;
 
-    BiletixCity(String value) {
+    BiletinialCity(String value) {
         this.value = value;
     }
 

@@ -2,6 +2,7 @@ package com.asaf.whatnext.services;
 
 import com.asaf.whatnext.config.BiletixScraperConfig;
 import com.asaf.whatnext.enums.Biletix.BiletixCategory;
+import com.asaf.whatnext.enums.Biletix.BiletixCity;
 import com.asaf.whatnext.enums.EventSourceType;
 import com.asaf.whatnext.enums.EventType;
 import com.asaf.whatnext.models.ConcertEvent;
@@ -25,6 +26,7 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -40,6 +42,7 @@ public class BiletixScraper implements EventSource {
     private final VenueService venueService;
     private final BiletixScraperConfig config;
     private final BiletixEventExtractor eventExtractor;
+    private final BiletixCity city = BiletixCity.ISTANBUL;
 
     private WebDriver driver;
     private WebDriverWait wait;
@@ -76,18 +79,28 @@ public class BiletixScraper implements EventSource {
 
     @Override
     public List<Event> fetchEvents() {
-        LOGGER.info("Starting to fetch events from Biletix");
+        return fetchEvents(BiletixCity.ISTANBUL.getValue());
+    }
+
+    @Override
+    public List<Event> fetchEvents(String city) {
+        LOGGER.info("Starting to fetch events from Biletix for city: " + city);
         List<Event> allEvents = new ArrayList<>();
 
         try {
+            BiletixCity selectedCity = Arrays.stream(BiletixCity.values())
+                    .filter(c -> c.getValue().equalsIgnoreCase(city))
+                    .findFirst()
+                    .orElse(BiletixCity.ISTANBUL);
+
             // Process MUSIC category
             LOGGER.info("Processing MUSIC category");
-            List<Event> musicEvents = processCategory(BiletixCategory.MUSIC);
+            List<Event> musicEvents = processCategory(BiletixCategory.MUSIC, selectedCity);
             allEvents.addAll(musicEvents);
 
             // Process ART category
             LOGGER.info("Processing ART category");
-            List<Event> artEvents = processCategory(BiletixCategory.ART);
+            List<Event> artEvents = processCategory(BiletixCategory.ART, selectedCity);
             allEvents.addAll(artEvents);
 
             LOGGER.info("Successfully fetched and saved " + allEvents.size() + " events from Biletix");
@@ -99,12 +112,16 @@ public class BiletixScraper implements EventSource {
     }
 
     public List<Event> processCategory(BiletixCategory category) {
+        return processCategory(category, BiletixCity.ISTANBUL);
+    }
+
+    public List<Event> processCategory(BiletixCategory category, BiletixCity city) {
         List<Event> events = new ArrayList<>();
         try {
             initializeBrowser();
 
-            LOGGER.info("Fetching events for category: " + category.name());
-            List<Event> categoryEvents = fetchEventsByCategory(category);
+            LOGGER.info("Fetching events for category: " + category.name() + " in city: " + city.getValue());
+            List<Event> categoryEvents = fetchEventsByCategory(category, city);
 
             saveEventsWithDuplicateChecking(categoryEvents);
             events.addAll(categoryEvents);
@@ -140,11 +157,15 @@ public class BiletixScraper implements EventSource {
     }
 
     private List<Event> fetchEventsByCategory(BiletixCategory category) {
-        LOGGER.info("Fetching events for category: " + category.name());
+        return fetchEventsByCategory(category, BiletixCity.ISTANBUL);
+    }
+
+    private List<Event> fetchEventsByCategory(BiletixCategory category, BiletixCity city) {
+        LOGGER.info("Fetching events for category: " + category.name() + " in city: " + city.getValue());
         List<Event> events = new ArrayList<>();
 
         try {
-            String searchUrl = config.buildSearchUrl(category);
+            String searchUrl = config.buildSearchUrl(category, city);
             WebScraperUtils.navigateToUrl(driver, wait, searchUrl);
 
             EventCollection eventCollection = collectEventCardsAndUrls();

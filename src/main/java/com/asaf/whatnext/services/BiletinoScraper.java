@@ -2,6 +2,7 @@ package com.asaf.whatnext.services;
 
 import com.asaf.whatnext.config.BiletinoScraperConfig;
 import com.asaf.whatnext.enums.Biletino.BiletinoCategory;
+import com.asaf.whatnext.enums.Biletino.BiletinoCity;
 import com.asaf.whatnext.enums.EventSourceType;
 import com.asaf.whatnext.enums.EventType;
 import com.asaf.whatnext.enums.PerformanceType;
@@ -44,6 +45,7 @@ public class BiletinoScraper implements EventSource {
     private final ArtistService artistService;
     private final VenueService venueService;
     private final BiletinoScraperConfig config;
+    private final BiletinoCity city = BiletinoCity.ISTANBUL;
     private WebDriver driver;
     private WebDriverWait wait;
 
@@ -71,11 +73,21 @@ public class BiletinoScraper implements EventSource {
 
     @Override
     public List<Event> fetchEvents() {
+        return fetchEvents(BiletinoCity.ISTANBUL.getValue());
+    }
+
+    @Override
+    public List<Event> fetchEvents(String city) {
         List<Event> allEvents = new ArrayList<>();
         try {
-            allEvents.addAll(processCategory(BiletinoCategory.MUSIC));
-            allEvents.addAll(processCategory(BiletinoCategory.THEATRE));
-            allEvents.addAll(processCategory(BiletinoCategory.COMEDY));
+            BiletinoCity selectedCity = Arrays.stream(BiletinoCity.values())
+                    .filter(c -> c.getValue().equalsIgnoreCase(city))
+                    .findFirst()
+                    .orElse(BiletinoCity.ISTANBUL);
+
+            allEvents.addAll(processCategory(BiletinoCategory.MUSIC, selectedCity));
+            allEvents.addAll(processCategory(BiletinoCategory.THEATRE, selectedCity));
+            allEvents.addAll(processCategory(BiletinoCategory.COMEDY, selectedCity));
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Error fetching events from Biletino", e);
         }
@@ -83,10 +95,14 @@ public class BiletinoScraper implements EventSource {
     }
 
     public List<Event> processCategory(BiletinoCategory category) {
+        return processCategory(category, BiletinoCity.ISTANBUL);
+    }
+
+    public List<Event> processCategory(BiletinoCategory category, BiletinoCity city) {
         List<Event> events = new ArrayList<>();
         try {
             initializeBrowser();
-            List<Event> categoryEvents = fetchEventsByCategory(category);
+            List<Event> categoryEvents = fetchEventsByCategory(category, city);
             saveEventsWithDuplicateChecking(categoryEvents);
             events.addAll(categoryEvents);
         } catch (Exception e) {
@@ -149,9 +165,13 @@ public class BiletinoScraper implements EventSource {
     }
 
     private List<Event> fetchEventsByCategory(BiletinoCategory category) {
+        return fetchEventsByCategory(category, BiletinoCity.ISTANBUL);
+    }
+
+    private List<Event> fetchEventsByCategory(BiletinoCategory category, BiletinoCity city) {
         List<Event> events = new ArrayList<>();
         try {
-            String searchUrl = config.buildSearchUrl(category);
+            String searchUrl = config.buildSearchUrl(category, city);
             navigateToUrl(searchUrl);
             handleCookieConsent();
             handleOverlays();

@@ -1,6 +1,7 @@
 package com.asaf.whatnext.config;
 
 import com.asaf.whatnext.enums.Biletino.BiletinoCategory;
+import com.asaf.whatnext.enums.Biletino.BiletinoCity;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 
@@ -58,11 +59,15 @@ public class BiletinoScraperConfig {
     }
 
     public String buildSearchUrl(BiletinoCategory category) {
+        return buildSearchUrl(category, BiletinoCity.ISTANBUL);
+    }
+
+    public String buildSearchUrl(BiletinoCategory category, BiletinoCity city) {
         return String.format(
                 "%s/en/search/?start=0&count=0&ajax=false&loadmore=false&autochange=true&userid=&query=&performer=&category=%s&location=%s&date=%s",
                 BASE_URL,
                 category.getValue(),
-                DEFAULT_LOCATION,
+                city.getValue(),
                 DEFAULT_DATE_PARAM
         );
     }

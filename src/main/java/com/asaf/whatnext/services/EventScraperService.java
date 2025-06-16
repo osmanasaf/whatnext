@@ -31,7 +31,11 @@ public class EventScraperService {
     }
 
     public void scrapeAllEvents() {
-        LOGGER.info("Starting event scraping process...");
+        scrapeAllEvents(null);
+    }
+
+    public void scrapeAllEvents(String city) {
+        LOGGER.info("Starting event scraping process{}...", city != null ? " for city: " + city : "");
         
         for (EventSource scraper : scrapers) {
             try {
@@ -42,7 +46,7 @@ public class EventScraperService {
                     continue;
                 }
 
-                List<Event> events = scraper.fetchEvents();
+                List<Event> events = city != null ? scraper.fetchEvents(city) : scraper.fetchEvents();
                 LOGGER.info("Found {} events from {}", events.size(), scraper.getSourceName());
 
                 for (Event event : events) {
@@ -65,7 +69,12 @@ public class EventScraperService {
     }
 
     public void scrapeEventsBySource(String sourceName) {
-        LOGGER.info("Starting event scraping for source: {}", sourceName);
+        scrapeEventsBySource(sourceName, null);
+    }
+
+    public void scrapeEventsBySource(String sourceName, String city) {
+        LOGGER.info("Starting event scraping for source: {}{}", 
+            sourceName, city != null ? " in city: " + city : "");
         
         EventSource targetScraper = scrapers.stream()
                 .filter(scraper -> scraper.getSourceName().equalsIgnoreCase(sourceName))
@@ -78,7 +87,7 @@ public class EventScraperService {
                 return;
             }
 
-            List<Event> events = targetScraper.fetchEvents();
+            List<Event> events = city != null ? targetScraper.fetchEvents(city) : targetScraper.fetchEvents();
             LOGGER.info("Found {} events from {}", events.size(), sourceName);
 
             for (Event event : events) {
