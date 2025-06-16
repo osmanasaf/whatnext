@@ -8,5 +8,6 @@ public enum EventType {
     CONCERT,
     THEATER,
     STANDUP,
-    EXHIBITION
+    EXHIBITION,
+    PERFORMING_ART
 }

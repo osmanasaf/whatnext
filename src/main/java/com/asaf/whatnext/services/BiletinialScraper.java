@@ -220,30 +220,47 @@ public class BiletinialScraper implements EventSource {
     }
 
     private Event createEvent(EventType eventType, String title, String dateStr, String location, String ticketUrl) {
-        Event event = switch (eventType) {
-            case CONCERT -> new ConcertEvent();
-            case THEATER, STANDUP -> {
-                TheaterEvent theaterEvent = new TheaterEvent();
-                theaterEvent.setPerformanceType(eventType == EventType.STANDUP ? PerformanceType.STANDUP : PerformanceType.THEATER);
-                yield theaterEvent;
-            }
-            default -> null;
-        };
-
-        if (event == null) {
-            return null;
-        }
-
-        event.setTitle(title);
-        event.setStartDate(parseDate(dateStr));
-        event.setSource(EventSourceType.BILETINIAL);
-        event.setType(eventType);
-        event.addTicketUrl(ticketUrl);
+        Event event = null;
+        Venue venue = null;
 
         String[] locationParts = location.split(SMALL_TAG);
-        if (locationParts.length >= 2) {
-            String venueName = locationParts[1].replace(SMALL_TAG_CLOSE, "").trim();
-            event.setVenue(venueService.findOrCreateVenue(venueName));
+        String venueName = locationParts.length >= 2 ? locationParts[1].replace(SMALL_TAG_CLOSE, "").trim() : null;
+
+        if (venueName != null && !venueName.isEmpty()) {
+            venue = venueService.findByName(venueName);
+            if (venue == null) {
+                venue = new Venue();
+                venue.setName(venueName);
+                venue.setLocation(location);
+                venue = venueService.save(venue);
+            }
+        }
+
+        switch (eventType) {
+            case CONCERT:
+                ConcertEvent concert = new ConcertEvent();
+                concert.setTitle(title);
+                concert.setStartDate(parseDate(dateStr));
+                concert.setSource(EventSourceType.BILETINIAL);
+                concert.setType(eventType);
+                concert.addTicketUrl(ticketUrl);
+                if (venue != null) concert.setVenue(venue);
+                event = concert;
+                break;
+            case THEATER:
+            case STANDUP:
+                PerformingArt theater = new PerformingArt();
+                theater.setTitle(title);
+                theater.setStartDate(parseDate(dateStr));
+                theater.setSource(EventSourceType.BILETINIAL);
+                theater.setType(EventType.PERFORMING_ART);
+                theater.setPerformanceType(eventType == EventType.STANDUP ? PerformanceType.STANDUP : PerformanceType.THEATER);
+                theater.addTicketUrl(ticketUrl);
+                if (venue != null) theater.setVenue(venue);
+                event = theater;
+                break;
+            default:
+                return null;
         }
 
         return event;
