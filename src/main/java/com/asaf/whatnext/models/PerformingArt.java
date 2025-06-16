@@ -4,6 +4,7 @@ import com.asaf.whatnext.enums.PerformanceType;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import jakarta.persistence.*;
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import java.util.List;
 
 @Data
@@ -18,10 +19,12 @@ public class PerformingArt extends Event {
         joinColumns = @JoinColumn(name = "event_id"),
         inverseJoinColumns = @JoinColumn(name = "actor_id")
     )
+    @JsonBackReference(value = "actor-events")
     private List<Actor> actors;
 
     @ManyToOne
     @JoinColumn(name = "director_id")
+    @JsonBackReference(value = "director-events")
     private Director director;
 
     @Enumerated(EnumType.STRING)

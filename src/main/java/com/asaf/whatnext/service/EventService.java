@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.Locale;
@@ -109,8 +110,10 @@ public class EventService {
         }
 
         if (event.getVenue() != null) {
-            Venue savedVenue = venueService.save(event.getVenue());
-            event.setVenue(savedVenue);
+            if(event.getId() == null){
+                Venue savedVenue = venueService.save(event.getVenue());
+                event.setVenue(savedVenue);
+            }
         }
 
         return eventRepository.save(event);

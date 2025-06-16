@@ -8,6 +8,7 @@ import com.asaf.whatnext.models.ConcertEvent;
 import com.asaf.whatnext.models.Event;
 import com.asaf.whatnext.models.ExhibitionEvent;
 import com.asaf.whatnext.models.PerformingArt;
+import com.asaf.whatnext.service.VenueService;
 import com.asaf.whatnext.utils.EventUtils;
 import com.asaf.whatnext.utils.WebScraperUtils;
 import org.openqa.selenium.By;
@@ -27,10 +28,13 @@ public class BiletixEventExtractor {
     private static final Logger LOGGER = Logger.getLogger(BiletixEventExtractor.class.getName());
     
     private final BiletixScraperConfig config;
-    
+    private final VenueService venueService;
+
     @Autowired
-    public BiletixEventExtractor(BiletixScraperConfig config) {
+    public BiletixEventExtractor(BiletixScraperConfig config,
+                                 VenueService venueService) {
         this.config = config;
+        this.venueService = venueService;
     }
     
     public List<Event> extractBasicInfoFromCards(List<WebElement> eventCards, BiletixCategory category) {
@@ -159,7 +163,7 @@ public class BiletixEventExtractor {
     private Event createEventFromInfo(EventType eventType, EventInfo info) {
         switch (eventType) {
             case CONCERT:
-                return EventUtils.createConcertEvent(info, eventType, EventSourceType.BILETIX);
+                return EventUtils.createConcertEvent(info, eventType, EventSourceType.BILETIX, venueService);
             case THEATER:
                 return EventUtils.createTheaterEvent(info, eventType, EventSourceType.BILETIX);
             case STANDUP:
@@ -242,7 +246,7 @@ public class BiletixEventExtractor {
     private Event createDetailedEventFromInfo(EventType eventType, DetailedEventInfo info) {
         switch (eventType) {
             case CONCERT:
-                return EventUtils.createDetailedConcertEvent(info, eventType, EventSourceType.BILETIX);
+                return EventUtils.createDetailedConcertEvent(info, eventType, EventSourceType.BILETIX, venueService);
             case THEATER:
                 return EventUtils.createDetailedTheaterEvent(info, eventType, EventSourceType.BILETIX);
             case STANDUP:

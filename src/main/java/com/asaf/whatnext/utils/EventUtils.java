@@ -43,8 +43,14 @@ public class EventUtils {
         }
     }
 
-    public static void setVenueProperties(Event event, String venueName, String location) {
+    public static void setVenueProperties(Event event, String venueName, String location, Venue existingVenue) {
+        if( existingVenue != null) {
+            event.setVenue(existingVenue);
+            return;
+        }
+
         if ((venueName != null && !venueName.isEmpty()) || (location != null && !location.isEmpty())) {
+
             Venue venue = new Venue();
             venue.setName(venueName);
             venue.setLocation(location);
@@ -53,14 +59,14 @@ public class EventUtils {
         }
     }
 
-    public static ConcertEvent createConcertEvent(EventInfo info, EventType eventType, EventSourceType eventSourceType) {
+    public static ConcertEvent createConcertEvent(EventInfo info, EventType eventType, EventSourceType eventSourceType,  VenueService venueService) {
         ConcertEvent concert = new ConcertEvent();
         setCommonEventProperties(concert, info.getTitle(), "", info.getDateStr(), info.getTicketUrl(), eventSourceType);
         concert.setType(eventType);
         Artist artist = new Artist();
         artist.setName(extractArtistName(info.getTitle(), ""));
         concert.setArtist(artist);
-        setVenueProperties(concert, info.getVenueName(), info.getLocation());
+        setVenueProperties(concert, info.getVenueName(), info.getLocation(), venueService.findByName(info.getVenueName()));
         concert.setCity(info.getLocation());
         return concert;
     }
@@ -84,14 +90,14 @@ public class EventUtils {
         return exhibition;
     }
 
-    public static ConcertEvent createDetailedConcertEvent(DetailedEventInfo info, EventType eventType, EventSourceType eventSourceType) {
+    public static ConcertEvent createDetailedConcertEvent(DetailedEventInfo info, EventType eventType, EventSourceType eventSourceType, VenueService venueService) {
         ConcertEvent concert = new ConcertEvent();
         setCommonEventProperties(concert, info.getTitle(), info.getDescription(), info.getDateStr(), info.getTicketUrl(), eventSourceType);
         concert.setType(eventType);
         Artist artist = new Artist();
         artist.setName(extractArtistName(info.getTitle(), info.getDescription()));
         concert.setArtist(artist);
-        setVenueProperties(concert, info.getVenueName(), info.getLocation());
+        setVenueProperties(concert, info.getVenueName(), info.getLocation(), venueService.findByName(info.getVenueName()));
         return concert;
     }
 

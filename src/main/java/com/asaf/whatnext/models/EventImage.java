@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 
 @Data
 @Entity
@@ -26,5 +27,6 @@ public class EventImage extends BaseEntity {
 
     @OneToOne
     @JoinColumn(name = "event_id")
+    @JsonManagedReference(value = "event-image")
     private Event event;
 } 

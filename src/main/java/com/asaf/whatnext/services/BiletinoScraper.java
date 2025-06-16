@@ -475,8 +475,7 @@ public class BiletinoScraper implements EventSource {
         switch (eventType) {
             case CONCERT:
                 ConcertEvent concert = EventUtils.createDetailedConcertEvent(
-                    new DetailedEventInfo(title, description, date, venueName, location, ticketUrl), eventType, EventSourceType.BILETINO);
-                if (venue != null) concert.setVenue(venue);
+                    new DetailedEventInfo(title, description, date, venueName, location, ticketUrl), eventType, EventSourceType.BILETINO, venueService);
                 concert.setCity(Objects.requireNonNull(venue).getCity());
                 return concert;
             case THEATER:

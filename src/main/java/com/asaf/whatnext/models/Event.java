@@ -20,6 +20,7 @@ import com.asaf.whatnext.enums.EventSourceType;
 import com.asaf.whatnext.enums.EventType;
 import jakarta.persistence.*;
 import lombok.NoArgsConstructor;
+import com.fasterxml.jackson.annotation.JsonBackReference;
 
 @Data
 @Entity
@@ -56,10 +57,12 @@ public class Event extends BaseEntity {
     private List<String> ticketUrls = new ArrayList<>();
 
     @OneToOne(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @JsonBackReference(value = "event-image")
     private EventImage eventImage;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "venue_id")
+    @JsonBackReference(value = "venue-events")
     private Venue venue;
 
     private String city;
@@ -73,7 +76,6 @@ public class Event extends BaseEntity {
             ticketUrls.add(url);
         }
     }
-
 
     public void setImage(String imageData, String imageType, String sourceUrl) {
         if (this.eventImage == null) {

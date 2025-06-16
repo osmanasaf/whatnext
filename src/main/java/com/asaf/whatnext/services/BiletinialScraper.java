@@ -273,6 +273,7 @@ public class BiletinialScraper implements EventSource {
                 return null;
         }
         event.setCity(Objects.requireNonNull(venue).getCity());
+        event.setVenue(venue);
         return event;
     }
 

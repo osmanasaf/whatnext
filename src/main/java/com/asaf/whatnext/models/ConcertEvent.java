@@ -6,6 +6,7 @@ import lombok.EqualsAndHashCode;
 import jakarta.persistence.Entity;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.JoinColumn;
+import com.fasterxml.jackson.annotation.JsonBackReference;
 
 @Data
 @Entity
@@ -13,11 +14,8 @@ import jakarta.persistence.JoinColumn;
 public class ConcertEvent extends Event {
     @ManyToOne
     @JoinColumn(name = "artist_id")
+    @JsonBackReference(value = "artist-events")
     private Artist artist;
-    
-    @ManyToOne
-    @JoinColumn(name = "venue_id")
-    private Venue venue;
     
     private ConcertType concertType;
 }

@@ -4,6 +4,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import jakarta.persistence.Entity;
 import jakarta.persistence.ManyToMany;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import java.util.List;
 
 @Data
@@ -15,5 +16,6 @@ public class Actor extends BaseEntity {
     private String birthDate;
     
     @ManyToMany(mappedBy = "actors")
+    @JsonManagedReference(value = "actor-events")
     private List<PerformingArt> events;
 }

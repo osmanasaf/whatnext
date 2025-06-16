@@ -4,6 +4,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import jakarta.persistence.Entity;
 import jakarta.persistence.OneToMany;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import java.util.List;
 
 @Data
@@ -15,5 +16,6 @@ public class Artist extends BaseEntity {
     private String biography;
     
     @OneToMany(mappedBy = "artist")
+    @JsonManagedReference(value = "artist-events")
     private List<ConcertEvent> events;
 }

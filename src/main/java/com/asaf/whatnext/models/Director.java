@@ -4,6 +4,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import jakarta.persistence.Entity;
 import jakarta.persistence.OneToMany;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 import java.util.List;
 
 @Data
@@ -15,5 +16,6 @@ public class Director extends BaseEntity {
     private String birthDate;
     
     @OneToMany(mappedBy = "director")
+    @JsonManagedReference(value = "director-events")
     private List<PerformingArt> events;
 }
