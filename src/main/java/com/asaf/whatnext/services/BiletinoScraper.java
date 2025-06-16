@@ -453,6 +453,8 @@ public class BiletinoScraper implements EventSource {
         String dateStr = !detailedInfo.getDateStr().isEmpty() ? detailedInfo.getDateStr() : basicInfo.getDateStr();
         String venueName = !detailedInfo.getVenueName().isEmpty() ? detailedInfo.getVenueName() : basicInfo.getVenueName();
         String location = !detailedInfo.getLocation().isEmpty() ? detailedInfo.getLocation() : basicInfo.getLocation();
+        String[] locationParts = location.trim().split(",");
+        String city = locationParts[locationParts.length - 1].trim();
         String ticketUrl = !detailedInfo.getTicketUrl().isEmpty() ? detailedInfo.getTicketUrl() : basicInfo.getTicketUrl();
         String description = detailedInfo.getDescription();
         LocalDate parsedStartDate = extractStartDateTime(dateStr);
@@ -465,6 +467,7 @@ public class BiletinoScraper implements EventSource {
                 venue = new Venue();
                 venue.setName(venueName);
                 venue.setLocation(location);
+                venue.setCity(city);
                 venue = venueService.save(venue);
             }
         }
@@ -472,15 +475,17 @@ public class BiletinoScraper implements EventSource {
         switch (eventType) {
             case CONCERT:
                 ConcertEvent concert = EventUtils.createDetailedConcertEvent(
-                    new DetailedEventInfo(title, description, date, venueName, location, ticketUrl), eventType);
+                    new DetailedEventInfo(title, description, date, venueName, location, ticketUrl), eventType, EventSourceType.BILETINO);
                 if (venue != null) concert.setVenue(venue);
+                concert.setCity(Objects.requireNonNull(venue).getCity());
                 return concert;
             case THEATER:
             case STANDUP:
                 PerformingArt theater = EventUtils.createDetailedTheaterEvent(
-                    new DetailedEventInfo(title, description, date, venueName, location, ticketUrl), eventType);
+                    new DetailedEventInfo(title, description, date, venueName, location, ticketUrl), eventType,EventSourceType.BILETINO);
                 if (venue != null) theater.setVenue(venue);
                 theater.setPerformanceType(eventType == EventType.STANDUP ? PerformanceType.STANDUP : PerformanceType.THEATER);
+                theater.setCity(Objects.requireNonNull(venue).getCity());
                 return theater;
             default:
                 return null;

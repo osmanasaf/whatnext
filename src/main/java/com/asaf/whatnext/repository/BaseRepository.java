@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 
 @NoRepositoryBean
 public interface BaseRepository<T, ID> extends JpaRepository<T, ID> {
@@ -18,4 +19,11 @@ public interface BaseRepository<T, ID> extends JpaRepository<T, ID> {
     void softDelete(@Param("id") ID id);
 
     List<T> findAllByDeletedFalse();
+
+    Optional<T> findByIdAndDeletedFalse(ID id);
+
+    @Modifying
+    @Transactional
+    @Query("UPDATE #{#entityName} e SET e.deleted = true WHERE e.id IN :ids")
+    void softDeleteAllByIds(@Param("ids") List<ID> ids);
 }

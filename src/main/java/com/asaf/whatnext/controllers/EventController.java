@@ -5,7 +5,6 @@ import com.asaf.whatnext.enums.EventType;
 import com.asaf.whatnext.enums.City;
 import com.asaf.whatnext.models.Event;
 import com.asaf.whatnext.models.EventImage;
-import com.asaf.whatnext.models.Stage;
 import com.asaf.whatnext.models.Venue;
 import com.asaf.whatnext.repository.EventImageRepository;
 import com.asaf.whatnext.service.EventService;
@@ -163,13 +162,6 @@ public class EventController {
     public ResponseEntity<EventImage> getEventImage(@PathVariable Long id) {
         return eventImageRepository.findByEventId(id)
                 .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
-    }
-
-    @GetMapping("/{id}/stages")
-    public ResponseEntity<List<Stage>> getEventStages(@PathVariable Long id) {
-        return eventService.findById(id)
-                .map(event -> ResponseEntity.ok(event.getStages()))
                 .orElse(ResponseEntity.notFound().build());
     }
 

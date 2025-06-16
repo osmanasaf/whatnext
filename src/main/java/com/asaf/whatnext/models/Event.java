@@ -64,9 +64,6 @@ public class Event extends BaseEntity {
 
     private String city;
 
-    @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    private List<Stage> stages = new ArrayList<>();
-
     public void setVenue(Venue venue) {
         this.venue = venue;
     }
@@ -77,15 +74,6 @@ public class Event extends BaseEntity {
         }
     }
 
-    public void addStage(Stage stage) {
-        stages.add(stage);
-        stage.setEvent(this);
-    }
-
-    public void removeStage(Stage stage) {
-        stages.remove(stage);
-        stage.setEvent(null);
-    }
 
     public void setImage(String imageData, String imageType, String sourceUrl) {
         if (this.eventImage == null) {

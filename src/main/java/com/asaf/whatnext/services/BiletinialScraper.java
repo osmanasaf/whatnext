@@ -14,7 +14,6 @@ import com.asaf.whatnext.utils.WebScraperUtils;
 import org.openqa.selenium.*;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -163,7 +162,14 @@ public class BiletinialScraper implements EventSource {
         try {
             String title = card.findElement(By.cssSelector(TITLE_SELECTOR)).getText();
             String dateStr = card.findElement(By.cssSelector(DATE_SELECTOR)).getText();
-            String location = card.findElement(By.cssSelector(LOCATION_SELECTOR)).getText();
+            WebElement addressElement = card.findElement(By.cssSelector(LOCATION_SELECTOR));
+
+            String city = addressElement.findElement(By.cssSelector("b")).getText();
+            String venue = addressElement.findElement(By.cssSelector("small")).getText();
+
+            System.out.println("City: " + city);
+            System.out.println("Venue: " + venue);
+
             String ticketUrl = card.findElement(By.cssSelector(TITLE_SELECTOR)).getAttribute(HREF_ATTRIBUTE);
             
             if (title.isEmpty() || dateStr.isEmpty()) {
@@ -171,7 +177,7 @@ public class BiletinialScraper implements EventSource {
             }
 
             EventType eventType = determineEventType(title, category);
-            Event event = createEvent(eventType, title, dateStr, location, ticketUrl);
+            Event event = createEvent(eventType, title, dateStr, city, venue, ticketUrl);
             
             // Extract and save image
             try {
@@ -219,19 +225,23 @@ public class BiletinialScraper implements EventSource {
         };
     }
 
-    private Event createEvent(EventType eventType, String title, String dateStr, String location, String ticketUrl) {
+    private Event createEvent(EventType eventType, String title, String dateStr, String city, String venueName, String ticketUrl) {
         Event event = null;
         Venue venue = null;
 
-        String[] locationParts = location.split(SMALL_TAG);
-        String venueName = locationParts.length >= 2 ? locationParts[1].replace(SMALL_TAG_CLOSE, "").trim() : null;
 
         if (venueName != null && !venueName.isEmpty()) {
             venue = venueService.findByName(venueName);
             if (venue == null) {
                 venue = new Venue();
                 venue.setName(venueName);
-                venue.setLocation(location);
+                venue.setLocation(venueName);
+                if(city != null && city.toLowerCase().contains(BiletinialCity.ISTANBUL.getValue())) {
+                    venue.setCity(BiletinialCity.ISTANBUL.getValue());
+                } else {
+                    venue.setCity(city);
+                }
+
                 venue = venueService.save(venue);
             }
         }
@@ -262,7 +272,7 @@ public class BiletinialScraper implements EventSource {
             default:
                 return null;
         }
-
+        event.setCity(Objects.requireNonNull(venue).getCity());
         return event;
     }
 

@@ -20,7 +20,6 @@ import com.asaf.whatnext.services.EventInfo;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.Collections;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -29,7 +28,7 @@ public class EventUtils {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd.MM.yyyy");
     private static final DateTimeFormatter SEARCH_RESULT_DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yy");
 
-    public static void setCommonEventProperties(Event event, String title, String description, String dateStr, String ticketUrl) {
+    public static void setCommonEventProperties(Event event, String title, String description, String dateStr, String ticketUrl, EventSourceType eventSourceType) {
         event.setTitle(title);
         event.setDescription(description);
 
@@ -37,36 +36,38 @@ public class EventUtils {
             event.setStartDate(parseDate(dateStr));
         }
 
-        event.setSource(EventSourceType.BILETINO);
+        event.setSource(eventSourceType);
 
         if (ticketUrl != null && !ticketUrl.isEmpty()) {
             event.addTicketUrl(ticketUrl);
         }
     }
 
-    public static void setVenueProperties(ConcertEvent event, String venueName, String location) {
+    public static void setVenueProperties(Event event, String venueName, String location) {
         if ((venueName != null && !venueName.isEmpty()) || (location != null && !location.isEmpty())) {
             Venue venue = new Venue();
             venue.setName(venueName);
             venue.setLocation(location);
+            venue.setCity(location);
             event.setVenue(venue);
         }
     }
 
-    public static ConcertEvent createConcertEvent(EventInfo info, EventType eventType) {
+    public static ConcertEvent createConcertEvent(EventInfo info, EventType eventType, EventSourceType eventSourceType) {
         ConcertEvent concert = new ConcertEvent();
-        setCommonEventProperties(concert, info.getTitle(), "", info.getDateStr(), info.getTicketUrl());
+        setCommonEventProperties(concert, info.getTitle(), "", info.getDateStr(), info.getTicketUrl(), eventSourceType);
         concert.setType(eventType);
         Artist artist = new Artist();
         artist.setName(extractArtistName(info.getTitle(), ""));
         concert.setArtist(artist);
         setVenueProperties(concert, info.getVenueName(), info.getLocation());
+        concert.setCity(info.getLocation());
         return concert;
     }
 
-    public static PerformingArt createTheaterEvent(EventInfo info, EventType eventType) {
+    public static PerformingArt createTheaterEvent(EventInfo info, EventType eventType, EventSourceType eventSourceType) {
         PerformingArt theater = new PerformingArt();
-        setCommonEventProperties(theater, info.getTitle(), "", info.getDateStr(), info.getTicketUrl());
+        setCommonEventProperties(theater, info.getTitle(), "", info.getDateStr(), info.getTicketUrl(), eventSourceType);
         theater.setType(eventType);
         if (eventType == EventType.STANDUP) {
             theater.setPerformanceType(PerformanceType.STANDUP);
@@ -76,16 +77,16 @@ public class EventUtils {
         return theater;
     }
 
-    public static ExhibitionEvent createExhibitionEvent(EventInfo info, EventType eventType) {
+    public static ExhibitionEvent createExhibitionEvent(EventInfo info, EventType eventType, EventSourceType eventSourceType) {
         ExhibitionEvent exhibition = new ExhibitionEvent();
-        setCommonEventProperties(exhibition, info.getTitle(), "", info.getDateStr(), info.getTicketUrl());
+        setCommonEventProperties(exhibition, info.getTitle(), "", info.getDateStr(), info.getTicketUrl(), eventSourceType);
         exhibition.setType(eventType);
         return exhibition;
     }
 
-    public static ConcertEvent createDetailedConcertEvent(DetailedEventInfo info, EventType eventType) {
+    public static ConcertEvent createDetailedConcertEvent(DetailedEventInfo info, EventType eventType, EventSourceType eventSourceType) {
         ConcertEvent concert = new ConcertEvent();
-        setCommonEventProperties(concert, info.getTitle(), info.getDescription(), info.getDateStr(), info.getTicketUrl());
+        setCommonEventProperties(concert, info.getTitle(), info.getDescription(), info.getDateStr(), info.getTicketUrl(), eventSourceType);
         concert.setType(eventType);
         Artist artist = new Artist();
         artist.setName(extractArtistName(info.getTitle(), info.getDescription()));
@@ -94,9 +95,9 @@ public class EventUtils {
         return concert;
     }
 
-    public static PerformingArt createDetailedTheaterEvent(DetailedEventInfo info, EventType eventType) {
+    public static PerformingArt createDetailedTheaterEvent(DetailedEventInfo info, EventType eventType, EventSourceType eventSourceType) {
         PerformingArt theater = new PerformingArt();
-        setCommonEventProperties(theater, info.getTitle(), info.getDescription(), info.getDateStr(), info.getTicketUrl());
+        setCommonEventProperties(theater, info.getTitle(), info.getDescription(), info.getDateStr(), info.getTicketUrl(), eventSourceType);
         theater.setType(eventType);
         if (eventType == EventType.STANDUP) {
             theater.setPerformanceType(PerformanceType.STANDUP);
@@ -106,9 +107,9 @@ public class EventUtils {
         return theater;
     }
 
-    public static ExhibitionEvent createDetailedExhibitionEvent(DetailedEventInfo info, EventType eventType) {
+    public static ExhibitionEvent createDetailedExhibitionEvent(DetailedEventInfo info, EventType eventType, EventSourceType eventSourceType) {
         ExhibitionEvent exhibition = new ExhibitionEvent();
-        setCommonEventProperties(exhibition, info.getTitle(), info.getDescription(), info.getDateStr(), info.getTicketUrl());
+        setCommonEventProperties(exhibition, info.getTitle(), info.getDescription(), info.getDateStr(), info.getTicketUrl(), eventSourceType);
         exhibition.setType(eventType);
         return exhibition;
     }

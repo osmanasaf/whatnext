@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Locale;
 
 @Service
 public class EventService {
@@ -21,10 +22,10 @@ public class EventService {
     private final VenueService venueService;
 
     @Autowired
-    public EventService(EventRepository eventRepository, 
-                       ArtistService artistService,
-                       DirectorService directorService,
-                       VenueService venueService) {
+    public EventService(EventRepository eventRepository,
+                        ArtistService artistService,
+                        DirectorService directorService,
+                        VenueService venueService) {
         this.eventRepository = eventRepository;
         this.artistService = artistService;
         this.directorService = directorService;
@@ -56,38 +57,38 @@ public class EventService {
     }
 
     public List<Event> findByCity(City city) {
-        return eventRepository.findByVenue_LocationContaining(city.getDisplayName());
+        return eventRepository.findByCity(city.name().toLowerCase(Locale.ROOT));
     }
 
     public List<Event> findByDateRange(String startDate, String endDate) {
         return eventRepository.findByStartDateBetween(
-            java.time.LocalDate.parse(startDate),
-            java.time.LocalDate.parse(endDate)
+                java.time.LocalDate.parse(startDate),
+                java.time.LocalDate.parse(endDate)
         );
     }
 
     public List<Event> findByDateRangeAndType(String startDate, String endDate, EventType type) {
         return eventRepository.findByStartDateBetweenAndType(
-            java.time.LocalDate.parse(startDate),
-            java.time.LocalDate.parse(endDate),
-            type
+                java.time.LocalDate.parse(startDate),
+                java.time.LocalDate.parse(endDate),
+                type
         );
     }
 
     public List<Event> findByDateRangeAndCity(String startDate, String endDate, City city) {
-        return eventRepository.findByStartDateBetweenAndVenue_LocationContaining(
-            java.time.LocalDate.parse(startDate),
-            java.time.LocalDate.parse(endDate),
-            city.getDisplayName()
+        return eventRepository.findByStartDateBetweenAndCity(
+                java.time.LocalDate.parse(startDate),
+                java.time.LocalDate.parse(endDate),
+                city.name().toLowerCase(Locale.ROOT)
         );
     }
 
     public List<Event> findByDateRangeAndTypeAndCity(String startDate, String endDate, EventType type, City city) {
-        return eventRepository.findByStartDateBetweenAndTypeAndVenue_LocationContaining(
-            java.time.LocalDate.parse(startDate),
-            java.time.LocalDate.parse(endDate),
-            type,
-            city.getDisplayName()
+        return eventRepository.findByStartDateBetweenAndTypeAndCity(
+                java.time.LocalDate.parse(startDate),
+                java.time.LocalDate.parse(endDate),
+                type,
+                city.name().toLowerCase(Locale.ROOT)
         );
     }
 

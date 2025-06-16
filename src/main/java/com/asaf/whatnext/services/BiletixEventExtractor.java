@@ -2,6 +2,7 @@ package com.asaf.whatnext.services;
 
 import com.asaf.whatnext.config.BiletixScraperConfig;
 import com.asaf.whatnext.enums.Biletix.BiletixCategory;
+import com.asaf.whatnext.enums.EventSourceType;
 import com.asaf.whatnext.enums.EventType;
 import com.asaf.whatnext.models.ConcertEvent;
 import com.asaf.whatnext.models.Event;
@@ -158,13 +159,13 @@ public class BiletixEventExtractor {
     private Event createEventFromInfo(EventType eventType, EventInfo info) {
         switch (eventType) {
             case CONCERT:
-                return EventUtils.createConcertEvent(info, eventType);
+                return EventUtils.createConcertEvent(info, eventType, EventSourceType.BILETIX);
             case THEATER:
-                return EventUtils.createTheaterEvent(info, eventType);
+                return EventUtils.createTheaterEvent(info, eventType, EventSourceType.BILETIX);
             case STANDUP:
-                return EventUtils.createTheaterEvent(info, eventType);
+                return EventUtils.createTheaterEvent(info, eventType, EventSourceType.BILETIX);
             case EXHIBITION:
-                return EventUtils.createExhibitionEvent(info, eventType);
+                return EventUtils.createExhibitionEvent(info, eventType, EventSourceType.BILETIX);
             default:
                 LOGGER.warning("Unknown event type: " + eventType);
                 return null;
@@ -241,13 +242,13 @@ public class BiletixEventExtractor {
     private Event createDetailedEventFromInfo(EventType eventType, DetailedEventInfo info) {
         switch (eventType) {
             case CONCERT:
-                return EventUtils.createDetailedConcertEvent(info, eventType);
+                return EventUtils.createDetailedConcertEvent(info, eventType, EventSourceType.BILETIX);
             case THEATER:
-                return EventUtils.createDetailedTheaterEvent(info, eventType);
+                return EventUtils.createDetailedTheaterEvent(info, eventType, EventSourceType.BILETIX);
             case STANDUP:
-                return EventUtils.createDetailedTheaterEvent(info, eventType);
+                return EventUtils.createDetailedTheaterEvent(info, eventType, EventSourceType.BILETIX);
             case EXHIBITION:
-                return EventUtils.createDetailedExhibitionEvent(info, eventType);
+                return EventUtils.createDetailedExhibitionEvent(info, eventType, EventSourceType.BILETIX);
             default:
                 LOGGER.warning("Unknown event type: " + eventType);
                 return null;

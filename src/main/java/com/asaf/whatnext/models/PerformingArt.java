@@ -24,14 +24,6 @@ public class PerformingArt extends Event {
     @JoinColumn(name = "director_id")
     private Director director;
 
-    @ManyToMany
-    @JoinTable(
-        name = "event_stages",
-        joinColumns = @JoinColumn(name = "event_id"),
-        inverseJoinColumns = @JoinColumn(name = "stage_id")
-    )
-    private List<Stage> stages;
-    
     @Enumerated(EnumType.STRING)
     private PerformanceType performanceType;
 }

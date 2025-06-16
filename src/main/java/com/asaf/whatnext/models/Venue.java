@@ -11,6 +11,7 @@ import java.util.List;
 @EqualsAndHashCode(callSuper = true)
 public class Venue extends BaseEntity {
     private String name;
+    private String city;
     private String location;
     private int capacity;
     
