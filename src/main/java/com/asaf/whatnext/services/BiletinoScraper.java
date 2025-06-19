@@ -390,7 +390,7 @@ public class BiletinoScraper implements EventSource {
             case THEATER:
             case STANDUP:
                 PerformingArt theater = EventUtils.createDetailedTheaterEvent(
-                    new DetailedEventInfo(title, description, date, venueName, location, ticketUrl), eventType,EventSourceType.BILETINO);
+                    new DetailedEventInfo(title, description, date, venueName, location, ticketUrl), EventType.PERFORMING_ART,EventSourceType.BILETINO);
                 if (venue != null) theater.setVenue(venue);
                 theater.setPerformanceType(eventType == EventType.STANDUP ? PerformanceType.STANDUP : PerformanceType.THEATER);
                 theater.setCity(Objects.requireNonNull(venue).getCity());

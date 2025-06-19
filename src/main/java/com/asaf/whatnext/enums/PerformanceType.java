@@ -1,6 +1,6 @@
 package com.asaf.whatnext.enums;
 
-public enum PerformanceType {
+    public enum PerformanceType {
     THEATER,
     STANDUP
 }

@@ -3,6 +3,7 @@ package com.asaf.whatnext.service;
 import com.asaf.whatnext.enums.EventSourceType;
 import com.asaf.whatnext.enums.EventType;
 import com.asaf.whatnext.enums.City;
+import com.asaf.whatnext.enums.PerformanceType;
 import com.asaf.whatnext.models.*;
 import com.asaf.whatnext.repository.EventRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -69,11 +70,31 @@ public class EventService {
     }
 
     public List<Event> findByDateRangeAndType(String startDate, String endDate, EventType type) {
-        return eventRepository.findByStartDateBetweenAndType(
+        boolean isPerformanceType = false;
+        for (PerformanceType pt : PerformanceType.values()) {
+            if (pt.name().equals(type.name())) {
+                isPerformanceType = true;
+                break;
+            }
+        }
+        if (type != null && isPerformanceType) {
+            List<Event> events = eventRepository.findByStartDateBetweenAndType(
+                java.time.LocalDate.parse(startDate),
+                java.time.LocalDate.parse(endDate),
+                EventType.PERFORMING_ART
+            );
+            return events.stream()
+                .filter(event -> event instanceof com.asaf.whatnext.models.PerformingArt performingArt &&
+                        performingArt.getPerformanceType() != null &&
+                        performingArt.getPerformanceType().name().equals(type.name()))
+                .toList();
+        } else {
+            return eventRepository.findByStartDateBetweenAndType(
                 java.time.LocalDate.parse(startDate),
                 java.time.LocalDate.parse(endDate),
                 type
-        );
+            );
+        }
     }
 
     public List<Event> findByDateRangeAndCity(String startDate, String endDate, City city) {
@@ -85,12 +106,33 @@ public class EventService {
     }
 
     public List<Event> findByDateRangeAndTypeAndCity(String startDate, String endDate, EventType type, City city) {
-        return eventRepository.findByStartDateBetweenAndTypeAndCity(
+        boolean isPerformanceType = false;
+        for (PerformanceType pt : PerformanceType.values()) {
+            if (pt.name().equals(type.name())) {
+                isPerformanceType = true;
+                break;
+            }
+        }
+        if (type != null && isPerformanceType) {
+            List<Event> events = eventRepository.findByStartDateBetweenAndTypeAndCity(
+                java.time.LocalDate.parse(startDate),
+                java.time.LocalDate.parse(endDate),
+                EventType.PERFORMING_ART,
+                city.name().toLowerCase(java.util.Locale.ROOT)
+            );
+            return events.stream()
+                .filter(event -> event instanceof com.asaf.whatnext.models.PerformingArt performingArt &&
+                        performingArt.getPerformanceType() != null &&
+                        performingArt.getPerformanceType().name().equals(type.name()))
+                .toList();
+        } else {
+            return eventRepository.findByStartDateBetweenAndTypeAndCity(
                 java.time.LocalDate.parse(startDate),
                 java.time.LocalDate.parse(endDate),
                 type,
-                city.name().toLowerCase(Locale.ROOT)
-        );
+                city.name().toLowerCase(java.util.Locale.ROOT)
+            );
+        }
     }
 
     @Transactional

@@ -217,8 +217,9 @@ public class BiletinialScraper implements EventSource {
     }
 
     private EventType determineEventType(String title, BiletinialCategory category) {
+        String lowerTitle = title.toLowerCase();
         return switch (category) {
-            case THEATRE -> title.toLowerCase().contains("stand-up") ? EventType.STANDUP : EventType.THEATER;
+            case THEATRE -> lowerTitle.contains("stand") ||  lowerTitle.contains("stand-up") ? EventType.STANDUP : EventType.THEATER;
             case MUSIC -> EventType.CONCERT;
             case STANDUP -> EventType.STANDUP;
             default -> EventType.THEATER;
