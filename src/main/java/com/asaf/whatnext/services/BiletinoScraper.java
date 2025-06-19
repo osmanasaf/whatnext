@@ -117,50 +117,16 @@ public class BiletinoScraper implements EventSource {
         for (Event event : events) {
             try {
                 if (event instanceof ConcertEvent) {
-                    saveConcertEventWithDuplicateChecking((ConcertEvent) event);
+                    EventUtils.saveConcertEventWithDuplicateChecking((ConcertEvent) event, 
+                                                                   concertEventService, 
+                                                                   artistService, 
+                                                                   venueService);
                 } else if (event instanceof PerformingArt) {
-                    savePerformingArtWithDuplicateChecking((PerformingArt) event);
+                    EventUtils.savePerformingArtWithDuplicateChecking((PerformingArt) event, theaterEventService);
                 }
             } catch (Exception e) {
                 LOGGER.log(Level.WARNING, "Error saving event: " + event.getTitle(), e);
             }
-        }
-    }
-
-    private void saveConcertEventWithDuplicateChecking(ConcertEvent event) {
-        if (event.getArtist() == null || event.getArtist().getName() == null || event.getStartDate() == null) return;
-        String artistName = event.getArtist().getName();
-        LocalDate startDate = event.getStartDate();
-        if (!concertEventService.existsByArtistNameAndDate(artistName, startDate)) {
-            Artist artist = event.getArtist();
-            Artist existingArtist = artistService.findByName(artistName);
-            if (existingArtist != null) {
-                event.setArtist(existingArtist);
-            } else {
-                artist = artistService.save(artist);
-                event.setArtist(artist);
-            }
-            if (event.getVenue() != null && event.getVenue().getName() != null) {
-                Venue venue = event.getVenue();
-                Venue existingVenue = venueService.findByName(venue.getName());
-                if (existingVenue != null) {
-                    event.setVenue(existingVenue);
-                } else {
-                    venue = venueService.save(venue);
-                    event.setVenue(venue);
-                }
-            }
-            concertEventService.save(event);
-        }
-    }
-
-    private void savePerformingArtWithDuplicateChecking(PerformingArt event) {
-        if (event.getTitle() == null || event.getStartDate() == null || event.getPerformanceType() == null) return;
-        String title = event.getTitle();
-        LocalDate startDate = event.getStartDate();
-        PerformanceType performanceType = event.getPerformanceType();
-        if (!theaterEventService.existsByTitleDateAndType(title, startDate, performanceType)) {
-            theaterEventService.save(event);
         }
     }
 
@@ -286,7 +252,10 @@ public class BiletinoScraper implements EventSource {
                 if (basicInfo == null || basicInfo.getTitle().isEmpty()) continue;
                 String ticketUrl = basicInfo.getTicketUrl();
                 if (ticketUrl == null || ticketUrl.isEmpty()) continue;
+
                 DetailedEventInfo detailedInfo = fetchDetailedEventInfo(ticketUrl);
+                if (detailedInfo == null) continue;
+
                 EventType eventType = determineEventType(
                         basicInfo.getTitle(),
                         detailedInfo.getDescription(),
@@ -317,41 +286,6 @@ public class BiletinoScraper implements EventSource {
             }
         }
         return events;
-    }
-
-    private String downloadImageAsBase64(String imageUrl) {
-        try {
-            URL url = new URL(imageUrl);
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.setRequestProperty("User-Agent", "Mozilla/5.0");
-            
-            try (InputStream in = connection.getInputStream()) {
-                byte[] imageBytes = in.readAllBytes();
-                return Base64.getEncoder().encodeToString(imageBytes);
-            }
-        } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Error downloading image: " + imageUrl, e);
-            return null;
-        }
-    }
-
-    public static EventType categoryToEventType(BiletinoCategory category) {
-        switch (category) {
-            case MUSIC:    return EventType.CONCERT;
-            case THEATRE:  return EventType.THEATER;
-            case COMEDY:   return EventType.STANDUP;
-            default:       return EventType.CONCERT;
-        }
-    }
-
-
-    private EventInfo extractCardInfoFromHtml(Document doc) {
-        return EventInfo.builder()
-                .title(doc.select(EVENT_TITLE_SELECTOR).text())
-                .dateStr(doc.select(EVENT_DATE_SELECTOR).text())
-                .location(doc.select(EVENT_LOCATION_SELECTOR).text())
-                .ticketUrl(BASE_URL + doc.select(EVENT_LINK_SELECTOR).attr("href"))
-                .build();
     }
 
     private DetailedEventInfo fetchDetailedEventInfo(String eventUrl) {
@@ -423,31 +357,6 @@ public class BiletinoScraper implements EventSource {
         }
     }
 
-    private LocalDate extractStartDateTime(String dateStr) {
-        if (dateStr == null || dateStr.isEmpty()) return null;
-        String[] parts = dateStr.split("-");
-        String startPart = parts[0].trim();
-        try {
-            String[] tokens = startPart.split(" ");
-            if (tokens.length >= 5) {
-                String day = tokens[0];
-                String month = tokens[1];
-                String year = tokens[2];
-                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.ENGLISH);
-                return LocalDate.parse(String.format("%s %s %s", day, month, year), formatter);
-            } else if (tokens.length >= 4) {
-                String day = tokens[0];
-                String month = tokens[1];
-                String year = tokens[2];
-                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.ENGLISH);
-                return LocalDate.parse(String.format("%s %s %s", day, month, year), formatter);
-            }
-        } catch (Exception e) {
-            return null;
-        }
-        return null;
-    }
-
     private Event createEventFromDetailedInfo(EventType eventType, EventInfo basicInfo, DetailedEventInfo detailedInfo) {
         String title = !detailedInfo.getTitle().isEmpty() ? detailedInfo.getTitle() : basicInfo.getTitle();
         String dateStr = !detailedInfo.getDateStr().isEmpty() ? detailedInfo.getDateStr() : basicInfo.getDateStr();
@@ -489,6 +398,66 @@ public class BiletinoScraper implements EventSource {
             default:
                 return null;
         }
+    }
+
+    private String downloadImageAsBase64(String imageUrl) {
+        try {
+            URL url = new URL(imageUrl);
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestProperty("User-Agent", "Mozilla/5.0");
+            
+            try (InputStream in = connection.getInputStream()) {
+                byte[] imageBytes = in.readAllBytes();
+                return Base64.getEncoder().encodeToString(imageBytes);
+            }
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Error downloading image: " + imageUrl, e);
+            return null;
+        }
+    }
+
+    public static EventType categoryToEventType(BiletinoCategory category) {
+        switch (category) {
+            case MUSIC:    return EventType.CONCERT;
+            case THEATRE:  return EventType.THEATER;
+            case COMEDY:   return EventType.STANDUP;
+            default:       return EventType.CONCERT;
+        }
+    }
+
+
+    private EventInfo extractCardInfoFromHtml(Document doc) {
+        return EventInfo.builder()
+                .title(doc.select(EVENT_TITLE_SELECTOR).text())
+                .dateStr(doc.select(EVENT_DATE_SELECTOR).text())
+                .location(doc.select(EVENT_LOCATION_SELECTOR).text())
+                .ticketUrl(BASE_URL + doc.select(EVENT_LINK_SELECTOR).attr("href"))
+                .build();
+    }
+
+    private LocalDate extractStartDateTime(String dateStr) {
+        if (dateStr == null || dateStr.isEmpty()) return null;
+        String[] parts = dateStr.split("-");
+        String startPart = parts[0].trim();
+        try {
+            String[] tokens = startPart.split(" ");
+            if (tokens.length >= 5) {
+                String day = tokens[0];
+                String month = tokens[1];
+                String year = tokens[2];
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.ENGLISH);
+                return LocalDate.parse(String.format("%s %s %s", day, month, year), formatter);
+            } else if (tokens.length >= 4) {
+                String day = tokens[0];
+                String month = tokens[1];
+                String year = tokens[2];
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.ENGLISH);
+                return LocalDate.parse(String.format("%s %s %s", day, month, year), formatter);
+            }
+        } catch (Exception e) {
+            return null;
+        }
+        return null;
     }
 
     public static String extractDate(String input) {

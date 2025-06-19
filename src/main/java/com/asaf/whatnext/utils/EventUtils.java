@@ -22,6 +22,8 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.Optional;
+import java.util.List;
 
 public class EventUtils {
     private static final Logger LOGGER = Logger.getLogger(EventUtils.class.getName());
@@ -216,24 +218,70 @@ public class EventUtils {
                                                            ConcertEventService concertEventService,
                                                            ArtistService artistService,
                                                            VenueService venueService) {
-        if (event.getArtist() == null || event.getArtist().getName() == null || event.getStartDate() == null) {
-            LOGGER.warning("Cannot check for duplicates: ConcertEvent missing artist name or start date");
+        if (event.getTitle() == null || event.getStartDate() == null || 
+            event.getVenue() == null || event.getVenue().getName() == null) {
+            LOGGER.warning("Cannot check for duplicates: ConcertEvent missing required fields");
             return;
         }
 
-        String artistName = event.getArtist().getName();
+        String title = event.getTitle();
         LocalDate startDate = event.getStartDate();
+        String venueName = event.getVenue().getName();
+        String artistName = event.getArtist() != null ? event.getArtist().getName() : null;
 
-        if (!concertEventService.existsByArtistNameAndDate(artistName, startDate)) {
-            LOGGER.info("Saving new concert event: " + event.getTitle() + " - " + artistName + " - " + startDate);
+        List<ConcertEvent> sameDateVenueEvents = concertEventService.findByDateAndVenue(startDate, venueName);
+        
+        Optional<ConcertEvent> existingEvent = sameDateVenueEvents.stream()
+            .filter(e -> {
+                boolean titleMatch = isSimilarTitle(title, e.getTitle());
+                
+                boolean artistMatch = false;
+                if (artistName != null && e.getArtist() != null) {
+                    artistMatch = artistName.equalsIgnoreCase(e.getArtist().getName());
+                }
+                
+                return titleMatch || artistMatch;
+            })
+            .findFirst();
 
-            Artist artist = event.getArtist();
-            Artist existingArtist = artistService.findByName(artistName);
-            if (existingArtist != null) {
-                event.setArtist(existingArtist);
-            } else {
-                artist = artistService.save(artist);
-                event.setArtist(artist);
+        if (existingEvent.isPresent()) {
+            LOGGER.info("Found existing concert event: " + event.getTitle() + " - " + startDate);
+            ConcertEvent existing = existingEvent.get();
+            
+            if (event.getTicketUrls() != null && !event.getTicketUrls().isEmpty()) {
+                String newTicketUrl = event.getTicketUrls().get(0);
+                if (!existing.getTicketUrls().contains(newTicketUrl)) {
+                    existing.addTicketUrl(newTicketUrl);
+                    concertEventService.save(existing);
+                    LOGGER.info("Added new ticket URL to existing event");
+                }
+            }
+
+            // Eğer mevcut event'te sanatçı yoksa ve yeni event'te varsa, sanatçıyı ekle
+            if (existing.getArtist() == null && event.getArtist() != null) {
+                Artist artist = event.getArtist();
+                Artist existingArtist = artistService.findByName(artist.getName());
+                if (existingArtist != null) {
+                    existing.setArtist(existingArtist);
+                } else {
+                    artist = artistService.save(artist);
+                    existing.setArtist(artist);
+                }
+                concertEventService.save(existing);
+                LOGGER.info("Added artist to existing event");
+            }
+        } else {
+            LOGGER.info("Saving new concert event: " + event.getTitle() + " - " + startDate);
+
+            if (event.getArtist() != null) {
+                Artist artist = event.getArtist();
+                Artist existingArtist = artistService.findByName(artist.getName());
+                if (existingArtist != null) {
+                    event.setArtist(existingArtist);
+                } else {
+                    artist = artistService.save(artist);
+                    event.setArtist(artist);
+                }
             }
 
             if (event.getVenue() != null && event.getVenue().getName() != null) {
@@ -248,9 +296,35 @@ public class EventUtils {
             }
 
             concertEventService.save(event);
-        } else {
-            LOGGER.info("Skipping duplicate concert event: " + event.getTitle() + " - " + artistName + " - " + startDate);
         }
+    }
+
+    private static boolean isSimilarTitle(String title1, String title2) {
+        if (title1 == null || title2 == null) return false;
+        
+        String t1 = title1.toLowerCase().trim();
+        String t2 = title2.toLowerCase().trim();
+        
+        if (t1.equals(t2)) return true;
+        
+        if (t1.contains(t2) || t2.contains(t1)) return true;
+        
+        String[] words1 = t1.split("\\s+");
+        String[] words2 = t2.split("\\s+");
+        
+        int commonWords = 0;
+        for (String word1 : words1) {
+            if (word1.length() > 3) {
+                for (String word2 : words2) {
+                    if (word2.length() > 3 && word1.equals(word2)) {
+                        commonWords++;
+                    }
+                }
+            }
+        }
+        
+        int minWords = Math.min(words1.length, words2.length);
+        return commonWords >= minWords * 0.7; // En az %70 benzerlik
     }
 
     public static void savePerformingArtWithDuplicateChecking(PerformingArt event, TheaterEventService theaterEventService) {
