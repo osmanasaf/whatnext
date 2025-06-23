@@ -27,6 +27,10 @@ public class EventMapper {
             dto.setImageUrl(event.getEventImage().getImageSourceUrl());
         }
         
+        if (event instanceof PerformingArt) {
+            dto.setPerformanceType(((PerformingArt) event).getPerformanceType());
+        }
+        
         return dto;
     }
     

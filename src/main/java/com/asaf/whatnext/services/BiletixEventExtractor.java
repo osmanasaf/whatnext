@@ -4,6 +4,7 @@ import com.asaf.whatnext.config.BiletixScraperConfig;
 import com.asaf.whatnext.enums.Biletix.BiletixCategory;
 import com.asaf.whatnext.enums.EventSourceType;
 import com.asaf.whatnext.enums.EventType;
+import com.asaf.whatnext.enums.PerformanceType;
 import com.asaf.whatnext.models.ConcertEvent;
 import com.asaf.whatnext.models.Event;
 import com.asaf.whatnext.models.ExhibitionEvent;
@@ -19,6 +20,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -63,6 +65,11 @@ public class BiletixEventExtractor {
             if (info.getTitle().isEmpty()) {
                 LOGGER.warning("Cannot create event without a title");
                 return null;
+            }
+
+            if (category == BiletixCategory.ART) {
+                PerformanceType performanceType = determinePerformanceType(info.getTitle(), "");
+                return createPerformingArtEvent(info, performanceType);
             }
 
             EventType eventType = determineEventType(info.getTitle(), "", category);
@@ -128,10 +135,11 @@ public class BiletixEventExtractor {
             return "";
         }
     }
-    
+
     private String extractLocation(WebElement card) {
         try {
-            return card.findElement(By.cssSelector(BiletixScraperConfig.EVENT_LOCATION_SELECTOR)).getText();
+            String location = card.findElement(By.cssSelector(BiletixScraperConfig.EVENT_LOCATION_SELECTOR)).getText();
+            return location.toLowerCase(Locale.forLanguageTag("tr"));
         } catch (Exception e) {
             LOGGER.log(Level.FINE, "Error extracting location", e);
             return "";
@@ -178,20 +186,35 @@ public class BiletixEventExtractor {
     
     private EventType determineEventType(String title, String description, BiletixCategory category) {
         if (category == BiletixCategory.ART) {
-            String lowerTitle = title.toLowerCase();
-            String lowerDesc = description.toLowerCase();
-
-            if (lowerTitle.contains("stand") || lowerDesc.contains("stand up") || 
-                lowerTitle.contains("stand-up") || lowerDesc.contains("stand-up")) {
-                return EventType.STANDUP;
-            } else {
-                return EventType.THEATER;
-            }
+            return EventType.PERFORMING_ART;
         } else if (category == BiletixCategory.MUSIC) {
             return EventType.CONCERT;
         } else {
             return EventUtils.determineEventType(title, description, EventType.CONCERT);
         }
+    }
+    
+    private PerformanceType determinePerformanceType(String title, String description) {
+        String lowerTitle = title.toLowerCase();
+        String lowerDesc = description.toLowerCase();
+        if (lowerTitle.contains("stand") || lowerDesc.contains("stand up") || 
+            lowerTitle.contains("stand-up") || lowerDesc.contains("stand-up")) {
+            return PerformanceType.STANDUP;
+        } else {
+            return PerformanceType.THEATER;
+        }
+    }
+    
+    private Event createPerformingArtEvent(EventInfo info, PerformanceType performanceType) {
+        com.asaf.whatnext.models.PerformingArt performingArt = new com.asaf.whatnext.models.PerformingArt();
+        EventUtils.setCommonEventProperties(performingArt, info.getTitle(), "", info.getDateStr(), info.getTicketUrl(), EventSourceType.BILETIX);
+        performingArt.setType(EventType.PERFORMING_ART);
+        performingArt.setPerformanceType(performanceType);
+        if (info.getVenueName() != null && !info.getVenueName().isEmpty()) {
+            performingArt.setVenue(venueService.findOrCreateVenue(info.getVenueName()));
+        }
+        performingArt.setCity(info.getLocation().toLowerCase(Locale.ROOT));
+        return performingArt;
     }
     
     public DetailedEventInfo extractDetailedInfo(WebDriver driver) {

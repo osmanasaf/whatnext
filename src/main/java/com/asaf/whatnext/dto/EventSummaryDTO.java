@@ -1,6 +1,7 @@
 package com.asaf.whatnext.dto;
 
 import com.asaf.whatnext.enums.EventType;
+import com.asaf.whatnext.enums.PerformanceType;
 import lombok.Data;
 import java.time.LocalDate;
 
@@ -13,4 +14,5 @@ public class EventSummaryDTO {
     private String city;
     private String venueName;
     private String imageUrl;
+    private PerformanceType performanceType;
 } 

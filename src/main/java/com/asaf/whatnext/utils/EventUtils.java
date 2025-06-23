@@ -20,6 +20,7 @@ import com.asaf.whatnext.services.EventInfo;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.Optional;
@@ -69,7 +70,7 @@ public class EventUtils {
         artist.setName(extractArtistName(info.getTitle(), ""));
         concert.setArtist(artist);
         setVenueProperties(concert, info.getVenueName(), info.getLocation(), venueService.findByName(info.getVenueName()));
-        concert.setCity(info.getLocation());
+        concert.setCity(info.getLocation().toLowerCase(Locale.ROOT));
         return concert;
     }
 
