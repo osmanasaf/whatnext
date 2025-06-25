@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -24,7 +25,7 @@ import java.util.Properties;
 import java.util.stream.Collectors;
 
 @Service
-public class InstagramPostService {
+public class ImageGenerationService {
 
     @Autowired
     private EventService eventService;
@@ -34,14 +35,15 @@ public class InstagramPostService {
 
     private static final String FONT_PATH = "src/main/resources/NotoSans-Regular.ttf";
     private static final String BASE_RESOURCE_PATH = "src/main/resources/instagram-posts/";
-    private static final String OUTPUT_DIR = "src/main/resources/instagram-posts/";
+    private static final String OUTPUT_DIR = System.getProperty("java.io.tmpdir");
 
-    public String createPost(String eventType, String postType, String city, LocalDate date) throws IOException, InterruptedException {
+    public File createPost(String eventType, String postType, String city, LocalDate date) throws IOException, InterruptedException {
         String monthName = date.getMonth().getDisplayName(TextStyle.FULL, Locale.ENGLISH).toLowerCase();
         Path templatePath = Paths.get(BASE_RESOURCE_PATH, monthName, postType + "-template.png");
         Path coordinatesPath = Paths.get(BASE_RESOURCE_PATH, monthName, postType + "-coordinates.properties");
         String fileType = postType.equals("story") ? "story" : "post";
-        Path outputPath = Paths.get(OUTPUT_DIR, monthName, String.valueOf(date.getDayOfMonth()), "instagram-" + eventType + "-" + fileType + ".png");
+        String outputFilename = "instagram-" + eventType + "-" + fileType + "-" + System.currentTimeMillis() + ".png";
+        Path outputPath = Paths.get(OUTPUT_DIR, "whatnext", outputFilename);
 
         Files.createDirectories(outputPath.getParent());
 
@@ -56,18 +58,18 @@ public class InstagramPostService {
         return executeCommand(command, outputPath.toString());
     }
 
-    public String createCover(LocalDate date) throws IOException, InterruptedException {
+    public File createCover(LocalDate date) throws IOException, InterruptedException {
         String monthName = date.getMonth().getDisplayName(TextStyle.FULL, Locale.ENGLISH).toLowerCase();
         Path templatePath = Paths.get(BASE_RESOURCE_PATH, monthName, "cover-template.png");
         Path coordinatesPath = Paths.get(BASE_RESOURCE_PATH, monthName, "cover-coordinates.properties");
-        Path outputPath = Paths.get(OUTPUT_DIR, monthName, String.valueOf(date.getDayOfMonth()), "instagram-cover.png");
+        String outputFilename = "instagram-cover-" + System.currentTimeMillis() + ".png";
+        Path outputPath = Paths.get(OUTPUT_DIR, "whatnext", outputFilename);
 
         Files.createDirectories(outputPath.getParent());
         Properties coordinates = loadCoordinates(coordinatesPath);
 
         List<String> command = new ArrayList<>();
         command.add("magick");
-        command.add("convert");
         command.add(templatePath.toString());
         command.add("-font");
         command.add("src/main/resources/Audiowide-Regular.ttf");
@@ -87,11 +89,12 @@ public class InstagramPostService {
         return executeCommand(command, outputPath.toString());
     }
 
-    public String createSmartStory(LocalDate date) throws IOException, InterruptedException {
+    public File createSmartStory(LocalDate date) throws IOException, InterruptedException {
         String monthName = date.getMonth().getDisplayName(TextStyle.FULL, Locale.ENGLISH).toLowerCase();
         Path templatePath = Paths.get(BASE_RESOURCE_PATH, monthName, "story-template.png");
         Path coordinatesPath = Paths.get(BASE_RESOURCE_PATH, monthName, "story-coordinates.properties");
-        Path outputPath = Paths.get(OUTPUT_DIR, monthName, String.valueOf(date.getDayOfMonth()), "instagram-story.png");
+        String outputFilename = "instagram-story-" + System.currentTimeMillis() + ".png";
+        Path outputPath = Paths.get(OUTPUT_DIR, "whatnext", outputFilename);
         Files.createDirectories(outputPath.getParent());
         Properties coordinates = loadCoordinates(coordinatesPath);
 
@@ -120,10 +123,10 @@ public class InstagramPostService {
             if (selected.stream().filter(e -> e.getType() == EventType.CONCERT).count() < 2) {
                 pool.addAll(concerts);
             }
-            if (selected.stream().filter(e -> e.getType() == EventType.THEATER).count() < 2) {
+            if (selected.stream().filter(e -> e instanceof com.asaf.whatnext.models.PerformingArt pa && pa.getPerformanceType() == com.asaf.whatnext.enums.PerformanceType.THEATER).count() < 2) {
                 pool.addAll(theaters);
             }
-            if (selected.stream().filter(e -> e.getType() == EventType.STANDUP).count() < 2) {
+             if (selected.stream().filter(e -> e instanceof com.asaf.whatnext.models.PerformingArt pa && pa.getPerformanceType() == com.asaf.whatnext.enums.PerformanceType.STANDUP).count() < 2) {
                 pool.addAll(standups);
             }
             if (pool.isEmpty()) {
@@ -162,7 +165,6 @@ public class InstagramPostService {
     private List<String> buildImageMagickCommand(String templatePath, String outputPath, String eventType, List<EventSummaryDTO> events, Properties coordinates) {
         List<String> command = new ArrayList<>();
         command.add("magick");
-        command.add("convert");
         command.add(templatePath);
         command.add("-font");
         command.add("src/main/resources/AlfaSlabOne-Regular.ttf");
@@ -206,7 +208,8 @@ public class InstagramPostService {
         }
     }
 
-    private String executeCommand(List<String> command, String outputPath) throws IOException, InterruptedException {
+    private File executeCommand(List<String> command, String outputPath) throws IOException, InterruptedException {
+        System.out.println("ℹ️ ImageMagick komutu çalıştırılıyor. Çıktı dosyası: " + outputPath);
         ProcessBuilder processBuilder = new ProcessBuilder(command);
         processBuilder.redirectErrorStream(true);
 
@@ -214,14 +217,14 @@ public class InstagramPostService {
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                System.out.println(line);
+                System.out.println("[ImageMagick] " + line);
             }
         }
 
         int exitCode = process.waitFor();
         if (exitCode == 0) {
-            System.out.println("✅ Görsel başarıyla oluşturuldu: " + outputPath);
-            return outputPath;
+            System.out.println("✅ Geçici görsel başarıyla oluşturuldu: " + outputPath);
+            return new File(outputPath);
         } else {
             System.err.println("❌ Görsel oluşturulurken hata oluştu. Çıkış kodu: " + exitCode);
             return null;
