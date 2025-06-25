@@ -14,6 +14,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
 @Service
 public class EventService {
@@ -130,9 +131,23 @@ public class EventService {
                 java.time.LocalDate.parse(startDate),
                 java.time.LocalDate.parse(endDate),
                 type,
-                city.name().toLowerCase(java.util.Locale.ROOT)
+                city.name().toLowerCase(Locale.ROOT)
             );
         }
+    }
+
+    public List<Event> findTop6EventsForDateAndCity(LocalDate date, EventType eventType, String city) {
+        String dateStr = date.toString();
+        List<Event> events = findByDateRangeAndTypeAndCity(
+            dateStr, 
+            date.plusDays(1).toString(),
+            eventType, 
+            com.asaf.whatnext.enums.City.valueOf(city.toUpperCase(java.util.Locale.ENGLISH))
+        );
+        return events.stream()
+            .filter(e -> e.getTitle() != null && e.getTitle().length() < 35)
+            .limit(6)
+            .collect(Collectors.toList());
     }
 
     @Transactional
