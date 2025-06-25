@@ -16,7 +16,7 @@ public class InstagramSchedulerService {
     public void createDailyPosts() {
         System.out.println("Starting daily post generation...");
         try {
-            LocalDate today = java.time.LocalDate.now();
+            LocalDate today = LocalDate.now();
             instagramPostService.createPost("concert", "post", "istanbul", today);
             instagramPostService.createPost("theater", "post", "istanbul", today);
             instagramPostService.createPost("standup", "post", "istanbul", today);
@@ -30,30 +30,29 @@ public class InstagramSchedulerService {
     public void createDailyStories() {
         System.out.println("Starting daily story generation...");
         try {
-            LocalDate today = java.time.LocalDate.now();
-            instagramPostService.createPost("concert", "story", "istanbul", today);
-            instagramPostService.createPost("theater", "story", "istanbul", today);
-            instagramPostService.createPost("standup", "story", "istanbul", today);
+            LocalDate today = LocalDate.now();
+            instagramPostService.createSmartStory(today);
         } catch (Exception e) {
             System.err.println("Error during daily story generation: " + e.getMessage());
         }
     }
 
-    // Her Pazartesi saat 12:00'de haftanın gönderilerini oluşturur
-    @Scheduled(cron = "0 0 12 * * MON")
-    public void createWeeklyPost() {
-        System.out.println("Starting weekly post generation for the next 7 days...");
+    // Her Pazar saat 12:00'de haftanın gönderilerini oluşturur
+    @Scheduled(cron = "0 0 12 * * SUN")
+    public void createWeeklyDump() {
+        System.out.println("Starting weekly Instagram dump for the next 7 days...");
         try {
-            LocalDate startDate = java.time.LocalDate.now();
+            LocalDate startDate = LocalDate.now();
             for (int i = 0; i < 7; i++) {
                 LocalDate targetDate = startDate.plusDays(i);
-                System.out.println("Generating posts for date: " + targetDate);
+                System.out.println("Generating dump for date: " + targetDate);
+                instagramPostService.createCover(targetDate);
                 instagramPostService.createPost("concert", "post", "istanbul", targetDate);
                 instagramPostService.createPost("theater", "post", "istanbul", targetDate);
                 instagramPostService.createPost("standup", "post", "istanbul", targetDate);
             }
         } catch (Exception e) {
-            System.err.println("Error during weekly post generation: " + e.getMessage());
+            System.err.println("Error during weekly dump generation: " + e.getMessage());
         }
     }
 } 

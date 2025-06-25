@@ -1,6 +1,9 @@
 package com.asaf.whatnext.service;
 
 import com.asaf.whatnext.dto.EventSummaryDTO;
+import com.asaf.whatnext.enums.EventType;
+import com.asaf.whatnext.mapper.EventMapper;
+import com.asaf.whatnext.models.Event;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -14,13 +17,11 @@ import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.time.format.TextStyle;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
 import java.util.stream.Collectors;
-import com.asaf.whatnext.mapper.EventMapper;
-import com.asaf.whatnext.models.Event;
-import com.asaf.whatnext.enums.EventType;
 
 @Service
 public class InstagramPostService {
@@ -35,7 +36,7 @@ public class InstagramPostService {
     private static final String BASE_RESOURCE_PATH = "src/main/resources/instagram-posts/";
     private static final String OUTPUT_DIR = "src/main/resources/instagram-posts/";
 
-    public String createPost(String eventType, String postType, String city, java.time.LocalDate date) throws IOException, InterruptedException {
+    public String createPost(String eventType, String postType, String city, LocalDate date) throws IOException, InterruptedException {
         String monthName = date.getMonth().getDisplayName(TextStyle.FULL, Locale.ENGLISH).toLowerCase();
         Path templatePath = Paths.get(BASE_RESOURCE_PATH, monthName, postType + "-template.png");
         Path coordinatesPath = Paths.get(BASE_RESOURCE_PATH, monthName, postType + "-coordinates.properties");
@@ -45,13 +46,99 @@ public class InstagramPostService {
         Files.createDirectories(outputPath.getParent());
 
         Properties coordinates = loadCoordinates(coordinatesPath);
-        List<Event> events = eventService.findTop6EventsForDateAndCity(date, com.asaf.whatnext.enums.EventType.valueOf(eventType.toUpperCase()), city);
+        List<Event> events = eventService.findTop6EventsForDateAndCity(date, EventType.valueOf(eventType.toUpperCase()), city);
         List<EventSummaryDTO> eventSummaries = events.stream()
                 .map(eventMapper::toSummaryDTO)
                 .collect(Collectors.toList());
 
         List<String> command = buildImageMagickCommand(templatePath.toString(), outputPath.toString(), eventType, eventSummaries, coordinates);
 
+        return executeCommand(command, outputPath.toString());
+    }
+
+    public String createCover(LocalDate date) throws IOException, InterruptedException {
+        String monthName = date.getMonth().getDisplayName(TextStyle.FULL, Locale.ENGLISH).toLowerCase();
+        Path templatePath = Paths.get(BASE_RESOURCE_PATH, monthName, "cover-template.png");
+        Path coordinatesPath = Paths.get(BASE_RESOURCE_PATH, monthName, "cover-coordinates.properties");
+        Path outputPath = Paths.get(OUTPUT_DIR, monthName, String.valueOf(date.getDayOfMonth()), "instagram-cover.png");
+
+        Files.createDirectories(outputPath.getParent());
+        Properties coordinates = loadCoordinates(coordinatesPath);
+
+        List<String> command = new ArrayList<>();
+        command.add("magick");
+        command.add("convert");
+        command.add(templatePath.toString());
+        command.add("-font");
+        command.add("src/main/resources/Audiowide-Regular.ttf");
+        command.add("-fill");
+        command.add("white");
+        command.add("-gravity");
+        command.add("center");
+        String dateText = date.getDayOfMonth() + " " + date.getMonth().getDisplayName(TextStyle.FULL, new Locale("tr"));
+        String pointsize = coordinates.getProperty("date.pointsize", "80");
+        String geometry = coordinates.getProperty("date.geometry", "+0+0");
+        command.add("-pointsize");
+        command.add(pointsize);
+        command.add("-annotate");
+        command.add(geometry);
+        command.add(dateText);
+        command.add(outputPath.toString());
+        return executeCommand(command, outputPath.toString());
+    }
+
+    public String createSmartStory(LocalDate date) throws IOException, InterruptedException {
+        String monthName = date.getMonth().getDisplayName(TextStyle.FULL, Locale.ENGLISH).toLowerCase();
+        Path templatePath = Paths.get(BASE_RESOURCE_PATH, monthName, "story-template.png");
+        Path coordinatesPath = Paths.get(BASE_RESOURCE_PATH, monthName, "story-coordinates.properties");
+        Path outputPath = Paths.get(OUTPUT_DIR, monthName, String.valueOf(date.getDayOfMonth()), "instagram-story.png");
+        Files.createDirectories(outputPath.getParent());
+        Properties coordinates = loadCoordinates(coordinatesPath);
+
+        List<Event> concerts = eventService.findTop6EventsForDateAndCity(date, EventType.CONCERT, "istanbul")
+            .stream().filter(e -> e.getTitle().length() <= 40).collect(Collectors.toList());
+        List<Event> performingArts = eventService.findTop6EventsForDateAndCity(date, EventType.PERFORMING_ART, "istanbul")
+            .stream().filter(e -> e.getTitle().length() <= 40).collect(Collectors.toList());
+        List<Event> theaters = performingArts.stream()
+            .filter(e -> e instanceof com.asaf.whatnext.models.PerformingArt pa && pa.getPerformanceType() == com.asaf.whatnext.enums.PerformanceType.THEATER)
+            .collect(Collectors.toList());
+        List<Event> standups = performingArts.stream()
+            .filter(e -> e instanceof com.asaf.whatnext.models.PerformingArt pa && pa.getPerformanceType() == com.asaf.whatnext.enums.PerformanceType.STANDUP)
+            .collect(Collectors.toList());
+
+        Collections.shuffle(concerts);
+        Collections.shuffle(theaters);
+        Collections.shuffle(standups);
+
+        List<Event> selected = new ArrayList<>();
+        selected.addAll(concerts.stream().limit(2).toList());
+        selected.addAll(theaters.stream().limit(2).toList());
+        selected.addAll(standups.stream().limit(2).toList());
+
+        while (selected.size() < 6) {
+            List<Event> pool = new ArrayList<>();
+            if (selected.stream().filter(e -> e.getType() == EventType.CONCERT).count() < 2) {
+                pool.addAll(concerts);
+            }
+            if (selected.stream().filter(e -> e.getType() == EventType.THEATER).count() < 2) {
+                pool.addAll(theaters);
+            }
+            if (selected.stream().filter(e -> e.getType() == EventType.STANDUP).count() < 2) {
+                pool.addAll(standups);
+            }
+            if (pool.isEmpty()) {
+                pool.addAll(concerts);
+                pool.addAll(theaters);
+                pool.addAll(standups);
+            }
+            pool.removeAll(selected);
+            if (pool.isEmpty()) break;
+            Collections.shuffle(pool);
+            selected.add(pool.get(0));
+        }
+        selected = selected.stream().limit(6).collect(Collectors.toList());
+        List<EventSummaryDTO> eventSummaries = selected.stream().map(eventMapper::toSummaryDTO).collect(Collectors.toList());
+        List<String> command = buildImageMagickCommand(templatePath.toString(), outputPath.toString(), "Günün Etkinlikleri", eventSummaries, coordinates);
         return executeCommand(command, outputPath.toString());
     }
 
@@ -77,20 +164,18 @@ public class InstagramPostService {
         command.add("magick");
         command.add("convert");
         command.add(templatePath);
-        // Event type title (centered, white, bold if available)
         command.add("-font");
-        command.add("src/main/resources/AlfaSlabOne-Regular.ttf"); // Başlık için özel font
+        command.add("src/main/resources/AlfaSlabOne-Regular.ttf");
         command.add("-fill");
         command.add("white");
         command.add("-gravity");
         command.add("north");
         addAnnotation(command, coordinates, "event_type", getTurkishEventType(eventType));
         command.add("-font");
-        command.add(FONT_PATH); // Diğer yazılar için regular font
+        command.add(FONT_PATH);
         command.add("-fill");
-        command.add("black"); // Diğer yazılar için siyah
+        command.add("black");
 
-        // Add events
         for (int i = 0; i < events.size(); i++) {
             EventSummaryDTO event = events.get(i);
             command.add("-gravity");

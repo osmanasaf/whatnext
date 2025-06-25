@@ -29,18 +29,33 @@ public class InstagramController {
         }
     }
 
-    @PostMapping("/story/{eventType}")
-    public ResponseEntity<String> createInstagramStory(@PathVariable String eventType, @RequestParam(required = false) String date) {
+    @PostMapping("/story")
+    public ResponseEntity<String> createSmartStory(@RequestParam(required = false) String date) {
         try {
             LocalDate targetDate = (date != null && !date.isEmpty()) ? LocalDate.parse(date) : LocalDate.now();
-            String imagePath = instagramPostService.createPost(eventType, "story", "istanbul", targetDate);
+            String imagePath = instagramPostService.createSmartStory(targetDate);
             if (imagePath != null) {
-                return ResponseEntity.ok("Story created successfully at: " + imagePath);
+                return ResponseEntity.ok("Smart story created successfully at: " + imagePath);
             } else {
-                return ResponseEntity.status(500).body("Failed to create story.");
+                return ResponseEntity.status(500).body("Failed to create smart story.");
             }
         } catch (Exception e) {
-            return ResponseEntity.status(500).body("Error creating story: " + e.getMessage());
+            return ResponseEntity.status(500).body("Error creating smart story: " + e.getMessage());
+        }
+    }
+
+    @PostMapping("/cover")
+    public ResponseEntity<String> createCover(@RequestParam(required = false) String date) {
+        try {
+            LocalDate targetDate = (date != null && !date.isEmpty()) ? LocalDate.parse(date) : LocalDate.now();
+            String imagePath = instagramPostService.createCover(targetDate);
+            if (imagePath != null) {
+                return ResponseEntity.ok("Cover created successfully at: " + imagePath);
+            } else {
+                return ResponseEntity.status(500).body("Failed to create cover.");
+            }
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Error creating cover: " + e.getMessage());
         }
     }
 
@@ -48,13 +63,18 @@ public class InstagramController {
     public ResponseEntity<String> generateAllPostsAndStories(@RequestParam(required = false) String date) {
         try {
             LocalDate targetDate = (date != null && !date.isEmpty()) ? LocalDate.parse(date) : LocalDate.now();
-            instagramPostService.createPost("concert", "post", "istanbul", targetDate);
-            instagramPostService.createPost("theater", "post", "istanbul", targetDate);
-            instagramPostService.createPost("standup", "post", "istanbul", targetDate);
-            instagramPostService.createPost("concert", "story", "istanbul", targetDate);
-            instagramPostService.createPost("theater", "story", "istanbul", targetDate);
-            instagramPostService.createPost("standup", "story", "istanbul", targetDate);
-            return ResponseEntity.ok("All posts and stories created successfully for date: " + targetDate);
+            StringBuilder result = new StringBuilder();
+            String coverPath = instagramPostService.createCover(targetDate);
+            result.append("Cover: ").append(coverPath).append("\n");
+            String concertPath = instagramPostService.createPost("concert", "post", "istanbul", targetDate);
+            result.append("Concert: ").append(concertPath).append("\n");
+            String theaterPath = instagramPostService.createPost("theater", "post", "istanbul", targetDate);
+            result.append("Theater: ").append(theaterPath).append("\n");
+            String standupPath = instagramPostService.createPost("standup", "post", "istanbul", targetDate);
+            result.append("Standup: ").append(standupPath).append("\n");
+            String storyPath = instagramPostService.createSmartStory(targetDate);
+            result.append("Story: ").append(storyPath).append("\n");
+            return ResponseEntity.ok(result.toString());
         } catch (Exception e) {
             return ResponseEntity.status(500).body("Error: " + e.getMessage());
         }
