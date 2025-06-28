@@ -4,10 +4,10 @@ WORKDIR /app
 COPY . .
 RUN mvn clean package -DskipTests
 
-# 2. Aşama: Runtime ortamı + Chrome + ChromeDriver + ImageMagick
+# 2. Aşama: Runtime ortamı
 FROM openjdk:21-jdk-slim
 
-# Gerekli sistem paketlerini yükle
+# Sistem bağımlılıklarını yükle
 RUN apt-get update && apt-get install -y \
     wget \
     curl \
@@ -32,15 +32,13 @@ RUN apt-get update && apt-get install -y \
     ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
-# Google Chrome 126 kur
-RUN wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
-    apt-get update && \
-    apt-get install -y ./google-chrome-stable_current_amd64.deb && \
-    rm google-chrome-stable_current_amd64.deb && \
-    rm -rf /var/lib/apt/lists/*
+# Google Chrome 117 kur
+RUN wget https://dl.google.com/linux/chrome/deb/pool/main/g/google-chrome-stable/google-chrome-stable_117.0.5938.92-1_amd64.deb && \
+    apt-get install -y ./google-chrome-stable_117.0.5938.92-1_amd64.deb && \
+    rm google-chrome-stable_117.0.5938.92-1_amd64.deb
 
-# ChromeDriver 126.0.6478.126 kur
-ENV CHROME_DRIVER_VERSION=126.0.6478.126
+# ChromeDriver 117.0.5938.92 kur
+ENV CHROME_DRIVER_VERSION=117.0.5938.92
 
 RUN wget -O /tmp/chromedriver.zip "https://chromedriver.storage.googleapis.com/${CHROME_DRIVER_VERSION}/chromedriver_linux64.zip" && \
     unzip /tmp/chromedriver.zip -d /usr/local/bin/ && \
