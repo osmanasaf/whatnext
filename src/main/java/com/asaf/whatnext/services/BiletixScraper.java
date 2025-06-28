@@ -108,6 +108,26 @@ public class BiletixScraper implements EventSource {
         return allEvents;
     }
 
+    @Override
+    public List<Event> fetchEvents(String city, java.time.LocalDate startDate, java.time.LocalDate endDate) {
+        List<Event> allEvents = fetchEvents(city);
+        // Eğer eventlerin tarihi varsa, filtre uygula
+        List<Event> filtered = new ArrayList<>();
+        for (Event event : allEvents) {
+            if (event.getStartDate() != null &&
+                (event.getStartDate().isEqual(startDate) || event.getStartDate().isAfter(startDate)) &&
+                (event.getStartDate().isEqual(endDate) || event.getStartDate().isBefore(endDate))) {
+                filtered.add(event);
+            }
+        }
+        return filtered;
+    }
+
+    @Override
+    public List<Event> fetchEvents(java.time.LocalDate startDate, java.time.LocalDate endDate) {
+        return fetchEvents(BiletixCity.ISTANBUL.getValue(), startDate, endDate);
+    }
+
     public List<Event> processCategory(BiletixCategory category) {
         return processCategory(category, BiletixCity.ISTANBUL);
     }

@@ -98,6 +98,38 @@ public class BiletinialScraper implements EventSource {
         return allEvents;
     }
 
+    @Override
+    public List<Event> fetchEvents(String city, java.time.LocalDate startDate, java.time.LocalDate endDate) {
+        List<Event> allEvents = new ArrayList<>();
+        BiletinialCity selectedCity = java.util.Arrays.stream(BiletinialCity.values())
+                .filter(c -> c.getValue().equalsIgnoreCase(city))
+                .findFirst()
+                .orElse(BiletinialCity.ISTANBUL);
+        for (BiletinialCategory category : BiletinialCategory.values()) {
+            try {
+                initializeBrowser();
+                java.time.LocalDate current = startDate;
+                while (!current.isAfter(endDate)) {
+                    String dateStr = current.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+                    String searchUrl = buildSearchUrl(category, dateStr, selectedCity);
+                    List<Event> dateEvents = fetchEventsByDate(searchUrl, category);
+                    allEvents.addAll(dateEvents);
+                    current = current.plusDays(1);
+                }
+            } catch (Exception e) {
+                LOGGER.log(java.util.logging.Level.SEVERE, "Error processing category: " + category.name(), e);
+            } finally {
+                closeBrowser();
+            }
+        }
+        return allEvents;
+    }
+
+    @Override
+    public List<Event> fetchEvents(java.time.LocalDate startDate, java.time.LocalDate endDate) {
+        return fetchEvents(BiletinialCity.ISTANBUL.getValue(), startDate, endDate);
+    }
+
     public List<Event> processCategory(BiletinialCategory category) {
         return processCategory(category, BiletinialCity.ISTANBUL);
     }

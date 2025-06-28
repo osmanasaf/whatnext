@@ -17,9 +17,16 @@ public class ScraperController {
     }
 
     @PostMapping("/run-all")
-    public ResponseEntity<String> runAllScrapers() {
+    public ResponseEntity<String> runAllScrapers(
+            @RequestParam(required = false) String city,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
         try {
-            eventScraperService.scrapeAllEvents();
+            // Varsayılanlar
+            String usedCity = city != null ? city : "istanbul";
+            java.time.LocalDate start = startDate != null ? java.time.LocalDate.parse(startDate) : java.time.LocalDate.now();
+            java.time.LocalDate end = endDate != null ? java.time.LocalDate.parse(endDate) : start.plusDays(6);
+            eventScraperService.scrapeAllEvents(usedCity, start, end);
             return ResponseEntity.ok("All scrapers completed successfully");
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body("Error running scrapers: " + e.getMessage());
@@ -37,9 +44,16 @@ public class ScraperController {
     }
 
     @PostMapping("/run/{source}")
-    public ResponseEntity<String> runScraperBySource(@PathVariable String source) {
+    public ResponseEntity<String> runScraperBySource(
+            @PathVariable String source,
+            @RequestParam(required = false) String city,
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
         try {
-            eventScraperService.scrapeEventsBySource(source);
+            String usedCity = city != null ? city : "istanbul";
+            java.time.LocalDate start = startDate != null ? java.time.LocalDate.parse(startDate) : java.time.LocalDate.now();
+            java.time.LocalDate end = endDate != null ? java.time.LocalDate.parse(endDate) : start.plusDays(6);
+            eventScraperService.scrapeEventsBySource(source, usedCity, start, end);
             return ResponseEntity.ok("Scraper " + source + " completed successfully");
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(e.getMessage());

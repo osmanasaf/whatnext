@@ -94,6 +94,26 @@ public class BiletinoScraper implements EventSource {
         return allEvents;
     }
 
+    @Override
+    public List<Event> fetchEvents(String city, java.time.LocalDate startDate, java.time.LocalDate endDate) {
+        List<Event> allEvents = fetchEvents(city);
+        // Eğer eventlerin tarihi varsa, filtre uygula
+        List<Event> filtered = new ArrayList<>();
+        for (Event event : allEvents) {
+            if (event.getStartDate() != null &&
+                (event.getStartDate().isEqual(startDate) || event.getStartDate().isAfter(startDate)) &&
+                (event.getStartDate().isEqual(endDate) || event.getStartDate().isBefore(endDate))) {
+                filtered.add(event);
+            }
+        }
+        return filtered;
+    }
+
+    @Override
+    public List<Event> fetchEvents(java.time.LocalDate startDate, java.time.LocalDate endDate) {
+        return fetchEvents(BiletinoCity.ISTANBUL.getValue(), startDate, endDate);
+    }
+
     public List<Event> processCategory(BiletinoCategory category) {
         return processCategory(category, BiletinoCity.ISTANBUL);
     }

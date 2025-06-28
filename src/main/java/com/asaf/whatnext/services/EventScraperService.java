@@ -102,6 +102,42 @@ public class EventScraperService {
         LOGGER.info("Completed event scraping process");
     }
 
+    public void scrapeAllEvents(String city, java.time.LocalDate startDate, java.time.LocalDate endDate) {
+        LOGGER.info("Starting event scraping process for city: {} and date range: {} - {}", city, startDate, endDate);
+        for (EventSource scraper : scrapers) {
+            try {
+                LOGGER.info("Starting scraper: {}", scraper.getSourceName());
+                if (!scraper.isAvailable()) {
+                    LOGGER.warn("Scraper {} is not available, skipping...", scraper.getSourceName());
+                    continue;
+                }
+                java.util.List<Event> events = scraper.fetchEvents(city, startDate, endDate);
+                LOGGER.info("Found {} events from {}", events.size(), scraper.getSourceName());
+                for (Event event : events) {
+                    try {
+                        if (event instanceof ConcertEvent) {
+                            EventUtils.saveConcertEventWithDuplicateChecking((ConcertEvent) event, concertEventService, artistService, venueService);
+                        } else if (event instanceof PerformingArt) {
+                            EventUtils.savePerformingArtWithDuplicateChecking((PerformingArt) event, theaterEventService);
+                        } else if (event instanceof ExhibitionEvent) {
+                            EventUtils.saveExhibitionEventWithDuplicateChecking((ExhibitionEvent) event, exhibitionEventService);
+                        } else {
+                            eventService.save(event);
+                            LOGGER.warn("Unknown event type, saved directly: {} from {}", event.getTitle(), scraper.getSourceName());
+                        }
+                        LOGGER.debug("Saved event: {} from {}", event.getTitle(), scraper.getSourceName());
+                    } catch (Exception e) {
+                        LOGGER.error("Error saving event {} from {}: {}", event.getTitle(), scraper.getSourceName(), e.getMessage());
+                    }
+                }
+                LOGGER.info("Completed scraper: {}", scraper.getSourceName());
+            } catch (Exception e) {
+                LOGGER.error("Error in scraper {}: {}", scraper.getSourceName(), e.getMessage());
+            }
+        }
+        LOGGER.info("Completed event scraping process");
+    }
+
     public void scrapeEventsBySource(String sourceName) {
         scrapeEventsBySource(sourceName, null);
     }
@@ -143,6 +179,42 @@ public class EventScraperService {
                 }
             }
 
+            LOGGER.info("Completed scraping for source: {}", sourceName);
+        } catch (Exception e) {
+            LOGGER.error("Error in scraper {}: {}", sourceName, e.getMessage());
+        }
+    }
+
+    public void scrapeEventsBySource(String sourceName, String city, java.time.LocalDate startDate, java.time.LocalDate endDate) {
+        LOGGER.info("Starting event scraping for source: {} in city: {} and date range: {} - {}", sourceName, city, startDate, endDate);
+        EventSource targetScraper = scrapers.stream()
+                .filter(scraper -> scraper.getSourceName().equalsIgnoreCase(sourceName))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Scraper not found: " + sourceName));
+        try {
+            if (!targetScraper.isAvailable()) {
+                LOGGER.warn("Scraper {} is not available", sourceName);
+                return;
+            }
+            java.util.List<Event> events = targetScraper.fetchEvents(city, startDate, endDate);
+            LOGGER.info("Found {} events from {}", events.size(), sourceName);
+            for (Event event : events) {
+                try {
+                    if (event instanceof ConcertEvent) {
+                        EventUtils.saveConcertEventWithDuplicateChecking((ConcertEvent) event, concertEventService, artistService, venueService);
+                    } else if (event instanceof PerformingArt) {
+                        EventUtils.savePerformingArtWithDuplicateChecking((PerformingArt) event, theaterEventService);
+                    } else if (event instanceof ExhibitionEvent) {
+                        EventUtils.saveExhibitionEventWithDuplicateChecking((ExhibitionEvent) event, exhibitionEventService);
+                    } else {
+                        eventService.save(event);
+                        LOGGER.warn("Unknown event type, saved directly: {} from {}", event.getTitle(), sourceName);
+                    }
+                    LOGGER.debug("Saved event: {} from {}", event.getTitle(), sourceName);
+                } catch (Exception e) {
+                    LOGGER.error("Error saving event {} from {}: {}", event.getTitle(), sourceName, e.getMessage());
+                }
+            }
             LOGGER.info("Completed scraping for source: {}", sourceName);
         } catch (Exception e) {
             LOGGER.error("Error in scraper {}: {}", sourceName, e.getMessage());

@@ -114,34 +114,25 @@ public class ImageGenerationService {
         Collections.shuffle(standups);
 
         List<Event> selected = new ArrayList<>();
-        selected.addAll(concerts.stream().limit(2).toList());
-        selected.addAll(theaters.stream().limit(2).toList());
+        selected.addAll(concerts.stream().limit(3).toList());
+        selected.addAll(theaters.stream().limit(3).toList());
         selected.addAll(standups.stream().limit(2).toList());
 
-        while (selected.size() < 6) {
-            List<Event> pool = new ArrayList<>();
-            if (selected.stream().filter(e -> e.getType() == EventType.CONCERT).count() < 2) {
-                pool.addAll(concerts);
-            }
-            if (selected.stream().filter(e -> e instanceof com.asaf.whatnext.models.PerformingArt pa && pa.getPerformanceType() == com.asaf.whatnext.enums.PerformanceType.THEATER).count() < 2) {
-                pool.addAll(theaters);
-            }
-             if (selected.stream().filter(e -> e instanceof com.asaf.whatnext.models.PerformingArt pa && pa.getPerformanceType() == com.asaf.whatnext.enums.PerformanceType.STANDUP).count() < 2) {
-                pool.addAll(standups);
-            }
-            if (pool.isEmpty()) {
-                pool.addAll(concerts);
-                pool.addAll(theaters);
-                pool.addAll(standups);
-            }
-            pool.removeAll(selected);
-            if (pool.isEmpty()) break;
-            Collections.shuffle(pool);
-            selected.add(pool.get(0));
+        // Eğer toplam 8 etkinlik yoksa, eksikleri diğer türlerden tamamla
+        int eksik = 8 - selected.size();
+        if (eksik > 0) {
+            List<Event> tumEtkinlikler = new ArrayList<>();
+            tumEtkinlikler.addAll(concerts);
+            tumEtkinlikler.addAll(theaters);
+            tumEtkinlikler.addAll(standups);
+            // Zaten seçilmiş olanları çıkar
+            tumEtkinlikler.removeAll(selected);
+            Collections.shuffle(tumEtkinlikler);
+            selected.addAll(tumEtkinlikler.stream().limit(eksik).toList());
         }
-        selected = selected.stream().limit(6).collect(Collectors.toList());
+        selected = selected.stream().limit(8).collect(Collectors.toList());
         List<EventSummaryDTO> eventSummaries = selected.stream().map(eventMapper::toSummaryDTO).collect(Collectors.toList());
-        List<String> command = buildImageMagickCommand(templatePath.toString(), outputPath.toString(), "Günün Etkinlikleri", eventSummaries, coordinates);
+        List<String> command = buildImageMagickCommand(templatePath.toString(), outputPath.toString(), "Bugün", eventSummaries, coordinates);
         return executeCommand(command, outputPath.toString());
     }
 
