@@ -16,6 +16,7 @@ import org.openqa.selenium.*;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import com.asaf.whatnext.config.BiletinialScraperConfig;
 
 import java.time.Duration;
 import java.time.LocalDate;
@@ -53,6 +54,7 @@ public class BiletinialScraper implements EventSource {
     private final ArtistService artistService;
     private final VenueService venueService;
     private final CloudinaryService cloudinaryService;
+    private final BiletinialScraperConfig config;
     private WebDriver driver;
     private WebDriverWait wait;
 
@@ -61,17 +63,19 @@ public class BiletinialScraper implements EventSource {
                            TheaterEventService theaterEventService,
                            ArtistService artistService,
                            VenueService venueService,
-                           CloudinaryService cloudinaryService) {
+                           CloudinaryService cloudinaryService,
+                           BiletinialScraperConfig config) {
         this.concertEventService = concertEventService;
         this.theaterEventService = theaterEventService;
         this.artistService = artistService;
         this.venueService = venueService;
         this.cloudinaryService = cloudinaryService;
+        this.config = config;
     }
 
     private void initializeBrowser() {
-        this.driver = WebScraperUtils.initializeBrowser(CHROME_PATH, WAIT_TIMEOUT);
-        this.wait = new WebDriverWait(driver, Duration.ofSeconds(WAIT_TIMEOUT));
+        this.driver = WebScraperUtils.initializeBrowser(config.getChromePath(), config.getWaitTimeoutSeconds());
+        this.wait = new WebDriverWait(driver, Duration.ofSeconds(config.getWaitTimeoutSeconds()));
     }
 
     private void closeBrowser() {
@@ -385,7 +389,7 @@ public class BiletinialScraper implements EventSource {
     @Override
     public boolean isAvailable() {
         try {
-            driver = WebScraperUtils.initializeBrowser(CHROME_PATH, WAIT_TIMEOUT);
+            driver = WebScraperUtils.initializeBrowser(config.getChromePath(), config.getWaitTimeoutSeconds());
             driver.get(BASE_URL);
             boolean available = driver.getTitle().contains("Biletinial");
             WebScraperUtils.closeBrowser(driver);
