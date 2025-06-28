@@ -7,7 +7,7 @@ RUN mvn clean package -DskipTests
 # 2. Aşama: Uygulama ortamı + Chrome + ChromeDriver + ImageMagick
 FROM openjdk:21-jdk-slim
 
-# Gerekli sistem paketlerini kur
+# Sistem bağımlılıklarını yükle
 RUN apt-get update && apt-get install -y \
     wget \
     curl \
@@ -31,7 +31,7 @@ RUN apt-get update && apt-get install -y \
     xdg-utils \
  && rm -rf /var/lib/apt/lists/*
 
-# Google Chrome deposunu ve key'ini ekle, Chrome'u kur
+# Google Chrome kur
 RUN mkdir -p /etc/apt/keyrings && \
     curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /etc/apt/keyrings/google-chrome.gpg && \
     echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list && \
@@ -39,20 +39,15 @@ RUN mkdir -p /etc/apt/keyrings && \
     apt-get install -y google-chrome-stable && \
     rm -rf /var/lib/apt/lists/*
 
-# ChromeDriver'ı Chrome sürümüne uygun şekilde kur
-RUN set -eux; \
-    CHROME_VERSION=$(google-chrome --version | sed -E 's/[^0-9]*([0-9]+\.[0-9]+\.[0-9]+).*/\1/') || CHROME_VERSION=""; \
-    if [ -n "$CHROME_VERSION" ]; then \
-      DRIVER_VERSION=$(curl -sS "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_${CHROME_VERSION%.*}" || curl -sS https://chromedriver.storage.googleapis.com/LATEST_RELEASE); \
-    else \
-      DRIVER_VERSION=$(curl -sS https://chromedriver.storage.googleapis.com/LATEST_RELEASE); \
-    fi; \
-    wget -O /tmp/chromedriver.zip "https://chromedriver.storage.googleapis.com/${DRIVER_VERSION}/chromedriver_linux64.zip"; \
-    unzip /tmp/chromedriver.zip -d /usr/local/bin/; \
-    chmod +x /usr/local/bin/chromedriver; \
+# ChromeDriver (sabit, uyumlu sürüm)
+ENV CHROME_DRIVER_VERSION=137.0.7012.75
+
+RUN wget -O /tmp/chromedriver.zip "https://chromedriver.storage.googleapis.com/${CHROME_DRIVER_VERSION}/chromedriver_linux64.zip" && \
+    unzip /tmp/chromedriver.zip -d /usr/local/bin/ && \
+    chmod +x /usr/local/bin/chromedriver && \
     rm /tmp/chromedriver.zip
 
-# Jar dosyasını build aşamasından kopyala
+# Jar dosyasını kopyala
 COPY --from=build /app/target/*.jar /app/whatnext.jar
 
 WORKDIR /app
