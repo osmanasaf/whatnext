@@ -103,6 +103,15 @@ public class EventScraperService {
     }
 
     public void scrapeAllEvents(String city, java.time.LocalDate startDate, java.time.LocalDate endDate) {
+        // Bugünden eski tarih kontrolü
+        java.time.LocalDate today = java.time.LocalDate.now();
+        if (startDate.isBefore(today)) {
+            throw new IllegalArgumentException("Başlangıç tarihi bugünden daha eski olamaz. Bugün: " + today + ", Verilen tarih: " + startDate);
+        }
+        if (endDate.isBefore(today)) {
+            throw new IllegalArgumentException("Bitiş tarihi bugünden daha eski olamaz. Bugün: " + today + ", Verilen tarih: " + endDate);
+        }
+        
         LOGGER.info("Starting event scraping process for city: {} and date range: {} - {}", city, startDate, endDate);
         for (EventSource scraper : scrapers) {
             try {
@@ -186,6 +195,15 @@ public class EventScraperService {
     }
 
     public void scrapeEventsBySource(String sourceName, String city, java.time.LocalDate startDate, java.time.LocalDate endDate) {
+        // Bugünden eski tarih kontrolü
+        java.time.LocalDate today = java.time.LocalDate.now();
+        if (startDate.isBefore(today)) {
+            throw new IllegalArgumentException("Başlangıç tarihi bugünden daha eski olamaz. Bugün: " + today + ", Verilen tarih: " + startDate);
+        }
+        if (endDate.isBefore(today)) {
+            throw new IllegalArgumentException("Bitiş tarihi bugünden daha eski olamaz. Bugün: " + today + ", Verilen tarih: " + endDate);
+        }
+        
         LOGGER.info("Starting event scraping for source: {} in city: {} and date range: {} - {}", sourceName, city, startDate, endDate);
         EventSource targetScraper = scrapers.stream()
                 .filter(scraper -> scraper.getSourceName().equalsIgnoreCase(sourceName))

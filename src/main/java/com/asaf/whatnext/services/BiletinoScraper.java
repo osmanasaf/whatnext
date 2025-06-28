@@ -8,6 +8,7 @@ import com.asaf.whatnext.enums.EventType;
 import com.asaf.whatnext.enums.PerformanceType;
 import com.asaf.whatnext.models.*;
 import com.asaf.whatnext.service.ArtistService;
+import com.asaf.whatnext.service.CloudinaryService;
 import com.asaf.whatnext.service.ConcertEventService;
 import com.asaf.whatnext.service.TheaterEventService;
 import com.asaf.whatnext.service.VenueService;
@@ -31,6 +32,7 @@ import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.UUID;
 
 import static com.asaf.whatnext.config.BiletinoScraperConfig.*;
 import static com.asaf.whatnext.utils.EventUtils.determineEventType;
@@ -38,13 +40,14 @@ import static com.asaf.whatnext.utils.EventUtils.determineEventType;
 @Service
 public class BiletinoScraper implements EventSource {
     private static final Logger LOGGER = Logger.getLogger(BiletinoScraper.class.getName());
-    private static final String IMAGE_SELECTOR = "img.swiper-lazy";
+    private static final String IMAGE_SELECTOR = "img[src*='resources-biletino.s3-external-3.amazonaws.com']";
     
     private final ConcertEventService concertEventService;
     private final TheaterEventService theaterEventService;
     private final ArtistService artistService;
     private final VenueService venueService;
     private final BiletinoScraperConfig config;
+    private final CloudinaryService cloudinaryService;
     private final BiletinoCity city = BiletinoCity.ISTANBUL;
     private WebDriver driver;
     private WebDriverWait wait;
@@ -54,12 +57,14 @@ public class BiletinoScraper implements EventSource {
                            TheaterEventService theaterEventService,
                            ArtistService artistService,
                            VenueService venueService,
-                           BiletinoScraperConfig config) {
+                           BiletinoScraperConfig config,
+                           CloudinaryService cloudinaryService) {
         this.concertEventService = concertEventService;
         this.theaterEventService = theaterEventService;
         this.artistService = artistService;
         this.venueService = venueService;
         this.config = config;
+        this.cloudinaryService = cloudinaryService;
     }
 
     private void initializeBrowser() {
@@ -284,15 +289,18 @@ public class BiletinoScraper implements EventSource {
 
                 Event event = createEventFromDetailedInfo(eventType, basicInfo, detailedInfo);
                 if (event != null) {
-                    // Extract and save image
+                    // Extract and upload image to Cloudinary
                     try {
                         Element imgElement = doc.select(IMAGE_SELECTOR).first();
                         if (imgElement != null) {
                             String imageUrl = imgElement.attr("src");
                             if (imageUrl != null && !imageUrl.isEmpty()) {
-                                String imageData = downloadImageAsBase64(imageUrl);
-                                if (imageData != null) {
-                                    event.setImage(imageData, "image/jpeg", imageUrl);
+                                byte[] imageBytes = downloadImageAsBytes(imageUrl);
+                                if (imageBytes != null) {
+                                    String cloudinaryUrl = uploadImageToCloudinary(imageBytes, basicInfo.getTitle());
+                                    if (cloudinaryUrl != null) {
+                                        event.setImage(null, "image/jpeg", cloudinaryUrl);
+                                    }
                                 }
                             }
                         }
@@ -420,18 +428,28 @@ public class BiletinoScraper implements EventSource {
         }
     }
 
-    private String downloadImageAsBase64(String imageUrl) {
+    private byte[] downloadImageAsBytes(String imageUrl) {
         try {
             URL url = new URL(imageUrl);
             HttpURLConnection connection = (HttpURLConnection) url.openConnection();
             connection.setRequestProperty("User-Agent", "Mozilla/5.0");
             
             try (InputStream in = connection.getInputStream()) {
-                byte[] imageBytes = in.readAllBytes();
-                return Base64.getEncoder().encodeToString(imageBytes);
+                return in.readAllBytes();
             }
         } catch (Exception e) {
             LOGGER.log(Level.WARNING, "Error downloading image: " + imageUrl, e);
+            return null;
+        }
+    }
+
+    private String uploadImageToCloudinary(byte[] imageBytes, String eventTitle) {
+        try {
+            String fileName = "biletino_" + UUID.randomUUID().toString().replace("-", "");
+            Map<String, Object> uploadResult = cloudinaryService.uploadImageFromBytes(imageBytes, "events/biletino", fileName);
+            return cloudinaryService.getImageUrl(uploadResult);
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Error uploading image to Cloudinary for event: " + eventTitle, e);
             return null;
         }
     }

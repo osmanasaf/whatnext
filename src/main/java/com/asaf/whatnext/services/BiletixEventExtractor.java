@@ -67,13 +67,21 @@ public class BiletixEventExtractor {
                 return null;
             }
 
+            Event event = null;
             if (category == BiletixCategory.ART) {
                 PerformanceType performanceType = determinePerformanceType(info.getTitle(), "");
-                return createPerformingArtEvent(info, performanceType);
+                event = createPerformingArtEvent(info, performanceType);
+            } else {
+                EventType eventType = determineEventType(info.getTitle(), "", category);
+                event = createEventFromInfo(eventType, info);
             }
 
-            EventType eventType = determineEventType(info.getTitle(), "", category);
-            return createEventFromInfo(eventType, info);
+            // Biletix için image extraction kaldırıldı - sadece event URL'leri kullanılıyor
+            if (event != null) {
+                LOGGER.fine("Event created successfully for: " + info.getTitle() + " (image extraction disabled for Biletix)");
+            }
+
+            return event;
 
         } catch (Exception e) {
             LOGGER.log(Level.WARNING, "Error extracting basic event info", e);

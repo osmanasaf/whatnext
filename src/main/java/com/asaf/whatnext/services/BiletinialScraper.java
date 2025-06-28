@@ -7,6 +7,7 @@ import com.asaf.whatnext.enums.EventType;
 import com.asaf.whatnext.enums.PerformanceType;
 import com.asaf.whatnext.models.*;
 import com.asaf.whatnext.service.ArtistService;
+import com.asaf.whatnext.service.CloudinaryService;
 import com.asaf.whatnext.service.ConcertEventService;
 import com.asaf.whatnext.service.TheaterEventService;
 import com.asaf.whatnext.service.VenueService;
@@ -26,6 +27,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.io.InputStream;
 import java.util.Base64;
+import java.util.UUID;
 
 @Service
 public class BiletinialScraper implements EventSource {
@@ -50,6 +52,7 @@ public class BiletinialScraper implements EventSource {
     private final TheaterEventService theaterEventService;
     private final ArtistService artistService;
     private final VenueService venueService;
+    private final CloudinaryService cloudinaryService;
     private WebDriver driver;
     private WebDriverWait wait;
 
@@ -57,11 +60,13 @@ public class BiletinialScraper implements EventSource {
     public BiletinialScraper(ConcertEventService concertEventService,
                            TheaterEventService theaterEventService,
                            ArtistService artistService,
-                           VenueService venueService) {
+                           VenueService venueService,
+                           CloudinaryService cloudinaryService) {
         this.concertEventService = concertEventService;
         this.theaterEventService = theaterEventService;
         this.artistService = artistService;
         this.venueService = venueService;
+        this.cloudinaryService = cloudinaryService;
     }
 
     private void initializeBrowser() {
@@ -211,14 +216,17 @@ public class BiletinialScraper implements EventSource {
             EventType eventType = determineEventType(title, category);
             Event event = createEvent(eventType, title, dateStr, city, venue, ticketUrl);
             
-            // Extract and save image
+            // Extract and upload image to Cloudinary
             try {
                 WebElement imgElement = card.findElement(By.cssSelector(IMAGE_SELECTOR));
                 String imageUrl = imgElement.getAttribute("src");
                 if (imageUrl != null && !imageUrl.isEmpty()) {
-                    String imageData = downloadImageAsBase64(imageUrl);
-                    if (imageData != null) {
-                        event.setImage(imageData, "image/jpeg", imageUrl);
+                    byte[] imageBytes = downloadImageAsBytes(imageUrl);
+                    if (imageBytes != null) {
+                        String cloudinaryUrl = uploadImageToCloudinary(imageBytes, title);
+                        if (cloudinaryUrl != null) {
+                            event.setImage(null, "image/jpeg", cloudinaryUrl);
+                        }
                     }
                 }
             } catch (Exception e) {
@@ -244,6 +252,32 @@ public class BiletinialScraper implements EventSource {
             }
         } catch (Exception e) {
             LOGGER.log(Level.WARNING, "Error downloading image: " + imageUrl, e);
+            return null;
+        }
+    }
+
+    private byte[] downloadImageAsBytes(String imageUrl) {
+        try {
+            URL url = new URL(imageUrl);
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestProperty("User-Agent", "Mozilla/5.0");
+            
+            try (InputStream in = connection.getInputStream()) {
+                return in.readAllBytes();
+            }
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Error downloading image: " + imageUrl, e);
+            return null;
+        }
+    }
+
+    private String uploadImageToCloudinary(byte[] imageBytes, String eventTitle) {
+        try {
+            String fileName = "biletinial_" + UUID.randomUUID().toString().replace("-", "");
+            Map<String, Object> uploadResult = cloudinaryService.uploadImageFromBytes(imageBytes, "events/biletinial", fileName);
+            return cloudinaryService.getImageUrl(uploadResult);
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Error uploading image to Cloudinary for event: " + eventTitle, e);
             return null;
         }
     }

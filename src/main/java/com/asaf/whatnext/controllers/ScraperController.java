@@ -5,6 +5,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
+
 @RestController
 @RequestMapping("/api/scrapers")
 public class ScraperController {
@@ -22,10 +24,19 @@ public class ScraperController {
             @RequestParam(required = false) String startDate,
             @RequestParam(required = false) String endDate) {
         try {
-            // Varsayılanlar
             String usedCity = city != null ? city : "istanbul";
-            java.time.LocalDate start = startDate != null ? java.time.LocalDate.parse(startDate) : java.time.LocalDate.now();
-            java.time.LocalDate end = endDate != null ? java.time.LocalDate.parse(endDate) : start.plusDays(6);
+            LocalDate today = LocalDate.now();
+            
+            LocalDate start = startDate != null ? LocalDate.parse(startDate) : today;
+            LocalDate end = endDate != null ? LocalDate.parse(endDate) : start.plusDays(6);
+            
+            if (start.isBefore(today)) {
+                return ResponseEntity.badRequest().body("Başlangıç tarihi bugünden daha eski olamaz. Bugün: " + today);
+            }
+            if (end.isBefore(today)) {
+                return ResponseEntity.badRequest().body("Bitiş tarihi bugünden daha eski olamaz. Bugün: " + today);
+            }
+            
             eventScraperService.scrapeAllEvents(usedCity, start, end);
             return ResponseEntity.ok("All scrapers completed successfully");
         } catch (Exception e) {
@@ -51,8 +62,19 @@ public class ScraperController {
             @RequestParam(required = false) String endDate) {
         try {
             String usedCity = city != null ? city : "istanbul";
-            java.time.LocalDate start = startDate != null ? java.time.LocalDate.parse(startDate) : java.time.LocalDate.now();
-            java.time.LocalDate end = endDate != null ? java.time.LocalDate.parse(endDate) : start.plusDays(6);
+            LocalDate today = LocalDate.now();
+            
+            LocalDate start = startDate != null ? LocalDate.parse(startDate) : today;
+            LocalDate end = endDate != null ? LocalDate.parse(endDate) : start.plusDays(6);
+            
+            // Bugünden eski tarih kontrolü
+            if (start.isBefore(today)) {
+                return ResponseEntity.badRequest().body("Başlangıç tarihi bugünden daha eski olamaz. Bugün: " + today);
+            }
+            if (end.isBefore(today)) {
+                return ResponseEntity.badRequest().body("Bitiş tarihi bugünden daha eski olamaz. Bugün: " + today);
+            }
+            
             eventScraperService.scrapeEventsBySource(source, usedCity, start, end);
             return ResponseEntity.ok("Scraper " + source + " completed successfully");
         } catch (IllegalArgumentException e) {

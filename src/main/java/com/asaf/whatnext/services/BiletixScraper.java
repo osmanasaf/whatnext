@@ -3,6 +3,7 @@ package com.asaf.whatnext.services;
 import com.asaf.whatnext.config.BiletixScraperConfig;
 import com.asaf.whatnext.enums.Biletix.BiletixCategory;
 import com.asaf.whatnext.enums.Biletix.BiletixCity;
+import com.asaf.whatnext.enums.EventSourceType;
 import com.asaf.whatnext.models.ConcertEvent;
 import com.asaf.whatnext.models.Event;
 import com.asaf.whatnext.models.ExhibitionEvent;
@@ -14,9 +15,8 @@ import com.asaf.whatnext.service.TheaterEventService;
 import com.asaf.whatnext.service.VenueService;
 import com.asaf.whatnext.utils.EventUtils;
 import com.asaf.whatnext.utils.WebScraperUtils;
-import org.openqa.selenium.By;
-import org.openqa.selenium.WebDriver;
-import org.openqa.selenium.WebElement;
+import org.openqa.selenium.*;
+import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -39,8 +39,6 @@ public class BiletixScraper implements EventSource {
     private final VenueService venueService;
     private final BiletixScraperConfig config;
     private final BiletixEventExtractor eventExtractor;
-    private final BiletixCity city = BiletixCity.ISTANBUL;
-
     private WebDriver driver;
     private WebDriverWait wait;
 
