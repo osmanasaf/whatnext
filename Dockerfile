@@ -4,10 +4,10 @@ WORKDIR /app
 COPY . .
 RUN mvn clean package -DskipTests
 
-# 2. Aşama: Uygulama ortamı + Chrome + ChromeDriver + ImageMagick
+# 2. Aşama: Runtime ortamı + Chrome + ChromeDriver + ImageMagick
 FROM openjdk:21-jdk-slim
 
-# Sistem bağımlılıklarını yükle
+# Gerekli sistem paketlerini yükle
 RUN apt-get update && apt-get install -y \
     wget \
     curl \
@@ -29,18 +29,18 @@ RUN apt-get update && apt-get install -y \
     libxdamage1 \
     libxrandr2 \
     xdg-utils \
- && rm -rf /var/lib/apt/lists/*
-
-# Google Chrome kur
-RUN mkdir -p /etc/apt/keyrings && \
-    curl -fsSL https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /etc/apt/keyrings/google-chrome.gpg && \
-    echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list && \
-    apt-get update && \
-    apt-get install -y google-chrome-stable && \
+    ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
-# ChromeDriver (sabit, uyumlu sürüm)
-ENV CHROME_DRIVER_VERSION=137.0.7012.75
+# Google Chrome 126 kur
+RUN wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
+    apt-get update && \
+    apt-get install -y ./google-chrome-stable_current_amd64.deb && \
+    rm google-chrome-stable_current_amd64.deb && \
+    rm -rf /var/lib/apt/lists/*
+
+# ChromeDriver 126.0.6478.126 kur
+ENV CHROME_DRIVER_VERSION=126.0.6478.126
 
 RUN wget -O /tmp/chromedriver.zip "https://chromedriver.storage.googleapis.com/${CHROME_DRIVER_VERSION}/chromedriver_linux64.zip" && \
     unzip /tmp/chromedriver.zip -d /usr/local/bin/ && \
