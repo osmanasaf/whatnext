@@ -20,6 +20,7 @@ public class WebScraperUtils {
     
     public static ChromeOptions configureChromeBrowser(String chromePath) {
         ChromeOptions options = new ChromeOptions();
+        options.addArguments("--headless=new");
         options.addArguments("--disable-gpu");
         options.addArguments("--no-sandbox");
         options.addArguments("--window-size=1920,1080");
