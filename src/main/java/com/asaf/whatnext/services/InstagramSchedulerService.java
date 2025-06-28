@@ -1,4 +1,4 @@
-package com.asaf.whatnext.service;
+package com.asaf.whatnext.services;
 
 import com.asaf.whatnext.models.InstagramImage;
 import com.asaf.whatnext.repository.InstagramImageRepository;
@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -18,6 +19,17 @@ public class InstagramSchedulerService {
 
     @Autowired
     private InstagramImageRepository instagramImageRepository;
+    private static final String DAILY_CAPTION_TEMPLATE = """
+        📅 %s İstanbul Etkinlikleri 🎫
+        
+        🎭 Tiyatro | 🎶 Konser | 🎤 Stand-up  
+        Bugün şehirde ne var? Kaçırma!
+        
+        🔗 Detaylar ve biletler profilde  
+        #istanbuletkinlikleri #tiyatro #konser #standup #bugünnevar #whatnext #etkinlikrehberi #istanbuldaetkinlik
+        """;
+
+
 
     @Scheduled(cron = "0 0 1 * * ?")
     public void createDailyStory() {
@@ -93,7 +105,8 @@ public class InstagramSchedulerService {
             
             if (!posts.isEmpty()) {
                 posts.sort((img1, img2) -> "cover".equals(img1.getEventType()) ? -1 : 1);
-                String caption = today.format(java.time.format.DateTimeFormatter.ofPattern("dd MMMM yyyy", new Locale("tr"))) + " Etkinlikleri";
+                String date = today.format(DateTimeFormatter.ofPattern("dd MMMM yyyy", new Locale("tr")));
+                String caption = String.format(DAILY_CAPTION_TEMPLATE, date);
                 instagramService.sharePost(posts, caption);
                 System.out.println("[Scheduler] Haftalık postlar için paylaşım isteği gönderildi.");
             } else {

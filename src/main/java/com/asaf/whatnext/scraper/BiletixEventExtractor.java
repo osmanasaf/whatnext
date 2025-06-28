@@ -1,4 +1,4 @@
-package com.asaf.whatnext.services;
+package com.asaf.whatnext.scraper;
 
 import com.asaf.whatnext.config.BiletixScraperConfig;
 import com.asaf.whatnext.enums.Biletix.BiletixCategory;
@@ -9,7 +9,7 @@ import com.asaf.whatnext.models.ConcertEvent;
 import com.asaf.whatnext.models.Event;
 import com.asaf.whatnext.models.ExhibitionEvent;
 import com.asaf.whatnext.models.PerformingArt;
-import com.asaf.whatnext.service.VenueService;
+import com.asaf.whatnext.services.VenueService;
 import com.asaf.whatnext.utils.EventUtils;
 import com.asaf.whatnext.utils.WebScraperUtils;
 import org.openqa.selenium.By;

@@ -1,7 +1,10 @@
-package com.asaf.whatnext.services;
+package com.asaf.whatnext.scraper;
 
 import com.asaf.whatnext.models.Event;
-import com.asaf.whatnext.service.EventService;
+import com.asaf.whatnext.services.EventService;
+import com.asaf.whatnext.scraper.BiletinialScraper;
+import com.asaf.whatnext.scraper.BiletinoScraper;
+import com.asaf.whatnext.scraper.EventSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,11 +16,11 @@ import java.util.List;
 import com.asaf.whatnext.models.ConcertEvent;
 import com.asaf.whatnext.models.PerformingArt;
 import com.asaf.whatnext.models.ExhibitionEvent;
-import com.asaf.whatnext.service.ConcertEventService;
-import com.asaf.whatnext.service.ArtistService;
-import com.asaf.whatnext.service.VenueService;
-import com.asaf.whatnext.service.TheaterEventService;
-import com.asaf.whatnext.service.ExhibitionEventService;
+import com.asaf.whatnext.services.ConcertEventService;
+import com.asaf.whatnext.services.ArtistService;
+import com.asaf.whatnext.services.VenueService;
+import com.asaf.whatnext.services.TheaterEventService;
+import com.asaf.whatnext.services.ExhibitionEventService;
 import com.asaf.whatnext.utils.EventUtils;
 
 @Service

@@ -1,4 +1,4 @@
-package com.asaf.whatnext.service;
+package com.asaf.whatnext.services;
 
 import com.asaf.whatnext.enums.EventSourceType;
 import com.asaf.whatnext.enums.EventType;

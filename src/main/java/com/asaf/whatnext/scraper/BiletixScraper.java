@@ -1,22 +1,16 @@
-package com.asaf.whatnext.services;
+package com.asaf.whatnext.scraper;
 
 import com.asaf.whatnext.config.BiletixScraperConfig;
 import com.asaf.whatnext.enums.Biletix.BiletixCategory;
 import com.asaf.whatnext.enums.Biletix.BiletixCity;
-import com.asaf.whatnext.enums.EventSourceType;
 import com.asaf.whatnext.models.ConcertEvent;
 import com.asaf.whatnext.models.Event;
 import com.asaf.whatnext.models.ExhibitionEvent;
 import com.asaf.whatnext.models.PerformingArt;
-import com.asaf.whatnext.service.ArtistService;
-import com.asaf.whatnext.service.ConcertEventService;
-import com.asaf.whatnext.service.ExhibitionEventService;
-import com.asaf.whatnext.service.TheaterEventService;
-import com.asaf.whatnext.service.VenueService;
+import com.asaf.whatnext.services.*;
 import com.asaf.whatnext.utils.EventUtils;
 import com.asaf.whatnext.utils.WebScraperUtils;
 import org.openqa.selenium.*;
-import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -32,11 +26,11 @@ import java.util.logging.Logger;
 public class BiletixScraper implements EventSource {
     private static final Logger LOGGER = Logger.getLogger(BiletixScraper.class.getName());
 
-    private final ConcertEventService concertEventService;
     private final TheaterEventService theaterEventService;
     private final ExhibitionEventService exhibitionEventService;
     private final ArtistService artistService;
     private final VenueService venueService;
+    private final ConcertEventService concertEventService;
     private final BiletixScraperConfig config;
     private final BiletixEventExtractor eventExtractor;
     private WebDriver driver;

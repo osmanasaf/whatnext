@@ -1,9 +1,11 @@
-package com.asaf.whatnext.service;
+package com.asaf.whatnext.services;
 
 import com.asaf.whatnext.dto.EventSummaryDTO;
 import com.asaf.whatnext.enums.EventType;
+import com.asaf.whatnext.enums.PerformanceType;
 import com.asaf.whatnext.mapper.EventMapper;
 import com.asaf.whatnext.models.Event;
+import com.asaf.whatnext.models.PerformingArt;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -22,7 +24,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Properties;
+import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.LinkedHashSet;
+import java.util.stream.Stream;
 
 @Service
 public class ImageGenerationService {
@@ -98,43 +103,67 @@ public class ImageGenerationService {
         Files.createDirectories(outputPath.getParent());
         Properties coordinates = loadCoordinates(coordinatesPath);
 
-        List<Event> concerts = eventService.findTop6EventsForDateAndCity(date, EventType.CONCERT, "istanbul")
-            .stream().filter(e -> e.getTitle().length() <= 40).collect(Collectors.toList());
-        List<Event> performingArts = eventService.findTop6EventsForDateAndCity(date, EventType.PERFORMING_ART, "istanbul")
-            .stream().filter(e -> e.getTitle().length() <= 40).collect(Collectors.toList());
-        List<Event> theaters = performingArts.stream()
-            .filter(e -> e instanceof com.asaf.whatnext.models.PerformingArt pa && pa.getPerformanceType() == com.asaf.whatnext.enums.PerformanceType.THEATER)
-            .collect(Collectors.toList());
-        List<Event> standups = performingArts.stream()
-            .filter(e -> e instanceof com.asaf.whatnext.models.PerformingArt pa && pa.getPerformanceType() == com.asaf.whatnext.enums.PerformanceType.STANDUP)
-            .collect(Collectors.toList());
+        // Fetch all performing arts once
+        List<Event> allPerformingArts = eventService.findTop6EventsForDateAndCity(date, EventType.PERFORMING_ART, "istanbul")
+                .stream().filter(e -> e.getTitle().length() <= 40).toList();
 
+        // Filter types
+        List<Event> theaters = new ArrayList<>();
+        List<Event> standups = new ArrayList<>();
+
+        for (Event e : allPerformingArts) {
+            if (e instanceof PerformingArt pa) {
+                if (pa.getPerformanceType() == PerformanceType.THEATER) {
+                    theaters.add(e);
+                } else if (pa.getPerformanceType() == PerformanceType.STANDUP) {
+                    standups.add(e);
+                }
+            }
+        }
+
+        // Fetch concerts
+        List<Event> concerts = new ArrayList<>(eventService.findTop6EventsForDateAndCity(date, EventType.CONCERT, "istanbul")
+                .stream().filter(e -> e.getTitle().length() <= 40).toList());
+
+        // Shuffle once and safely limit
         Collections.shuffle(concerts);
         Collections.shuffle(theaters);
         Collections.shuffle(standups);
 
-        List<Event> selected = new ArrayList<>();
-        selected.addAll(concerts.stream().limit(3).toList());
-        selected.addAll(theaters.stream().limit(3).toList());
-        selected.addAll(standups.stream().limit(2).toList());
+        Set<Event> selected = new LinkedHashSet<>();
+        addUpTo(selected, concerts, 3);
+        addUpTo(selected, theaters, 3);
+        addUpTo(selected, standups, 2);
 
-        // Eğer toplam 8 etkinlik yoksa, eksikleri diğer türlerden tamamla
-        int eksik = 8 - selected.size();
-        if (eksik > 0) {
-            List<Event> tumEtkinlikler = new ArrayList<>();
-            tumEtkinlikler.addAll(concerts);
-            tumEtkinlikler.addAll(theaters);
-            tumEtkinlikler.addAll(standups);
-            // Zaten seçilmiş olanları çıkar
-            tumEtkinlikler.removeAll(selected);
-            Collections.shuffle(tumEtkinlikler);
-            selected.addAll(tumEtkinlikler.stream().limit(eksik).toList());
+        // Fill the rest
+        if (selected.size() < 8) {
+            List<Event> filler = Stream.of(concerts, theaters, standups)
+                    .flatMap(List::stream)
+                    .filter(e -> !selected.contains(e))
+                    .distinct()
+                    .collect(Collectors.toList());
+            Collections.shuffle(filler);
+            addUpTo(selected, filler, 8 - selected.size());
         }
-        selected = selected.stream().limit(8).collect(Collectors.toList());
-        List<EventSummaryDTO> eventSummaries = selected.stream().map(eventMapper::toSummaryDTO).collect(Collectors.toList());
+
+        List<EventSummaryDTO> eventSummaries = selected.stream()
+                .limit(8)
+                .map(eventMapper::toSummaryDTO)
+                .toList();
+
         List<String> command = buildImageMagickCommand(templatePath.toString(), outputPath.toString(), "Bugün", eventSummaries, coordinates);
         return executeCommand(command, outputPath.toString());
     }
+
+    private void addUpTo(Set<Event> targetSet, List<Event> sourceList, int maxCount) {
+        int added = 0;
+        for (Event e : sourceList) {
+            if (targetSet.add(e)) {
+                if (++added >= maxCount) break;
+            }
+        }
+    }
+
 
     private Properties loadCoordinates(Path path) throws IOException {
         Properties properties = new Properties();

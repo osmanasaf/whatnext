@@ -3,7 +3,8 @@ package com.asaf.whatnext.enums.Biletinial;
 public enum BiletinialCity {
     ISTANBUL("istanbul"),
     ANKARA("ankara"),
-    IZMIR("izmir");
+    IZMIR("izmir"),
+    ANTALYA("antalya");
 
     private final String value;
 

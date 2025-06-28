@@ -1,4 +1,4 @@
-package com.asaf.whatnext.service;
+package com.asaf.whatnext.services;
 
 import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
@@ -18,7 +18,9 @@ public class CloudinaryService {
     public Map<String, Object> uploadImage(File file, String folder) throws IOException {
         Map<String, Object> options = ObjectUtils.asMap(
                 "folder", folder,
-                "resource_type", "image"
+                "resource_type", "image",
+                "format", "webp",
+                "quality", "auto:good"
         );
         return cloudinary.uploader().upload(file, options);
     }
@@ -41,7 +43,9 @@ public class CloudinaryService {
                 "resource_type", "image",
                 "public_id", fileName,
                 "overwrite", true,
-                "invalidate", true
+                "invalidate", true,
+                "format", "webp",
+                "quality", "auto:good"
         );
         
         try {
@@ -65,7 +69,9 @@ public class CloudinaryService {
                 "resource_type", "image",
                 "public_id", fileName,
                 "overwrite", true,
-                "invalidate", true
+                "invalidate", true,
+                "format", "webp",
+                "quality", "auto:good"
         );
         
         try {

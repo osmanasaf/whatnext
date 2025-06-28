@@ -1,4 +1,4 @@
-package com.asaf.whatnext.service;
+package com.asaf.whatnext.services;
 
 import com.asaf.whatnext.models.Director;
 import com.asaf.whatnext.repository.DirectorRepository;

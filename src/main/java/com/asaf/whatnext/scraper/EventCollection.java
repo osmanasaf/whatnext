@@ -1,4 +1,4 @@
-package com.asaf.whatnext.services;
+package com.asaf.whatnext.scraper;
 
 import org.openqa.selenium.WebElement;
 import java.util.List;
@@ -37,5 +37,13 @@ public class EventCollection {
      */
     public List<String> getEventUrls() {
         return eventUrls;
+    }
+
+    public int size() {
+        return eventCards.size();
+    }
+
+    public boolean isEmpty() {
+        return eventCards.isEmpty();
     }
 }

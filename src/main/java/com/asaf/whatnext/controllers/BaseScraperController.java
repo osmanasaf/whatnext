@@ -1,7 +1,7 @@
 package com.asaf.whatnext.controllers;
 
 import com.asaf.whatnext.models.Event;
-import com.asaf.whatnext.services.EventSource;
+import com.asaf.whatnext.scraper.EventSource;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 

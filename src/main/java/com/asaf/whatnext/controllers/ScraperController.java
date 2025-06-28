@@ -1,6 +1,6 @@
 package com.asaf.whatnext.controllers;
 
-import com.asaf.whatnext.services.EventScraperService;
+import com.asaf.whatnext.scraper.EventScraperService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;

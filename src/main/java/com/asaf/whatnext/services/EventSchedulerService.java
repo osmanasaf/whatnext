@@ -1,0 +1,155 @@
+package com.asaf.whatnext.services;
+
+import com.asaf.whatnext.scraper.EventScraperService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
+
+@Service
+public class EventSchedulerService {
+    
+    private static final Logger LOGGER = LoggerFactory.getLogger(EventSchedulerService.class);
+    
+    @Autowired
+    private EventScraperService eventScraperService;
+    
+    // Desteklenen şehirler (şimdilik sadece İstanbul aktif)
+    private final List<String> ACTIVE_CITIES = new ArrayList<>(Arrays.asList("istanbul"));
+    // Gelecekte eklenecek şehirler
+    private final List<String> FUTURE_CITIES = Arrays.asList("ankara", "izmir", "antalya");
+    
+    /**
+     * Her ayın 30'unda saat 02:00'de çalışır
+     * Sonraki ay için tüm etkinlikleri çeker
+     */
+    @Scheduled(cron = "0 0 2 30 * ?")
+    public void scrapeMonthlyEvents() {
+        LOGGER.info("=== AYLIK ETKİNLİK SCRAPING İŞLEMİ BAŞLATILDI ===");
+        
+        LocalDate today = LocalDate.now();
+        LocalDate nextMonth = today.plusMonths(1);
+        LocalDate nextMonthStart = nextMonth.withDayOfMonth(1);
+        LocalDate nextMonthEnd = nextMonth.withDayOfMonth(nextMonth.lengthOfMonth());
+        
+        LOGGER.info("Sonraki ay için etkinlikler çekiliyor: {} - {}", 
+            nextMonthStart.format(DateTimeFormatter.ofPattern("dd MMMM yyyy", new Locale("tr"))),
+            nextMonthEnd.format(DateTimeFormatter.ofPattern("dd MMMM yyyy", new Locale("tr"))));
+        
+        for (String city : new ArrayList<>(ACTIVE_CITIES)) {
+            try {
+                LOGGER.info("{} şehri için aylık etkinlikler çekiliyor...", city.toUpperCase());
+                eventScraperService.scrapeAllEvents(city, nextMonthStart, nextMonthEnd);
+                LOGGER.info("{} şehri için aylık etkinlikler başarıyla çekildi.", city.toUpperCase());
+            } catch (Exception e) {
+                LOGGER.error("{} şehri için aylık etkinlik çekme hatası: {}", city.toUpperCase(), e.getMessage());
+            }
+        }
+        
+        LOGGER.info("=== AYLIK ETKİNLİK SCRAPING İŞLEMİ TAMAMLANDI ===");
+    }
+    
+    /**
+     * Her pazar saat 03:00'de çalışır
+     * Sonraki hafta için etkinlikleri çeker
+     */
+    @Scheduled(cron = "0 0 3 ? * SUN")
+    public void scrapeWeeklyEvents() {
+        LOGGER.info("=== HAFTALIK ETKİNLİK SCRAPING İŞLEMİ BAŞLATILDI ===");
+        
+        LocalDate today = LocalDate.now();
+        LocalDate nextWeekStart = today.plusDays(1); // Yarın
+        LocalDate nextWeekEnd = today.plusDays(7);   // 1 hafta sonra
+        
+        LOGGER.info("Sonraki hafta için etkinlikler çekiliyor: {} - {}", 
+            nextWeekStart.format(DateTimeFormatter.ofPattern("dd MMMM yyyy", new Locale("tr"))),
+            nextWeekEnd.format(DateTimeFormatter.ofPattern("dd MMMM yyyy", new Locale("tr"))));
+        
+        for (String city : new ArrayList<>(ACTIVE_CITIES)) {
+            try {
+                LOGGER.info("{} şehri için haftalık etkinlikler çekiliyor...", city.toUpperCase());
+                eventScraperService.scrapeAllEvents(city, nextWeekStart, nextWeekEnd);
+                LOGGER.info("{} şehri için haftalık etkinlikler başarıyla çekildi.", city.toUpperCase());
+            } catch (Exception e) {
+                LOGGER.error("{} şehri için haftalık etkinlik çekme hatası: {}", city.toUpperCase(), e.getMessage());
+            }
+        }
+        
+        LOGGER.info("=== HAFTALIK ETKİNLİK SCRAPING İŞLEMİ TAMAMLANDI ===");
+    }
+    
+    /**
+     * Manuel olarak şehir eklemek için kullanılabilir
+     * Gelecekte diğer şehirleri aktif hale getirmek için
+     */
+    public synchronized void addCityToActiveList(String city) {
+        if (FUTURE_CITIES.contains(city.toLowerCase())) {
+            if (!ACTIVE_CITIES.contains(city.toLowerCase())) {
+                LOGGER.info("{} şehri aktif şehirler listesine ekleniyor...", city.toUpperCase());
+                ACTIVE_CITIES.add(city.toLowerCase());
+                LOGGER.info("{} şehri başarıyla eklendi. Bir sonraki scraping işleminde dahil edilecek.", city.toUpperCase());
+            } else {
+                LOGGER.warn("{} şehri zaten aktif şehirler listesinde.", city.toUpperCase());
+            }
+        } else {
+            LOGGER.error("{} şehri desteklenen şehirler listesinde bulunamadı.", city.toUpperCase());
+        }
+    }
+    
+    /**
+     * Aktif şehirlerden bir şehri çıkarır
+     */
+    public synchronized void removeCityFromActiveList(String city) {
+        if (ACTIVE_CITIES.contains(city.toLowerCase())) {
+            if (ACTIVE_CITIES.size() > 1) { // En az bir şehir kalmalı
+                LOGGER.info("{} şehri aktif şehirler listesinden çıkarılıyor...", city.toUpperCase());
+                ACTIVE_CITIES.remove(city.toLowerCase());
+                LOGGER.info("{} şehri başarıyla çıkarıldı.", city.toUpperCase());
+            } else {
+                LOGGER.warn("En az bir aktif şehir olmalıdır. {} şehri çıkarılamadı.", city.toUpperCase());
+            }
+        } else {
+            LOGGER.warn("{} şehri aktif şehirler listesinde bulunamadı.", city.toUpperCase());
+        }
+    }
+    
+    /**
+     * Aktif şehirleri listeler
+     */
+    public List<String> getActiveCities() {
+        return new ArrayList<>(ACTIVE_CITIES);
+    }
+    
+    /**
+     * Gelecekte eklenecek şehirleri listeler
+     */
+    public List<String> getFutureCities() {
+        return new ArrayList<>(FUTURE_CITIES);
+    }
+    
+    /**
+     * Manuel olarak belirli bir şehir için scraping yapmak için
+     */
+    public void scrapeEventsForCity(String city, LocalDate startDate, LocalDate endDate) {
+        LOGGER.info("{} şehri için manuel scraping başlatılıyor: {} - {}", 
+            city.toUpperCase(),
+            startDate.format(DateTimeFormatter.ofPattern("dd MMMM yyyy", new Locale("tr"))),
+            endDate.format(DateTimeFormatter.ofPattern("dd MMMM yyyy", new Locale("tr"))));
+        
+        try {
+            eventScraperService.scrapeAllEvents(city, startDate, endDate);
+            LOGGER.info("{} şehri için manuel scraping başarıyla tamamlandı.", city.toUpperCase());
+        } catch (Exception e) {
+            LOGGER.error("{} şehri için manuel scraping hatası: {}", city.toUpperCase(), e.getMessage());
+            throw e;
+        }
+    }
+} 

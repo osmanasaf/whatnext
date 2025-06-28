@@ -2,7 +2,7 @@ package com.asaf.whatnext.controllers;
 
 import com.asaf.whatnext.enums.Biletix.BiletixCategory;
 import com.asaf.whatnext.models.Event;
-import com.asaf.whatnext.services.BiletixScraper;
+import com.asaf.whatnext.scraper.BiletixScraper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;

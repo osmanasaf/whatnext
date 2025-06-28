@@ -2,12 +2,13 @@ package com.asaf.whatnext.controllers;
 
 import com.asaf.whatnext.models.InstagramImage;
 import com.asaf.whatnext.repository.InstagramImageRepository;
-import com.asaf.whatnext.service.InstagramService;
+import com.asaf.whatnext.services.InstagramService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -24,6 +25,16 @@ public class InstagramController {
 
     @Autowired
     private InstagramImageRepository instagramImageRepository;
+
+    private static final String DAILY_CAPTION_TEMPLATE = """
+        📅 %s İstanbul Etkinlikleri 🎫
+        
+        🎭 Tiyatro | 🎶 Konser | 🎤 Stand-up  
+        Bugün şehirde ne var? Kaçırma!
+        
+        🔗 Detaylar ve biletler profilde  
+        #istanbuletkinlikleri #tiyatro #konser #standup #bugünnevar #whatnext #etkinlikrehberi #istanbuldaetkinlik
+        """;
 
     @PostMapping("/create/{eventType}")
     public ResponseEntity<?> createInstagramPost(@PathVariable String eventType, @RequestParam(required = false) String date) {
@@ -105,7 +116,8 @@ public class InstagramController {
                     .collect(Collectors.toList());
                 
                 if(!posts.isEmpty()){
-                     String caption = targetDate.format(java.time.format.DateTimeFormatter.ofPattern("dd MMMM yyyy", new Locale("tr"))) + " Etkinlikleri";
+                    String captionDate = targetDate.format(DateTimeFormatter.ofPattern("dd MMMM yyyy", new Locale("tr")));
+                    String caption = String.format(DAILY_CAPTION_TEMPLATE, captionDate);
                      instagramService.sharePost(posts, caption);
                 }
             }

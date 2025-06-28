@@ -1,6 +1,6 @@
 package com.asaf.whatnext;
 
-import com.asaf.whatnext.services.BiletixScraper;
+import com.asaf.whatnext.scraper.BiletixScraper;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.CommandLineRunner;

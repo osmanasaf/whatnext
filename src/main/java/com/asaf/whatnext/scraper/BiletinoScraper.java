@@ -1,4 +1,4 @@
-package com.asaf.whatnext.services;
+package com.asaf.whatnext.scraper;
 
 import com.asaf.whatnext.config.BiletinoScraperConfig;
 import com.asaf.whatnext.enums.Biletino.BiletinoCategory;
@@ -7,11 +7,11 @@ import com.asaf.whatnext.enums.EventSourceType;
 import com.asaf.whatnext.enums.EventType;
 import com.asaf.whatnext.enums.PerformanceType;
 import com.asaf.whatnext.models.*;
-import com.asaf.whatnext.service.ArtistService;
-import com.asaf.whatnext.service.CloudinaryService;
-import com.asaf.whatnext.service.ConcertEventService;
-import com.asaf.whatnext.service.TheaterEventService;
-import com.asaf.whatnext.service.VenueService;
+import com.asaf.whatnext.services.ArtistService;
+import com.asaf.whatnext.services.CloudinaryService;
+import com.asaf.whatnext.services.ConcertEventService;
+import com.asaf.whatnext.services.TheaterEventService;
+import com.asaf.whatnext.services.VenueService;
 import com.asaf.whatnext.utils.EventUtils;
 import com.asaf.whatnext.utils.WebScraperUtils;
 import org.jsoup.nodes.Document;

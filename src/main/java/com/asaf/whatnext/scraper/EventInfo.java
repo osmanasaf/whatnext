@@ -1,4 +1,4 @@
-package com.asaf.whatnext.services;
+package com.asaf.whatnext.scraper;
 
 import lombok.Builder;
 import lombok.Data;

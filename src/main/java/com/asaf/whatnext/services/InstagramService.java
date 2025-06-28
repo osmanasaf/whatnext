@@ -1,4 +1,4 @@
-package com.asaf.whatnext.service;
+package com.asaf.whatnext.services;
 
 import com.asaf.whatnext.models.InstagramImage;
 import com.asaf.whatnext.repository.InstagramImageRepository;
@@ -40,6 +40,8 @@ public class InstagramService {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private static final int RETRY_COUNT = 3;
     private static final int RETRY_WAIT_MS = 2000;
+
+
 
     private final BlockingQueue<Runnable> failedQueue = new LinkedBlockingQueue<>();
     
