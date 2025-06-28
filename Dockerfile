@@ -1,3 +1,10 @@
+# 1. Aşama: Maven ile jar üret
+FROM maven:3.9.6-eclipse-temurin-21 AS build
+WORKDIR /app
+COPY . .
+RUN mvn clean package -DskipTests
+
+# 2. Aşama: Uygulama için gerekli ortamı kur
 FROM openjdk:21-jdk-slim
 
 # Gerekli paketler: Chrome, ImageMagick, unzip, wget, curl
@@ -17,8 +24,8 @@ RUN CHROME_VERSION=$(google-chrome --version | grep -oP '\\d+\\.\\d+\\.\\d+') &&
     chmod +x /usr/local/bin/chromedriver && \
     rm /tmp/chromedriver.zip
 
-# Uygulama jar'ını ekle
-COPY target/whatnext.jar /app/whatnext.jar
+# Jar dosyasını build aşamasından kopyala
+COPY --from=build /app/target/whatnext.jar /app/whatnext.jar
 
 WORKDIR /app
 
