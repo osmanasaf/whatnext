@@ -14,7 +14,7 @@ public class CorsConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         CorsConfiguration config = new CorsConfiguration();
         
-        config.addAllowedOrigin("https://whatnext-ui.vercel.app");
+        config.addAllowedOrigin("https://whatnext-to.vercel.app");
         
         config.addAllowedMethod("GET");
         config.addAllowedMethod("POST");
