@@ -74,6 +74,11 @@ public class WebScraperUtils {
         String envChromeBin = System.getenv("CHROME_BIN");
         LOGGER.info("CHROME_BIN environment variable: " + envChromeBin);
         
+        // Geçici olarak her zaman null döndür (WebDriverManager otomatik bulacak)
+        LOGGER.info("Temporarily returning null - WebDriverManager will auto-detect Chrome");
+        return null;
+        
+        /*
         if (envChromeBin != null && !envChromeBin.isEmpty()) {
             LOGGER.info("Using Chrome path from CHROME_BIN environment variable: " + envChromeBin);
             return envChromeBin;
@@ -89,6 +94,7 @@ public class WebScraperUtils {
         // Hiçbiri yoksa null döndür (WebDriverManager otomatik bulacak)
         LOGGER.info("No specific Chrome path found, WebDriverManager will auto-detect");
         return null;
+        */
     }
     
     public static WebDriver initializeBrowser(String chromePath, int timeoutSeconds) {
