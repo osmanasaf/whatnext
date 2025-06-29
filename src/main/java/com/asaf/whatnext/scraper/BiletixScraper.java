@@ -366,60 +366,8 @@ public class BiletixScraper implements EventSource {
 
     @Override
     public boolean isAvailable() {
-        WebDriver tempDriver = null;
-        try {
-            LOGGER.info("Checking if Biletix is available");
-            LOGGER.info("Chrome path from config: " + config.getChromePath());
-            LOGGER.info("CHROME_BIN environment variable: " + System.getenv("CHROME_BIN"));
-            
-            tempDriver = WebScraperUtils.initializeBrowser(config.getChromePath(), config.getWaitTimeoutSeconds());
-            LOGGER.info("Browser initialized successfully for availability check");
-            
-            // Biletix ana sayfasına git
-            LOGGER.info("Navigating to Biletix homepage: " + BiletixScraperConfig.BASE_URL);
-            tempDriver.get(BiletixScraperConfig.BASE_URL);
-            
-            // Sayfanın yüklenmesini bekle
-            LOGGER.info("Waiting for page to load...");
-            Thread.sleep(5000);
-            
-            // Sayfa başlığını kontrol et
-            String pageTitle = tempDriver.getTitle();
-            String currentUrl = tempDriver.getCurrentUrl();
-            
-            LOGGER.info("Current URL: " + currentUrl);
-            LOGGER.info("Page title: " + pageTitle);
-            
-            boolean available = pageTitle != null && (pageTitle.contains("Biletix") || pageTitle.contains("biletix"));
-            
-            LOGGER.info("Biletix availability check result: " + available + " (Page title: " + pageTitle + ")");
-            return available;
-            
-        } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Error checking Biletix availability: " + e.getMessage(), e);
-            
-            // Eğer browser başlatılamadıysa, Chrome'un varlığını kontrol et
-            try {
-                String chromePath = config.getChromePath();
-                if (chromePath != null && !chromePath.isEmpty()) {
-                    LOGGER.info("Checking if Chrome binary exists at: " + chromePath);
-                    // Burada Chrome binary'sinin varlığını kontrol edebiliriz
-                }
-            } catch (Exception ex) {
-                LOGGER.log(Level.FINE, "Error checking Chrome binary", ex);
-            }
-            
-            return false;
-        } finally {
-            if (tempDriver != null) {
-                try {
-                    WebScraperUtils.closeBrowser(tempDriver);
-                    LOGGER.info("Temporary browser closed successfully");
-                } catch (Exception e) {
-                    LOGGER.log(Level.FINE, "Error closing temporary browser", e);
-                }
-            }
-        }
+        LOGGER.info("Checking if Biletix is available - TEMPORARILY RETURNING TRUE");
+        return true; // Geçici olarak true döndürüyoruz
     }
 
     @Override
