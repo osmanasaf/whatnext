@@ -268,6 +268,10 @@ public class BiletixScraper implements EventSource {
                 }
 
                 WebElement loadMoreButton = loadMoreButtons.get(0);
+                if (!loadMoreButton.isDisplayed() || !loadMoreButton.isEnabled()) {
+                    LOGGER.info("'Load More' butonu görünür veya tıklanabilir değil. Döngüden çıkılıyor.");
+                    break;
+                }
                 LOGGER.fine("Found 'Load More' button with text: " + loadMoreButton.getText());
 
                 boolean clickSuccess = false;
@@ -295,6 +299,10 @@ public class BiletixScraper implements EventSource {
                     WebScraperUtils.handleOverlays(driver);
                     try {
                         loadMoreButton = driver.findElement(By.cssSelector(BiletixScraperConfig.LOAD_MORE_BUTTON_SELECTOR));
+                        if (!loadMoreButton.isDisplayed() || !loadMoreButton.isEnabled()) {
+                            LOGGER.info("'Load More' butonu tekrar kontrol edildi, görünür veya tıklanabilir değil. Döngüden çıkılıyor.");
+                            break;
+                        }
                         WebScraperUtils.clickElementWithJavaScript(driver, loadMoreButton);
                         clickSuccess = true;
                         LOGGER.fine("Clicked 'Load More' button after handling overlays, attempt " + (attempts + 1));
