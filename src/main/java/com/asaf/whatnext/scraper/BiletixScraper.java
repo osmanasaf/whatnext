@@ -369,16 +369,27 @@ public class BiletixScraper implements EventSource {
         WebDriver tempDriver = null;
         try {
             LOGGER.info("Checking if Biletix is available");
+            LOGGER.info("Chrome path from config: " + config.getChromePath());
+            LOGGER.info("CHROME_BIN environment variable: " + System.getenv("CHROME_BIN"));
+            
             tempDriver = WebScraperUtils.initializeBrowser(config.getChromePath(), config.getWaitTimeoutSeconds());
+            LOGGER.info("Browser initialized successfully for availability check");
             
             // Biletix ana sayfasına git
+            LOGGER.info("Navigating to Biletix homepage: " + BiletixScraperConfig.BASE_URL);
             tempDriver.get(BiletixScraperConfig.BASE_URL);
             
             // Sayfanın yüklenmesini bekle
-            Thread.sleep(3000);
+            LOGGER.info("Waiting for page to load...");
+            Thread.sleep(5000);
             
             // Sayfa başlığını kontrol et
             String pageTitle = tempDriver.getTitle();
+            String currentUrl = tempDriver.getCurrentUrl();
+            
+            LOGGER.info("Current URL: " + currentUrl);
+            LOGGER.info("Page title: " + pageTitle);
+            
             boolean available = pageTitle != null && (pageTitle.contains("Biletix") || pageTitle.contains("biletix"));
             
             LOGGER.info("Biletix availability check result: " + available + " (Page title: " + pageTitle + ")");
@@ -391,6 +402,7 @@ public class BiletixScraper implements EventSource {
             if (tempDriver != null) {
                 try {
                     WebScraperUtils.closeBrowser(tempDriver);
+                    LOGGER.info("Temporary browser closed successfully");
                 } catch (Exception e) {
                     LOGGER.log(Level.FINE, "Error closing temporary browser", e);
                 }

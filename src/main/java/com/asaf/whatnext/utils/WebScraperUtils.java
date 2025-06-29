@@ -19,6 +19,7 @@ public class WebScraperUtils {
     private static final Logger LOGGER = Logger.getLogger(WebScraperUtils.class.getName());
     
     public static ChromeOptions configureChromeBrowser(String chromePath) {
+        LOGGER.info("Configuring Chrome browser options");
         ChromeOptions options = new ChromeOptions();
         options.addArguments("--headless=new");
         options.addArguments("--disable-gpu");
@@ -29,6 +30,8 @@ public class WebScraperUtils {
         options.addArguments("--ignore-certificate-errors");
         options.addArguments("--disable-web-security");
         options.addArguments("--allow-running-insecure-content");
+        
+        LOGGER.info("Chrome arguments configured");
         
         // Chrome binary path'ini belirle
         String finalChromePath = determineChromePath(chromePath);
@@ -44,12 +47,18 @@ public class WebScraperUtils {
             LOGGER.info("Using default Chrome installation (WebDriverManager will handle the driver)");
         }
         
+        LOGGER.info("ChromeOptions configuration completed");
         return options;
     }
     
     private static String determineChromePath(String configChromePath) {
+        LOGGER.info("Determining Chrome path...");
+        LOGGER.info("Config Chrome path: " + configChromePath);
+        
         // Önce environment variable'ları kontrol et
         String envChromeBin = System.getenv("CHROME_BIN");
+        LOGGER.info("CHROME_BIN environment variable: " + envChromeBin);
+        
         if (envChromeBin != null && !envChromeBin.isEmpty()) {
             LOGGER.info("Using Chrome path from CHROME_BIN environment variable: " + envChromeBin);
             return envChromeBin;
@@ -69,12 +78,17 @@ public class WebScraperUtils {
     
     public static WebDriver initializeBrowser(String chromePath, int timeoutSeconds) {
         LOGGER.info("Initializing browser with timeout: " + timeoutSeconds + " seconds");
+        LOGGER.info("Chrome path parameter: " + chromePath);
         
         try {
             // WebDriverManager'ı kullanarak ChromeDriver'ı otomatik olarak yönet
+            LOGGER.info("Setting up ChromeDriver with WebDriverManager...");
             WebDriverManager.chromedriver().setup();
             
             ChromeOptions options = configureChromeBrowser(chromePath);
+            LOGGER.info("ChromeOptions configured successfully");
+            
+            LOGGER.info("Creating ChromeDriver instance...");
             WebDriver driver = new ChromeDriver(options);
             
             LOGGER.info("Browser initialized successfully");
