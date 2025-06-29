@@ -14,15 +14,12 @@ RUN apt-get update -qq && apt-get install -qq -y --no-install-recommends \
 
 # Chrome ve ChromeDriver'ı yükle
 ENV CHROME_FOR_TESTING_VERSION=138.0.7204.49
-ENV CHROME_BIN=/usr/bin/google-chrome
-ENV CHROMEDRIVER_PATH=/usr/local/bin/chromedriver
 
 # Chrome'u yükle
 RUN wget -q -O /tmp/chrome.zip \
     "https://storage.googleapis.com/chrome-for-testing-public/${CHROME_FOR_TESTING_VERSION}/linux64/chrome-linux64.zip" && \
     unzip -qq /tmp/chrome.zip -d /usr/local && \
-    ln -s /usr/local/chrome-linux64/chrome /usr/bin/google-chrome && \
-    chmod +x /usr/bin/google-chrome && \
+    chmod +x /usr/local/chrome-linux64/chrome && \
     rm /tmp/chrome.zip
 
 # ChromeDriver'ı yükle
@@ -33,11 +30,8 @@ RUN wget -q -O /tmp/chromedriver.zip \
     chmod +x /usr/local/bin/chromedriver && \
     rm -rf /tmp/chromedriver*
 
-# Chrome ve ChromeDriver'ın doğru yüklendiğini kontrol et
-RUN google-chrome --version && chromedriver --version
-
 # Environment variables for Chrome
-ENV CHROME_BIN=/usr/bin/google-chrome
+ENV CHROME_BIN=/usr/local/chrome-linux64/chrome
 ENV CHROMEDRIVER_PATH=/usr/local/bin/chromedriver
 ENV WEBDRIVER_CHROME_DRIVER=/usr/local/bin/chromedriver
 
