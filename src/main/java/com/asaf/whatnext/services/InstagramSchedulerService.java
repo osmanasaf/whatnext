@@ -113,9 +113,11 @@ public class InstagramSchedulerService {
                 }
                 List<InstagramImage> imagesToShare = instagramImageRepository.findByCreationDateAndPostedToInstagramFalse(targetDate);
                 System.out.println("[Scheduler] " + targetDate + " için paylaşılacak toplam görsel: " + imagesToShare.size());
-                List<InstagramImage> posts = imagesToShare.stream()
-                    .filter(img -> "post".equals(img.getPostType()) || "cover".equals(img.getPostType()))
-                    .toList();
+                List<InstagramImage> posts = new ArrayList<>(
+                    imagesToShare.stream()
+                        .filter(img -> "post".equals(img.getPostType()) || "cover".equals(img.getPostType()))
+                        .toList()
+                );
                 System.out.println("[Scheduler] " + targetDate + " için paylaşılacak post/cover sayısı: " + posts.size());
                 if (!posts.isEmpty()) {
                     posts.sort((img1, img2) -> "cover".equals(img1.getEventType()) ? -1 : 1);
