@@ -235,26 +235,41 @@ public class ImageGenerationService {
         }
     }
 
-    private File executeCommand(List<String> command, String outputPath) throws IOException, InterruptedException {
-        System.out.println("ℹ️ ImageMagick komutu çalıştırılıyor. Çıktı dosyası: " + outputPath);
-        // DEBUG: PATH ve magick'in varlığı
-        System.out.println("[DEBUG] PATH: " + System.getenv("PATH"));
+    private String detectImageMagickCommand() {
         try {
             ProcessBuilder pb = new ProcessBuilder("which", "magick");
             Process p = pb.start();
             p.waitFor();
-            try (BufferedReader r = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
-                String line;
-                while ((line = r.readLine()) != null) {
-                    System.out.println("[DEBUG] which magick: " + line);
+            if (p.exitValue() == 0) {
+                System.out.println("[DEBUG] magick komutu bulundu, kullanılacak.");
+                return "magick";
+            } else {
+                System.out.println("[DEBUG] magick komutu yok, convert deneniyor.");
+                pb = new ProcessBuilder("which", "convert");
+                p = pb.start();
+                p.waitFor();
+                if (p.exitValue() == 0) {
+                    System.out.println("[DEBUG] convert komutu bulundu, kullanılacak.");
+                    return "convert";
                 }
             }
         } catch (Exception e) {
-            System.out.println("[DEBUG] which magick komutu çalıştırılamadı: " + e.getMessage());
+            System.out.println("[DEBUG] magick/convert tespiti sırasında hata: " + e.getMessage());
+        }
+        System.out.println("[ERROR] ImageMagick komutu bulunamadı!");
+        return "magick"; // fallback
+    }
+
+    private File executeCommand(List<String> command, String outputPath) throws IOException, InterruptedException {
+        System.out.println("ℹ️ ImageMagick komutu çalıştırılıyor. Çıktı dosyası: " + outputPath);
+        // DEBUG: PATH ve magick'in varlığı
+        System.out.println("[DEBUG] PATH: " + System.getenv("PATH"));
+        String magickCmd = detectImageMagickCommand();
+        if (!command.isEmpty() && (command.get(0).equals("magick") || command.get(0).equals("convert"))) {
+            command.set(0, magickCmd);
         }
         ProcessBuilder processBuilder = new ProcessBuilder(command);
         processBuilder.redirectErrorStream(true);
-
         Process process = processBuilder.start();
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
             String line;
@@ -262,7 +277,6 @@ public class ImageGenerationService {
                 System.out.println("[ImageMagick] " + line);
             }
         }
-
         int exitCode = process.waitFor();
         if (exitCode == 0) {
             System.out.println("✅ Geçici görsel başarıyla oluşturuldu: " + outputPath);
