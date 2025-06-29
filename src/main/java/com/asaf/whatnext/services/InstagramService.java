@@ -57,7 +57,8 @@ public class InstagramService {
             }
 
             if (imageFile == null) {
-                throw new IOException("Görsel dosyası oluşturulamadı.");
+                System.out.println("⚠️ Görsel üretilemedi. InstagramImage oluşturulmayacak.");
+                return null;
             }
 
             return uploadAndSaveImage(imageFile, postType, eventType, date);

@@ -45,6 +45,14 @@ public class InstagramController {
         try {
             LocalDate targetDate = (date != null && !date.isEmpty()) ? LocalDate.parse(date) : LocalDate.now();
             InstagramImage image = instagramService.createImage(eventType, "post", "istanbul", targetDate);
+            
+            if (image == null) {
+                return ResponseEntity.ok(Map.of(
+                    "success", false, 
+                    "message", targetDate + " tarihinde " + eventType + " türünde etkinlik bulunamadı. Görsel üretilmedi."
+                ));
+            }
+            
             return ResponseEntity.ok(image);
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body("Error creating post: " + e.getMessage());
@@ -78,17 +86,42 @@ public class InstagramController {
         try {
             LocalDate targetDate = (date != null && !date.isEmpty()) ? LocalDate.parse(date) : LocalDate.now();
             List<InstagramImage> results = new ArrayList<>();
+            
             System.out.println("ℹ️ Günlük kapak görseli oluşturuluyor...");
-            results.add(instagramService.createImage("cover", "cover", null, targetDate));
+            InstagramImage coverImage = instagramService.createImage("cover", "cover", null, targetDate);
+            if (coverImage != null) {
+                results.add(coverImage);
+            }
+            
             System.out.println("ℹ️ Konser postu oluşturuluyor...");
-            results.add(instagramService.createImage("concert", "post", "istanbul", targetDate));
+            InstagramImage concertImage = instagramService.createImage("concert", "post", "istanbul", targetDate);
+            if (concertImage != null) {
+                results.add(concertImage);
+            }
+            
             System.out.println("ℹ️ Tiyatro postu oluşturuluyor...");
-            results.add(instagramService.createImage("theater", "post", "istanbul", targetDate));
+            InstagramImage theaterImage = instagramService.createImage("theater", "post", "istanbul", targetDate);
+            if (theaterImage != null) {
+                results.add(theaterImage);
+            }
+            
             System.out.println("ℹ️ Stand-up postu oluşturuluyor...");
-            results.add(instagramService.createImage("standup", "post", "istanbul", targetDate));
-             System.out.println("ℹ️ Akıllı story oluşturuluyor...");
-            results.add(instagramService.createImage("smart_story", "story", null, targetDate));
-            return ResponseEntity.ok(results);
+            InstagramImage standupImage = instagramService.createImage("standup", "post", "istanbul", targetDate);
+            if (standupImage != null) {
+                results.add(standupImage);
+            }
+            
+            System.out.println("ℹ️ Akıllı story oluşturuluyor...");
+            InstagramImage storyImage = instagramService.createImage("smart_story", "story", null, targetDate);
+            if (storyImage != null) {
+                results.add(storyImage);
+            }
+            
+            return ResponseEntity.ok(Map.of(
+                "success", true,
+                "message", "Görsel üretimi tamamlandı. " + results.size() + " görsel başarıyla oluşturuldu.",
+                "images", results
+            ));
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.internalServerError().body(Map.of("success", false, "message", "Bir hata oluştu: " + e.getMessage()));
@@ -123,6 +156,9 @@ public class InstagramController {
                     String captionDate = targetDate.format(DateTimeFormatter.ofPattern("dd MMMM yyyy", new Locale("tr")));
                     String caption = String.format(DAILY_CAPTION_TEMPLATE, captionDate);
                      instagramService.sharePost(posts, caption);
+                } else {
+                    System.out.println("⚠️ " + targetDate + " için paylaşılacak görsel bulunamadı.");
+                    return ResponseEntity.ok(Map.of("success", false, "message", targetDate + " için paylaşılacak görsel bulunamadı."));
                 }
             }
 

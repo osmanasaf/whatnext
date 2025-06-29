@@ -60,6 +60,12 @@ public class ImageGenerationService {
             coordinates.load(input);
         }
         List<Event> events = eventService.findTop6EventsForDateAndCity(date, EventType.valueOf(eventType.toUpperCase()), city);
+        
+        if (events.isEmpty()) {
+            System.out.println("⚠️ " + date + " tarihinde " + eventType + " türünde etkinlik bulunamadı. Görsel üretimi atlanıyor.");
+            return null;
+        }
+        
         List<EventSummaryDTO> eventSummaries = events.stream()
                 .map(eventMapper::toSummaryDTO)
                 .collect(Collectors.toList());
@@ -148,6 +154,12 @@ public class ImageGenerationService {
             Collections.shuffle(filler);
             addUpTo(selected, filler, 8 - selected.size());
         }
+        
+        if (selected.isEmpty()) {
+            System.out.println("⚠️ " + date + " tarihinde hiç etkinlik bulunamadı. Story görseli üretimi atlanıyor.");
+            return null;
+        }
+        
         List<EventSummaryDTO> eventSummaries = selected.stream()
                 .limit(8)
                 .map(eventMapper::toSummaryDTO)

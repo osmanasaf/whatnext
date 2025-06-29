@@ -39,8 +39,12 @@ public class InstagramSchedulerService {
             LocalDate today = LocalDate.now();
             boolean exists = instagramImageRepository.findByPostTypeAndEventTypeAndCreationDate("story", "smart_story", today).isPresent();
             if (!exists) {
-                instagramService.createImage( "smart_story", "story", null, today);
-                System.out.println("[Scheduler] Günlük story görseli başarıyla oluşturuldu ve veritabanına kaydedildi.");
+                InstagramImage storyImage = instagramService.createImage( "smart_story", "story", null, today);
+                if (storyImage != null) {
+                    System.out.println("[Scheduler] Günlük story görseli başarıyla oluşturuldu ve veritabanına kaydedildi.");
+                } else {
+                    System.out.println("[Scheduler] Bugün için hiç etkinlik bulunamadı. Story görseli oluşturulmadı.");
+                }
             } else {
                 System.out.println("[Scheduler] Bugünün story görseli zaten mevcut, oluşturma işlemi atlandı.");
             }
@@ -64,7 +68,7 @@ public class InstagramSchedulerService {
                 instagramService.shareStory(storyToShare.get());
                 System.out.println("[Scheduler] Instagram story paylaşım isteği gönderildi.");
             } else {
-                System.out.println("[Scheduler] Paylaşılacak story bulunamadı veya zaten paylaşılmış.");
+                System.out.println("[Scheduler] Paylaşılacak story bulunamadı. Etkinlik olmadığı için story görseli üretilmemiş olabilir.");
             }
         } catch (Exception e) {
             System.err.println("[Scheduler] Instagram story paylaşımı sırasında hata: " + e.getMessage());
@@ -81,10 +85,27 @@ public class InstagramSchedulerService {
             // Pazartesi'den pazar'a kadar 7 gün için döngü
             for (int i = 0; i < 7; i++) {
                 LocalDate targetDate = nextMonday.plusDays(i);
-                instagramService.createImage("cover", "cover", null, targetDate);
-                instagramService.createImage("concert", "post", "istanbul", targetDate);
-                instagramService.createImage("theater", "post", "istanbul", targetDate);
-                instagramService.createImage("standup", "post", "istanbul", targetDate);
+                System.out.println("[Scheduler] " + targetDate + " için görseller oluşturuluyor...");
+                
+                InstagramImage coverImage = instagramService.createImage("cover", "cover", null, targetDate);
+                if (coverImage != null) {
+                    System.out.println("[Scheduler] " + targetDate + " için cover görseli oluşturuldu.");
+                }
+                
+                InstagramImage concertImage = instagramService.createImage("concert", "post", "istanbul", targetDate);
+                if (concertImage != null) {
+                    System.out.println("[Scheduler] " + targetDate + " için konser görseli oluşturuldu.");
+                }
+                
+                InstagramImage theaterImage = instagramService.createImage("theater", "post", "istanbul", targetDate);
+                if (theaterImage != null) {
+                    System.out.println("[Scheduler] " + targetDate + " için tiyatro görseli oluşturuldu.");
+                }
+                
+                InstagramImage standupImage = instagramService.createImage("standup", "post", "istanbul", targetDate);
+                if (standupImage != null) {
+                    System.out.println("[Scheduler] " + targetDate + " için stand-up görseli oluşturuldu.");
+                }
             }
             System.out.println("[Scheduler] Haftalık post görselleri başarıyla oluşturuldu.");
         } catch (Exception e) {
@@ -94,7 +115,7 @@ public class InstagramSchedulerService {
 
     // Her pazar 14:00'te haftanın postlarını paylaş
     @Scheduled(cron = "0 0 14 ? * SUN")
-    public List<String> shareWeeklyPostsToInstagram() {
+    public List<String> shareWeeklyPostsToInstagram() throws InterruptedException {
         List<String> results = new ArrayList<>();
         System.out.println("[Scheduler] Haftalık postları Instagram'a gönderme işlemi başlatılıyor...");
         LocalDate today = LocalDate.now();
@@ -130,7 +151,7 @@ public class InstagramSchedulerService {
                     System.out.println(msg);
                     results.add(msg);
                 } else {
-                    String msg = "[Scheduler] " + targetDate + " için paylaşılacak haftalık post bulunamadı veya zaten paylaşılmış.";
+                    String msg = "[Scheduler] " + targetDate + " için paylaşılacak haftalık post bulunamadı. Etkinlik olmadığı için görsel üretilmemiş olabilir.";
                     System.out.println(msg);
                     results.add(msg);
                 }
@@ -139,7 +160,10 @@ public class InstagramSchedulerService {
                 System.err.println(err);
                 ex.printStackTrace();
                 results.add(err);
+            } finally {
+                Thread.sleep(60);
             }
+
         }
         return results;
     }
