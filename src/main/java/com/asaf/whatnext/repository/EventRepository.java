@@ -5,7 +5,6 @@ import com.asaf.whatnext.enums.EventType;
 import com.asaf.whatnext.enums.City;
 import com.asaf.whatnext.models.Event;
 import com.asaf.whatnext.models.Venue;
-import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
@@ -31,32 +30,4 @@ public interface EventRepository extends BaseRepository<Event, Long> {
     List<Event> findByStartDateBetweenAndCity(LocalDate startDate, LocalDate endDate, String city);
 
     List<Event> findByStartDateBetweenAndTypeAndCity(LocalDate startDate, LocalDate endDate, EventType type, String city);
-
-    // Event özet projection
-    public interface EventSummaryProjection {
-        Long getId();
-        String getTitle();
-        java.time.LocalDate getStartDate();
-        com.asaf.whatnext.enums.EventType getType();
-        String getCity();
-        String getVenueName();
-        String getImageUrl();
-        com.asaf.whatnext.enums.PerformanceType getPerformanceType();
-    }
-
-    @Query("""
-        SELECT 
-          e.id as id,
-          e.title as title,
-          e.startDate as startDate,
-          e.type as type,
-          e.city as city,
-          v.name as venueName,
-          ei.imageSourceUrl as imageUrl,
-          CASE WHEN TYPE(e) = PerformingArt THEN ((PerformingArt)e).performanceType ELSE NULL END as performanceType
-        FROM Event e
-        LEFT JOIN e.venue v
-        LEFT JOIN e.eventImage ei
-        """)
-    List<EventSummaryProjection> findAllEventSummaries();
 }

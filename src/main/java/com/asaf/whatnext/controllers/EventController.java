@@ -12,7 +12,6 @@ import com.asaf.whatnext.repository.EventImageRepository;
 import com.asaf.whatnext.services.EventService;
 import com.asaf.whatnext.services.VenueService;
 import com.asaf.whatnext.mapper.EventMapper;
-import com.asaf.whatnext.repository.EventRepository.EventSummaryProjection;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -196,10 +195,5 @@ public class EventController {
     public ResponseEntity<Void> deleteEvent(@PathVariable Long id) {
         eventService.deleteById(id);
         return ResponseEntity.ok().build();
-    }
-
-    @GetMapping("/events/summary")
-    public ResponseEntity<List<EventSummaryProjection>> getEventSummaries() {
-        return ResponseEntity.ok(eventService.getAllEventSummaries());
     }
 } 
