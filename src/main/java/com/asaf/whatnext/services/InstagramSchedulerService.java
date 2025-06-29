@@ -122,6 +122,7 @@ public class InstagramSchedulerService {
             }
         } catch (Exception e) {
             System.err.println("[Scheduler] Haftalık postlar Instagram'a gönderilemedi: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 } 
