@@ -6,6 +6,7 @@ import com.asaf.whatnext.enums.City;
 import com.asaf.whatnext.enums.PerformanceType;
 import com.asaf.whatnext.models.*;
 import com.asaf.whatnext.repository.EventRepository;
+import com.asaf.whatnext.repository.EventRepository.EventSummaryProjection;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -178,5 +179,9 @@ public class EventService {
 
     public void deleteById(Long id) {
         eventRepository.deleteById(id);
+    }
+
+    public List<EventSummaryProjection> getAllEventSummaries() {
+        return eventRepository.findAllEventSummaries();
     }
 } 
