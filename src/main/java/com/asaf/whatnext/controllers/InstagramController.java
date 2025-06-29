@@ -3,6 +3,7 @@ package com.asaf.whatnext.controllers;
 import com.asaf.whatnext.models.InstagramImage;
 import com.asaf.whatnext.repository.InstagramImageRepository;
 import com.asaf.whatnext.services.InstagramService;
+import com.asaf.whatnext.services.InstagramSchedulerService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -25,6 +26,9 @@ public class InstagramController {
 
     @Autowired
     private InstagramImageRepository instagramImageRepository;
+
+    @Autowired
+    private InstagramSchedulerService instagramSchedulerService;
 
     private static final String DAILY_CAPTION_TEMPLATE = """
         📅 %s İstanbul Etkinlikleri 🎫
@@ -126,6 +130,32 @@ public class InstagramController {
         } catch (Exception e) {
             e.printStackTrace();
             return ResponseEntity.internalServerError().body("Error posting to Instagram: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Manuel olarak haftalık post görselleri oluşturur (scheduler fonksiyonunu tetikler)
+     */
+    @PostMapping("/scheduler/create-weekly-posts")
+    public ResponseEntity<?> createWeeklyPostsManually() {
+        try {
+            instagramSchedulerService.createWeeklyPosts();
+            return ResponseEntity.ok("Haftalık post görselleri manuel olarak oluşturuldu.");
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Hata: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Manuel olarak haftalık postları Instagram'a paylaşır (scheduler fonksiyonunu tetikler)
+     */
+    @PostMapping("/scheduler/share-weekly-posts")
+    public ResponseEntity<?> shareWeeklyPostsManually() {
+        try {
+            instagramSchedulerService.shareWeeklyPostsToInstagram();
+            return ResponseEntity.ok("Haftalık postlar manuel olarak Instagram'a paylaşıldı.");
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Hata: " + e.getMessage());
         }
     }
 } 
