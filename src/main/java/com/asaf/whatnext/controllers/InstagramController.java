@@ -152,9 +152,10 @@ public class InstagramController {
     @PostMapping("/scheduler/share-weekly-posts")
     public ResponseEntity<?> shareWeeklyPostsManually() {
         try {
-            instagramSchedulerService.shareWeeklyPostsToInstagram();
-            return ResponseEntity.ok("Haftalık postlar manuel olarak Instagram'a paylaşıldı.");
+            List<String> results = instagramSchedulerService.shareWeeklyPostsToInstagram();
+            return ResponseEntity.ok(results);
         } catch (Exception e) {
+            e.printStackTrace();
             return ResponseEntity.internalServerError().body("Hata: " + e.getMessage());
         }
     }

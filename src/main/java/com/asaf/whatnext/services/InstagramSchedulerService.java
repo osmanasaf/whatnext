@@ -10,6 +10,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.ArrayList;
 
 @Service
 public class InstagramSchedulerService {
@@ -93,18 +94,21 @@ public class InstagramSchedulerService {
 
     // Her pazar 14:00'te haftanın postlarını paylaş
     @Scheduled(cron = "0 0 14 ? * SUN")
-    public void shareWeeklyPostsToInstagram() {
+    public List<String> shareWeeklyPostsToInstagram() {
+        List<String> results = new ArrayList<>();
         System.out.println("[Scheduler] Haftalık postları Instagram'a gönderme işlemi başlatılıyor...");
-        try {
-            LocalDate today = LocalDate.now();
-            // Önümüzdeki haftanın pazartesi gününü bul
-            LocalDate nextMonday = today.plusDays((8 - today.getDayOfWeek().getValue()) % 7);
-            for (int i = 0; i < 7; i++) {
-                LocalDate targetDate = nextMonday.plusDays(i);
+        LocalDate today = LocalDate.now();
+        // Önümüzdeki haftanın pazartesi gününü bul
+        LocalDate nextMonday = today.plusDays((8 - today.getDayOfWeek().getValue()) % 7);
+        for (int i = 0; i < 7; i++) {
+            LocalDate targetDate = nextMonday.plusDays(i);
+            try {
                 System.out.println("[Scheduler] İşlenen gün: " + targetDate);
                 boolean coverShared = instagramImageRepository.existsByCreationDateAndPostTypeAndPostedToInstagramIsTrue(targetDate, "cover");
                 if (coverShared) {
-                    System.out.println("[Scheduler] " + targetDate + " için zaten bir cover paylaşılmış. İşlem atlanıyor.");
+                    String msg = "[Scheduler] " + targetDate + " için zaten bir cover paylaşılmış. İşlem atlanıyor.";
+                    System.out.println(msg);
+                    results.add(msg);
                     continue;
                 }
                 List<InstagramImage> imagesToShare = instagramImageRepository.findByCreationDateAndPostedToInstagramFalse(targetDate);
@@ -119,20 +123,22 @@ public class InstagramSchedulerService {
                     String caption = String.format(DAILY_CAPTION_TEMPLATE, date);
                     System.out.println("[Scheduler] " + targetDate + " için caption: " + caption);
                     System.out.println("[Scheduler] " + targetDate + " için paylaşılacak post id'leri: " + posts.stream().map(img -> img.getId() + ":" + img.getPostType() + ":" + img.getEventType()).toList());
-                    try {
-                        instagramService.sharePost(posts, caption);
-                        System.out.println("[Scheduler] " + targetDate + " için haftalık postlar paylaşım isteği gönderildi.");
-                    } catch (Exception ex) {
-                        System.err.println("[Scheduler] HATA! " + targetDate + " için paylaşım sırasında exception: " + ex.getMessage());
-                        ex.printStackTrace();
-                    }
+                    instagramService.sharePost(posts, caption);
+                    String msg = "[Scheduler] " + targetDate + " için haftalık postlar paylaşım isteği gönderildi.";
+                    System.out.println(msg);
+                    results.add(msg);
                 } else {
-                    System.out.println("[Scheduler] " + targetDate + " için paylaşılacak haftalık post bulunamadı veya zaten paylaşılmış.");
+                    String msg = "[Scheduler] " + targetDate + " için paylaşılacak haftalık post bulunamadı veya zaten paylaşılmış.";
+                    System.out.println(msg);
+                    results.add(msg);
                 }
+            } catch (Exception ex) {
+                String err = "[Scheduler] HATA! " + targetDate + " için paylaşım sırasında exception: " + ex.getMessage();
+                System.err.println(err);
+                ex.printStackTrace();
+                results.add(err);
             }
-        } catch (Exception e) {
-            System.err.println("[Scheduler] Haftalık postlar Instagram'a gönderilemedi: " + e.getMessage());
-            e.printStackTrace();
         }
+        return results;
     }
 } 
