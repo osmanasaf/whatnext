@@ -21,9 +21,10 @@ RUN wget -q -O /tmp/chrome.zip \
 
 RUN wget -q -O /tmp/chromedriver.zip \
     "https://storage.googleapis.com/chrome-for-testing-public/${CHROME_FOR_TESTING_VERSION}/linux64/chromedriver-linux64.zip" && \
-    unzip -qq /tmp/chromedriver.zip -d /usr/local/bin && \
+    unzip -qq /tmp/chromedriver.zip -d /tmp && \
+    mv /tmp/chromedriver-linux64/chromedriver /usr/local/bin/ && \
     chmod +x /usr/local/bin/chromedriver && \
-    rm /tmp/chromedriver.zip
+    rm -rf /tmp/chromedriver*
 
 COPY --from=build /app/target/*.jar /app/whatnext.jar
 
