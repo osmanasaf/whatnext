@@ -41,6 +41,11 @@ public class WebScraperUtils {
         options.addArguments("--allow-running-insecure-content");
         options.addArguments("--remote-debugging-port=9222");
         
+        // Unique user data directory to avoid conflicts
+        String userDataDir = "/tmp/chrome-user-data-" + System.currentTimeMillis();
+        options.addArguments("--user-data-dir=" + userDataDir);
+        LOGGER.info("Using unique user data directory: " + userDataDir);
+        
         LOGGER.info("Chrome arguments configured for Railway");
         
         // Chrome binary path'ini belirle
@@ -113,6 +118,11 @@ public class WebScraperUtils {
                 minimalOptions.addArguments("--no-sandbox");
                 minimalOptions.addArguments("--disable-dev-shm-usage");
                 minimalOptions.addArguments("--disable-gpu");
+                
+                // Unique user data directory to avoid conflicts
+                String userDataDir = "/tmp/chrome-user-data-minimal-" + System.currentTimeMillis();
+                minimalOptions.addArguments("--user-data-dir=" + userDataDir);
+                LOGGER.info("Using unique user data directory for minimal options: " + userDataDir);
                 
                 if (chromePath != null && !chromePath.isEmpty()) {
                     try {
