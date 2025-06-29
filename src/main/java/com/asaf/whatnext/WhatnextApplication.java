@@ -12,6 +12,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 public class WhatnextApplication {
 
 	public static void main(String[] args) {
+		System.setProperty("webdriver.chrome.driver", "/usr/local/bin/chromedriver");
 		SpringApplication.run(WhatnextApplication.class, args);
 	}
 }

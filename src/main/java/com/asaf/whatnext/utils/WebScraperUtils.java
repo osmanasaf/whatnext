@@ -96,9 +96,9 @@ public class WebScraperUtils {
         LOGGER.info("Chrome path parameter: " + chromePath);
         
         try {
-            // WebDriverManager'ı kullanarak ChromeDriver'ı otomatik olarak yönet
-            LOGGER.info("Setting up ChromeDriver with WebDriverManager...");
-            WebDriverManager.chromedriver().setup();
+            // WebDriverManager'ı kullanma, sistemdeki chromedriver kullanılacak
+            // LOGGER.info("Setting up ChromeDriver with WebDriverManager...");
+            // WebDriverManager.chromedriver().setup();
             
             ChromeOptions options = configureChromeBrowser(chromePath);
             LOGGER.info("ChromeOptions configured successfully");
@@ -118,7 +118,6 @@ public class WebScraperUtils {
                 minimalOptions.addArguments("--no-sandbox");
                 minimalOptions.addArguments("--disable-dev-shm-usage");
                 minimalOptions.addArguments("--disable-gpu");
-                
                 if (chromePath != null && !chromePath.isEmpty()) {
                     try {
                         minimalOptions.setBinary(chromePath);
@@ -127,7 +126,6 @@ public class WebScraperUtils {
                         LOGGER.warning("Failed to set Chrome binary in minimal options: " + ex.getMessage());
                     }
                 }
-                
                 WebDriver driver = new ChromeDriver(minimalOptions);
                 LOGGER.info("ChromeDriver instance created successfully with minimal options");
                 return driver;

@@ -9,7 +9,7 @@ RUN apt-get update -qq && apt-get install -qq -y --no-install-recommends \
     libayatana-appindicator3-1 libasound2 libatk-bridge2.0-0 libatk1.0-0 \
     libcups2 libdbus-1-3 libgdk-pixbuf2.0-0 libnspr4 libnss3 libx11-xcb1 \
     libxcomposite1 libxdamage1 libxrandr2 xdg-utils \
-    gnupg2 software-properties-common >/dev/null && \
+    gnupg2 software-properties-common libgbm1 libxshmfence1 >/dev/null && \
     rm -rf /var/lib/apt/lists/*
 
 # Chrome ve ChromeDriver'ı yükle
