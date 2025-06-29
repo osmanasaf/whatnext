@@ -89,10 +89,34 @@ public class WebScraperUtils {
             LOGGER.info("ChromeOptions configured successfully");
             
             LOGGER.info("Creating ChromeDriver instance...");
-            WebDriver driver = new ChromeDriver(options);
-            
-            LOGGER.info("Browser initialized successfully");
-            return driver;
+            try {
+                WebDriver driver = new ChromeDriver(options);
+                LOGGER.info("ChromeDriver instance created successfully");
+                return driver;
+            } catch (Exception e) {
+                LOGGER.log(Level.SEVERE, "Failed to create ChromeDriver instance", e);
+                
+                // Alternatif olarak daha basit options ile deneyelim
+                LOGGER.info("Trying with simplified ChromeOptions...");
+                ChromeOptions simpleOptions = new ChromeOptions();
+                simpleOptions.addArguments("--headless=new");
+                simpleOptions.addArguments("--no-sandbox");
+                simpleOptions.addArguments("--disable-dev-shm-usage");
+                simpleOptions.addArguments("--disable-gpu");
+                
+                if (chromePath != null && !chromePath.isEmpty()) {
+                    try {
+                        simpleOptions.setBinary(chromePath);
+                        LOGGER.info("Set Chrome binary in simple options: " + chromePath);
+                    } catch (Exception ex) {
+                        LOGGER.warning("Failed to set Chrome binary in simple options: " + ex.getMessage());
+                    }
+                }
+                
+                WebDriver driver = new ChromeDriver(simpleOptions);
+                LOGGER.info("ChromeDriver instance created successfully with simple options");
+                return driver;
+            }
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Failed to initialize browser", e);
             throw new RuntimeException("Browser initialization failed", e);

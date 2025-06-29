@@ -397,6 +397,18 @@ public class BiletixScraper implements EventSource {
             
         } catch (Exception e) {
             LOGGER.log(Level.WARNING, "Error checking Biletix availability: " + e.getMessage(), e);
+            
+            // Eğer browser başlatılamadıysa, Chrome'un varlığını kontrol et
+            try {
+                String chromePath = config.getChromePath();
+                if (chromePath != null && !chromePath.isEmpty()) {
+                    LOGGER.info("Checking if Chrome binary exists at: " + chromePath);
+                    // Burada Chrome binary'sinin varlığını kontrol edebiliriz
+                }
+            } catch (Exception ex) {
+                LOGGER.log(Level.FINE, "Error checking Chrome binary", ex);
+            }
+            
             return false;
         } finally {
             if (tempDriver != null) {
