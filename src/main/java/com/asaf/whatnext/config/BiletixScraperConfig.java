@@ -6,6 +6,7 @@ import com.asaf.whatnext.enums.Biletix.BiletixDate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 
 @Configuration
@@ -73,20 +74,28 @@ public class BiletixScraperConfig {
         return loadMoreWaitMs;
     }
 
-    public String buildSearchUrl(BiletixCategory category) {
-        return buildSearchUrl(category, DEFAULT_CITY);
-    }
-
-    public String buildSearchUrl(BiletixCategory category, BiletixCity city) {
+    public String buildSearchUrl(BiletixCategory category, BiletixCity city, LocalDate startDate, LocalDate endDate) {
+        String dateParam;
+        String hashParam = "";
+        if (startDate != null && endDate != null) {
+            dateParam = String.format("%s-%s",
+                    startDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")),
+                    endDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
+            hashParam = String.format(",subcat_interval:%sTO%s",
+                    startDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")),
+                    endDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
+        } else {
+            dateParam = DEFAULT_DATE.getValue();
+        }
         return String.format(
-                "%s/search/TURKIYE/tr?category_sb=%s&date_sb=%s&city_sb=%s#!category_sb:%s,city_sb:%s,date_sb:%s",
+                "%s/search/TURKIYE/tr?category_sb=%s&date_sb=%s&city_sb=%s#!category_sb:%s,city_sb:%s%s",
                 BASE_URL,
                 category.getValue(),
-                DEFAULT_DATE.getValue(),
+                dateParam,
                 city.getValue(),
                 category.getValue(),
                 city.getValue(),
-                DEFAULT_DATE.getValue()
+                hashParam
         );
     }
 }

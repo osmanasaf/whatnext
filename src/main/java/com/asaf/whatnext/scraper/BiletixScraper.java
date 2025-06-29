@@ -16,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -135,16 +136,20 @@ public class BiletixScraper implements EventSource {
     }
 
     public List<Event> processCategory(BiletixCategory category) {
-        return processCategory(category, BiletixCity.ISTANBUL);
+        return processCategory(category, BiletixCity.ISTANBUL, null, null);
     }
 
     public List<Event> processCategory(BiletixCategory category, BiletixCity city) {
+        return processCategory(category, city, null, null);
+    }
+
+    public List<Event> processCategory(BiletixCategory category, BiletixCity city, LocalDate startDate, LocalDate endDate) {
         List<Event> events = new ArrayList<>();
         try {
             initializeBrowser();
 
             LOGGER.info("Fetching events for category: " + category.name() + " in city: " + city.getValue());
-            List<Event> categoryEvents = fetchEventsByCategory(category, city);
+            List<Event> categoryEvents = fetchEventsByCategory(category, city, startDate, endDate);
 
             saveEventsWithDuplicateChecking(categoryEvents);
             events.addAll(categoryEvents);
@@ -180,15 +185,19 @@ public class BiletixScraper implements EventSource {
     }
 
     private List<Event> fetchEventsByCategory(BiletixCategory category) {
-        return fetchEventsByCategory(category, BiletixCity.ISTANBUL);
+        return fetchEventsByCategory(category, BiletixCity.ISTANBUL, null, null);
     }
 
     private List<Event> fetchEventsByCategory(BiletixCategory category, BiletixCity city) {
+        return fetchEventsByCategory(category, city, null, null);
+    }
+
+    private List<Event> fetchEventsByCategory(BiletixCategory category, BiletixCity city, LocalDate startDate, LocalDate endDate) {
         LOGGER.info("Fetching events for category: " + category.name() + " in city: " + city.getValue());
         List<Event> events = new ArrayList<>();
 
         try {
-            String searchUrl = config.buildSearchUrl(category, city);
+            String searchUrl = config.buildSearchUrl(category, city, startDate, endDate);
             WebScraperUtils.navigateToUrl(driver, wait, searchUrl);
 
             EventCollection eventCollection = collectEventCardsAndUrls();
