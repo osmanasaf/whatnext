@@ -71,6 +71,28 @@ public class ImageGenerationService {
         Path outputPath = Paths.get(OUTPUT_DIR, "whatnext", outputFilename);
 
         Files.createDirectories(outputPath.getParent());
+
+        // DEBUG LOGS for Railway
+        System.out.println("[DEBUG] cover-coordinates.properties relative path: " + coordinatesPath);
+        System.out.println("[DEBUG] cover-coordinates.properties absolute path: " + coordinatesPath.toAbsolutePath());
+        System.out.println("[DEBUG] cover-coordinates.properties exists: " + Files.exists(coordinatesPath));
+        if (Files.exists(coordinatesPath)) {
+            System.out.println("[DEBUG] cover-coordinates.properties size: " + Files.size(coordinatesPath));
+            try (InputStream input = Files.newInputStream(coordinatesPath)) {
+                Properties props = new Properties();
+                props.load(input);
+                System.out.println("[DEBUG] cover-coordinates.properties property count: " + props.size());
+                for (String key : props.stringPropertyNames()) {
+                    System.out.println("[DEBUG] " + key + "=" + props.getProperty(key));
+                }
+            } catch (Exception e) {
+                System.out.println("[ERROR] cover-coordinates.properties okunamadı: " + coordinatesPath);
+                e.printStackTrace();
+            }
+        } else {
+            System.out.println("[ERROR] cover-coordinates.properties dosyası bulunamadı: " + coordinatesPath);
+        }
+
         Properties coordinates = loadCoordinates(coordinatesPath);
 
         List<String> command = new ArrayList<>();
