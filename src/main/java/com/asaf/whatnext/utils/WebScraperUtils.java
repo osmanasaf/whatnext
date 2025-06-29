@@ -19,19 +19,29 @@ public class WebScraperUtils {
     private static final Logger LOGGER = Logger.getLogger(WebScraperUtils.class.getName());
     
     public static ChromeOptions configureChromeBrowser(String chromePath) {
-        LOGGER.info("Configuring Chrome browser options");
+        LOGGER.info("Configuring Chrome browser options for Railway environment");
         ChromeOptions options = new ChromeOptions();
+        
+        // Railway/Linux container için gerekli options
         options.addArguments("--headless=new");
-        options.addArguments("--disable-gpu");
         options.addArguments("--no-sandbox");
         options.addArguments("--disable-dev-shm-usage");
+        options.addArguments("--disable-gpu");
+        options.addArguments("--disable-software-rasterizer");
+        options.addArguments("--disable-extensions");
+        options.addArguments("--disable-plugins");
+        options.addArguments("--disable-images");
+        options.addArguments("--disable-javascript");
         options.addArguments("--window-size=1920,1080");
-        options.addArguments("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36");
+        options.addArguments("--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36");
         options.addArguments("--ignore-certificate-errors");
+        options.addArguments("--ignore-ssl-errors");
+        options.addArguments("--ignore-certificate-errors-spki-list");
         options.addArguments("--disable-web-security");
         options.addArguments("--allow-running-insecure-content");
+        options.addArguments("--remote-debugging-port=9222");
         
-        LOGGER.info("Chrome arguments configured");
+        LOGGER.info("Chrome arguments configured for Railway");
         
         // Chrome binary path'ini belirle
         String finalChromePath = determineChromePath(chromePath);
@@ -94,27 +104,27 @@ public class WebScraperUtils {
                 LOGGER.info("ChromeDriver instance created successfully");
                 return driver;
             } catch (Exception e) {
-                LOGGER.log(Level.SEVERE, "Failed to create ChromeDriver instance", e);
+                LOGGER.log(Level.SEVERE, "Failed to create ChromeDriver instance with full options", e);
                 
                 // Alternatif olarak daha basit options ile deneyelim
-                LOGGER.info("Trying with simplified ChromeOptions...");
-                ChromeOptions simpleOptions = new ChromeOptions();
-                simpleOptions.addArguments("--headless=new");
-                simpleOptions.addArguments("--no-sandbox");
-                simpleOptions.addArguments("--disable-dev-shm-usage");
-                simpleOptions.addArguments("--disable-gpu");
+                LOGGER.info("Trying with minimal ChromeOptions...");
+                ChromeOptions minimalOptions = new ChromeOptions();
+                minimalOptions.addArguments("--headless=new");
+                minimalOptions.addArguments("--no-sandbox");
+                minimalOptions.addArguments("--disable-dev-shm-usage");
+                minimalOptions.addArguments("--disable-gpu");
                 
                 if (chromePath != null && !chromePath.isEmpty()) {
                     try {
-                        simpleOptions.setBinary(chromePath);
-                        LOGGER.info("Set Chrome binary in simple options: " + chromePath);
+                        minimalOptions.setBinary(chromePath);
+                        LOGGER.info("Set Chrome binary in minimal options: " + chromePath);
                     } catch (Exception ex) {
-                        LOGGER.warning("Failed to set Chrome binary in simple options: " + ex.getMessage());
+                        LOGGER.warning("Failed to set Chrome binary in minimal options: " + ex.getMessage());
                     }
                 }
                 
-                WebDriver driver = new ChromeDriver(simpleOptions);
-                LOGGER.info("ChromeDriver instance created successfully with simple options");
+                WebDriver driver = new ChromeDriver(minimalOptions);
+                LOGGER.info("ChromeDriver instance created successfully with minimal options");
                 return driver;
             }
         } catch (Exception e) {
