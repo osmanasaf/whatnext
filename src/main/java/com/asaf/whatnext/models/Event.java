@@ -56,7 +56,7 @@ public class Event extends BaseEntity {
     @Column(name = "ticket_url")
     private List<String> ticketUrls = new ArrayList<>();
 
-    @OneToOne(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @OneToOne(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @JsonBackReference(value = "event-image")
     private EventImage eventImage;
 
