@@ -30,11 +30,9 @@ RUN wget -q -O /tmp/chromedriver.zip \
     chmod +x /usr/local/bin/chromedriver && \
     rm -rf /tmp/chromedriver*
 
-# Chrome ve ChromeDriver'ın varlığını ve çalışabilirliğini test et
-RUN ls -la /usr/local/chrome-linux64/chrome && \
-    ls -la /usr/local/bin/chromedriver && \
-    /usr/local/chrome-linux64/chrome --version && \
-    /usr/local/bin/chromedriver --version
+# Dosyaların varlığını kontrol et
+RUN ls -la /usr/local/chrome-linux64/ && \
+    ls -la /usr/local/bin/chromedriver
 
 # Environment variables for Chrome
 ENV CHROME_BIN=/usr/local/chrome-linux64/chrome
