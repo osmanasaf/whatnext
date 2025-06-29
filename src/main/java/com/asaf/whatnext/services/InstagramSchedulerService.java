@@ -101,21 +101,31 @@ public class InstagramSchedulerService {
             LocalDate nextMonday = today.plusDays((8 - today.getDayOfWeek().getValue()) % 7);
             for (int i = 0; i < 7; i++) {
                 LocalDate targetDate = nextMonday.plusDays(i);
+                System.out.println("[Scheduler] İşlenen gün: " + targetDate);
                 boolean coverShared = instagramImageRepository.existsByCreationDateAndPostTypeAndPostedToInstagramIsTrue(targetDate, "cover");
                 if (coverShared) {
                     System.out.println("[Scheduler] " + targetDate + " için zaten bir cover paylaşılmış. İşlem atlanıyor.");
                     continue;
                 }
                 List<InstagramImage> imagesToShare = instagramImageRepository.findByCreationDateAndPostedToInstagramFalse(targetDate);
+                System.out.println("[Scheduler] " + targetDate + " için paylaşılacak toplam görsel: " + imagesToShare.size());
                 List<InstagramImage> posts = imagesToShare.stream()
                     .filter(img -> "post".equals(img.getPostType()) || "cover".equals(img.getPostType()))
                     .toList();
+                System.out.println("[Scheduler] " + targetDate + " için paylaşılacak post/cover sayısı: " + posts.size());
                 if (!posts.isEmpty()) {
                     posts.sort((img1, img2) -> "cover".equals(img1.getEventType()) ? -1 : 1);
                     String date = targetDate.format(DateTimeFormatter.ofPattern("dd MMMM yyyy", new Locale("tr")));
                     String caption = String.format(DAILY_CAPTION_TEMPLATE, date);
-                    instagramService.sharePost(posts, caption);
-                    System.out.println("[Scheduler] " + targetDate + " için haftalık postlar paylaşım isteği gönderildi.");
+                    System.out.println("[Scheduler] " + targetDate + " için caption: " + caption);
+                    System.out.println("[Scheduler] " + targetDate + " için paylaşılacak post id'leri: " + posts.stream().map(img -> img.getId() + ":" + img.getPostType() + ":" + img.getEventType()).toList());
+                    try {
+                        instagramService.sharePost(posts, caption);
+                        System.out.println("[Scheduler] " + targetDate + " için haftalık postlar paylaşım isteği gönderildi.");
+                    } catch (Exception ex) {
+                        System.err.println("[Scheduler] HATA! " + targetDate + " için paylaşım sırasında exception: " + ex.getMessage());
+                        ex.printStackTrace();
+                    }
                 } else {
                     System.out.println("[Scheduler] " + targetDate + " için paylaşılacak haftalık post bulunamadı veya zaten paylaşılmış.");
                 }
