@@ -12,6 +12,9 @@ RUN apt-get update -qq && apt-get install -qq -y --no-install-recommends \
     gnupg2 software-properties-common libgbm1 libxshmfence1 >/dev/null && \
     rm -rf /var/lib/apt/lists/*
 
+# ImageMagick'in doğru yüklendiğini ve PATH'te olduğunu doğrula
+RUN which magick && magick -version
+
 # Chrome ve ChromeDriver'ı yükle
 ENV CHROME_FOR_TESTING_VERSION=138.0.7204.49
 

@@ -237,6 +237,21 @@ public class ImageGenerationService {
 
     private File executeCommand(List<String> command, String outputPath) throws IOException, InterruptedException {
         System.out.println("ℹ️ ImageMagick komutu çalıştırılıyor. Çıktı dosyası: " + outputPath);
+        // DEBUG: PATH ve magick'in varlığı
+        System.out.println("[DEBUG] PATH: " + System.getenv("PATH"));
+        try {
+            ProcessBuilder pb = new ProcessBuilder("which", "magick");
+            Process p = pb.start();
+            p.waitFor();
+            try (BufferedReader r = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
+                String line;
+                while ((line = r.readLine()) != null) {
+                    System.out.println("[DEBUG] which magick: " + line);
+                }
+            }
+        } catch (Exception e) {
+            System.out.println("[DEBUG] which magick komutu çalıştırılamadı: " + e.getMessage());
+        }
         ProcessBuilder processBuilder = new ProcessBuilder(command);
         processBuilder.redirectErrorStream(true);
 
