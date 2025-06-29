@@ -206,6 +206,10 @@ public class BiletinialScraper implements EventSource {
             WebElement addressElement = card.findElement(By.cssSelector(LOCATION_SELECTOR));
 
             String city = addressElement.findElement(By.cssSelector("b")).getText();
+            // İstanbul varyasyonlarını normalize et
+            if (city != null && city.toLowerCase().contains("stanbul")) {
+                city = "istanbul";
+            }
             String venue = addressElement.findElement(By.cssSelector("small")).getText();
 
             System.out.println("City: " + city);
