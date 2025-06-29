@@ -12,7 +12,7 @@ public class BiletinialScraperConfig {
     // URL ve browser ayarları
     public static final String BASE_URL = "https://biletinial.com";
 
-    @Value("${biletinial.chrome.path:C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe}")
+    @Value("${biletinial.chrome.path:}")
     private String chromePath;
 
     @Value("${biletinial.wait.timeout:60}")
@@ -40,6 +40,18 @@ public class BiletinialScraperConfig {
     public static final String EVENT_IMAGE_SELECTOR = "img[src*='merlincdn.net']";
 
     public String getChromePath() {
+        // Önce environment variable'ı kontrol et
+        String envChromeBin = System.getenv("CHROME_BIN");
+        if (envChromeBin != null && !envChromeBin.isEmpty()) {
+            return envChromeBin;
+        }
+        
+        // Eğer chromePath boşsa veya Windows path'i ise, null döndür
+        // Bu durumda WebDriverManager otomatik olarak Chrome'u bulacak
+        if (chromePath == null || chromePath.isEmpty() || 
+            chromePath.equals("C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe")) {
+            return null;
+        }
         return chromePath;
     }
 

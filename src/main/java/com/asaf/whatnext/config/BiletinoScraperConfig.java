@@ -12,7 +12,7 @@ public class BiletinoScraperConfig {
     // URL and browser configuration
     public static final String BASE_URL = "https://biletino.com";
     
-    @Value("${biletino.chrome.path:C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe}")
+    @Value("${biletino.chrome.path:}")
     private String chromePath;
     
     @Value("${biletino.wait.timeout:60}")
@@ -43,6 +43,18 @@ public class BiletinoScraperConfig {
     public static final String SEARCH_LOAD_END_SELECTOR = "p#search-load-end";
 
     public String getChromePath() {
+        // Önce environment variable'ı kontrol et
+        String envChromeBin = System.getenv("CHROME_BIN");
+        if (envChromeBin != null && !envChromeBin.isEmpty()) {
+            return envChromeBin;
+        }
+        
+        // Eğer chromePath boşsa veya Windows path'i ise, null döndür
+        // Bu durumda WebDriverManager otomatik olarak Chrome'u bulacak
+        if (chromePath == null || chromePath.isEmpty() || 
+            chromePath.equals("C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe")) {
+            return null;
+        }
         return chromePath;
     }
 

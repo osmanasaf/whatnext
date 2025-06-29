@@ -57,13 +57,27 @@ public class BiletixScraper implements EventSource {
 
     private void initializeBrowser() {
         LOGGER.info("Initializing browser");
-        this.driver = WebScraperUtils.initializeBrowser(config.getChromePath(), config.getWaitTimeoutSeconds());
-        this.wait = new WebDriverWait(driver, Duration.ofSeconds(config.getWaitTimeoutSeconds()));
-        LOGGER.info("Browser initialized successfully");
+        try {
+            this.driver = WebScraperUtils.initializeBrowser(config.getChromePath(), config.getWaitTimeoutSeconds());
+            this.wait = new WebDriverWait(driver, Duration.ofSeconds(config.getWaitTimeoutSeconds()));
+            LOGGER.info("Browser initialized successfully");
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Failed to initialize browser", e);
+            throw new RuntimeException("Browser initialization failed", e);
+        }
     }
 
     private void closeBrowser() {
-        WebScraperUtils.closeBrowser(driver);
+        if (driver != null) {
+            try {
+                WebScraperUtils.closeBrowser(driver);
+                driver = null;
+                wait = null;
+                LOGGER.info("Browser closed successfully");
+            } catch (Exception e) {
+                LOGGER.log(Level.WARNING, "Error closing browser", e);
+            }
+        }
     }
 
     @Override
@@ -352,18 +366,35 @@ public class BiletixScraper implements EventSource {
 
     @Override
     public boolean isAvailable() {
+        WebDriver tempDriver = null;
         try {
-            LOGGER.fine("Checking if Biletix is available");
-            initializeBrowser();
-            driver.get(BiletixScraperConfig.BASE_URL);
-            boolean available = driver.getTitle().contains("Biletix");
-            LOGGER.info("Biletix availability check: " + available);
-            closeBrowser();
+            LOGGER.info("Checking if Biletix is available");
+            tempDriver = WebScraperUtils.initializeBrowser(config.getChromePath(), config.getWaitTimeoutSeconds());
+            
+            // Biletix ana sayfasına git
+            tempDriver.get(BiletixScraperConfig.BASE_URL);
+            
+            // Sayfanın yüklenmesini bekle
+            Thread.sleep(3000);
+            
+            // Sayfa başlığını kontrol et
+            String pageTitle = tempDriver.getTitle();
+            boolean available = pageTitle != null && (pageTitle.contains("Biletix") || pageTitle.contains("biletix"));
+            
+            LOGGER.info("Biletix availability check result: " + available + " (Page title: " + pageTitle + ")");
             return available;
+            
         } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Error checking Biletix availability", e);
-            closeBrowser();
+            LOGGER.log(Level.WARNING, "Error checking Biletix availability: " + e.getMessage(), e);
             return false;
+        } finally {
+            if (tempDriver != null) {
+                try {
+                    WebScraperUtils.closeBrowser(tempDriver);
+                } catch (Exception e) {
+                    LOGGER.log(Level.FINE, "Error closing temporary browser", e);
+                }
+            }
         }
     }
 

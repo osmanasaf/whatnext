@@ -13,7 +13,7 @@ public class BiletixScraperConfig {
     // URL and browser configuration
     public static final String BASE_URL = "https://www.biletix.com";
     
-    @Value("${biletix.chrome.path:C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe}")
+    @Value("${biletix.chrome.path:}")
     private String chromePath;
     
     @Value("${biletix.wait.timeout:60}")
@@ -46,6 +46,18 @@ public class BiletixScraperConfig {
     public static final String LOAD_MORE_BUTTON_SELECTOR = ".search_load_more";
 
     public String getChromePath() {
+        // Önce environment variable'ı kontrol et
+        String envChromeBin = System.getenv("CHROME_BIN");
+        if (envChromeBin != null && !envChromeBin.isEmpty()) {
+            return envChromeBin;
+        }
+        
+        // Eğer chromePath boşsa veya Windows path'i ise, null döndür
+        // Bu durumda WebDriverManager otomatik olarak Chrome'u bulacak
+        if (chromePath == null || chromePath.isEmpty() || 
+            chromePath.equals("C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe")) {
+            return null;
+        }
         return chromePath;
     }
 

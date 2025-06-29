@@ -1,6 +1,8 @@
 package com.asaf.whatnext.controllers;
 
 import com.asaf.whatnext.scraper.EventScraperService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -10,6 +12,8 @@ import java.time.LocalDate;
 @RestController
 @RequestMapping("/api/scrapers")
 public class ScraperController {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(ScraperController.class);
 
     private final EventScraperService eventScraperService;
 
@@ -78,9 +82,14 @@ public class ScraperController {
             eventScraperService.scrapeEventsBySource(source, usedCity, start, end);
             return ResponseEntity.ok("Scraper " + source + " completed successfully");
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+            LOGGER.error("Invalid argument for scraper {}: {}", source, e.getMessage());
+            return ResponseEntity.badRequest().body("Invalid argument: " + e.getMessage());
+        } catch (RuntimeException e) {
+            LOGGER.error("Runtime error in scraper {}: {}", source, e.getMessage());
+            return ResponseEntity.internalServerError().body("Scraper error: " + e.getMessage());
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body("Error running scraper: " + e.getMessage());
+            LOGGER.error("Unexpected error in scraper {}: {}", source, e.getMessage(), e);
+            return ResponseEntity.internalServerError().body("Unexpected error running scraper: " + e.getMessage());
         }
     }
 

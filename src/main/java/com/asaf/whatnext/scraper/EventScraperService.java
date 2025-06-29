@@ -212,13 +212,16 @@ public class EventScraperService {
                 .filter(scraper -> scraper.getSourceName().equalsIgnoreCase(sourceName))
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Scraper not found: " + sourceName));
+        
         try {
             if (!targetScraper.isAvailable()) {
                 LOGGER.warn("Scraper {} is not available", sourceName);
-                return;
+                throw new RuntimeException("Scraper " + sourceName + " is not available. Please check Chrome installation and network connectivity.");
             }
+            
             java.util.List<Event> events = targetScraper.fetchEvents(city, startDate, endDate);
             LOGGER.info("Found {} events from {}", events.size(), sourceName);
+            
             for (Event event : events) {
                 try {
                     if (event instanceof ConcertEvent) {
@@ -238,7 +241,8 @@ public class EventScraperService {
             }
             LOGGER.info("Completed scraping for source: {}", sourceName);
         } catch (Exception e) {
-            LOGGER.error("Error in scraper {}: {}", sourceName, e.getMessage());
+            LOGGER.error("Error in scraper {}: {}", sourceName, e.getMessage(), e);
+            throw new RuntimeException("Failed to scrape events from " + sourceName + ": " + e.getMessage(), e);
         }
     }
 } 
