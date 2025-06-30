@@ -160,10 +160,8 @@ public class InstagramSchedulerService {
                 System.err.println(err);
                 ex.printStackTrace();
                 results.add(err);
-            } finally {
-                Thread.sleep(30000);
             }
-
+            Thread.sleep(15000);
         }
         return results;
     }
