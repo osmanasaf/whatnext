@@ -250,6 +250,7 @@ public class InstagramService {
     private void postPublisher() {
         while (true) {
             try {
+                Thread.sleep(10000);
                 PostTask task = postQueue.take();
                 System.out.println("Processing task from queue. Remaining: " + postQueue.size());
                 boolean success = false;
