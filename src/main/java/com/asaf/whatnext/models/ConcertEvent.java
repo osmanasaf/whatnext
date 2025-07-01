@@ -10,7 +10,7 @@ import com.fasterxml.jackson.annotation.JsonBackReference;
 
 @Data
 @Entity
-@EqualsAndHashCode(callSuper = true)
+@EqualsAndHashCode(callSuper = true, onlyExplicitlyIncluded = true)
 public class ConcertEvent extends Event {
     @ManyToOne
     @JoinColumn(name = "artist_id")
@@ -18,4 +18,10 @@ public class ConcertEvent extends Event {
     private Artist artist;
     
     private ConcertType concertType;
+
+    @EqualsAndHashCode.Include
+    @Override
+    public Long getId() {
+        return super.getId();
+    }
 }

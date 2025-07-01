@@ -9,7 +9,7 @@ import java.util.List;
 
 @Data
 @Entity
-@EqualsAndHashCode(callSuper = true)
+@EqualsAndHashCode(callSuper = true, onlyExplicitlyIncluded = true)
 public class PerformingArt extends Event {
     private String playwright;
 
@@ -29,4 +29,10 @@ public class PerformingArt extends Event {
 
     @Enumerated(EnumType.STRING)
     private PerformanceType performanceType;
+
+    @EqualsAndHashCode.Include
+    @Override
+    public Long getId() {
+        return super.getId();
+    }
 }

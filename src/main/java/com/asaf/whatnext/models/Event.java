@@ -26,10 +26,11 @@ import com.fasterxml.jackson.annotation.JsonBackReference;
 @Entity
 @NoArgsConstructor
 @Inheritance(strategy = InheritanceType.SINGLE_TABLE)
-@EqualsAndHashCode(callSuper = true)
+@EqualsAndHashCode(callSuper = true, onlyExplicitlyIncluded = true)
 public class Event extends BaseEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @EqualsAndHashCode.Include
     private Long id;
 
     @Column(nullable = false)
