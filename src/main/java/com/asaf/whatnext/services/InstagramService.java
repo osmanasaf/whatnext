@@ -40,8 +40,8 @@ public class InstagramService {
     private static final String GRAPH_API_BASE = "https://graph.facebook.com/v19.0/";
     private final ObjectMapper objectMapper = new ObjectMapper();
     private static final int RETRY_COUNT = 3;
-    private static final int RETRY_WAIT_MS = 5000; // 5 saniye
-    private static final int API_LIMIT_WAIT_MS = 1000 * 60 * 15; // 15 dakika
+    private static final int RETRY_WAIT_MS = 10000; // 5 saniye
+    private static final int API_LIMIT_WAIT_MS = 1000 * 60 * 5; // 15 dakika
 
     private final BlockingQueue<PostTask> postQueue = new LinkedBlockingQueue<>();
 
