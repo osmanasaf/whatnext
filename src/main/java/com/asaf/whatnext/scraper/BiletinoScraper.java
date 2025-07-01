@@ -191,6 +191,12 @@ public class BiletinoScraper implements EventSource {
     private void navigateToUrl(String url) {
         driver.get(url);
         wait.until(ExpectedConditions.presenceOfElementLocated(By.tagName("body")));
+        try {
+            String html = driver.getPageSource();
+            LOGGER.info("[BiletinoScraper] navigateToUrl HTML preview: " + html.substring(0, Math.min(1000, html.length())));
+        } catch (Exception e) {
+            LOGGER.warning("[BiletinoScraper] navigateToUrl HTML log error: " + e.getMessage());
+        }
     }
 
     private void scrollToLoadAllEvents() {
@@ -326,72 +332,73 @@ public class BiletinoScraper implements EventSource {
     }
 
     private DetailedEventInfo fetchDetailedEventInfo(String eventUrl) {
+        driver.get(eventUrl);
+        wait.until(ExpectedConditions.presenceOfElementLocated(By.tagName("body")));
         try {
-            driver.get(eventUrl);
-            wait.until(ExpectedConditions.presenceOfElementLocated(By.tagName("body")));
-            String title = "";
-            try {
-                WebElement titleElement = driver.findElement(By.cssSelector("h1.event-title"));
-                title = titleElement.getText().trim();
-            } catch (Exception ignored) {}
-            String startDate = "";
-            try {
-                List<WebElement> startDateElements = driver.findElements(By.xpath("//label[contains(text(), 'Start Date')]/following-sibling::p"));
+            String html = driver.getPageSource();
+            LOGGER.info("[BiletinoScraper] fetchDetailedEventInfo HTML preview: " + html.substring(0, Math.min(1000, html.length())));
+        } catch (Exception e) {
+            LOGGER.warning("[BiletinoScraper] fetchDetailedEventInfo HTML log error: " + e.getMessage());
+        }
+        String title = "";
+        try {
+            WebElement titleElement = driver.findElement(By.cssSelector("h1.event-title"));
+            title = titleElement.getText().trim();
+        } catch (Exception ignored) {}
+        String startDate = "";
+        try {
+            List<WebElement> startDateElements = driver.findElements(By.xpath("//label[contains(text(), 'Start Date')]/following-sibling::p"));
+            if (!startDateElements.isEmpty()) {
+                startDate = startDateElements.get(0).getText().trim();
+            } else {
+                startDateElements = driver.findElements(By.cssSelector("div.event-time-summary p.mb-1"));
                 if (!startDateElements.isEmpty()) {
                     startDate = startDateElements.get(0).getText().trim();
-                } else {
-                    startDateElements = driver.findElements(By.cssSelector("div.event-time-summary p.mb-1"));
-                    if (!startDateElements.isEmpty()) {
-                        startDate = startDateElements.get(0).getText().trim();
-                    }
                 }
-            } catch (Exception ignored) {}
-            String endDate = "";
-            try {
-                List<WebElement> endDateElements = driver.findElements(By.xpath("//label[contains(text(), 'End Date')]/following-sibling::p"));
-                if (!endDateElements.isEmpty()) {
-                    endDate = endDateElements.get(0).getText().trim();
-                } else {
-                    List<WebElement> dateElements = driver.findElements(By.cssSelector("div.event-time-summary p.mb-1"));
-                    if (dateElements.size() > 1) {
-                        endDate = dateElements.get(1).getText().trim();
-                    }
+            }
+        } catch (Exception ignored) {}
+        String endDate = "";
+        try {
+            List<WebElement> endDateElements = driver.findElements(By.xpath("//label[contains(text(), 'End Date')]/following-sibling::p"));
+            if (!endDateElements.isEmpty()) {
+                endDate = endDateElements.get(0).getText().trim();
+            } else {
+                List<WebElement> dateElements = driver.findElements(By.cssSelector("div.event-time-summary p.mb-1"));
+                if (dateElements.size() > 1) {
+                    endDate = dateElements.get(1).getText().trim();
                 }
-            } catch (Exception ignored) {}
-            String location = "";
-            String venueName = "";
-            try {
-                List<WebElement> locationElements = driver.findElements(By.xpath("//label[contains(text(), 'Location')]/following-sibling::p"));
-                if (!locationElements.isEmpty()) {
-                    String fullLocation = locationElements.get(0).getText().trim();
+            }
+        } catch (Exception ignored) {}
+        String location = "";
+        String venueName = "";
+        try {
+            List<WebElement> locationElements = driver.findElements(By.xpath("//label[contains(text(), 'Location')]/following-sibling::p"));
+            if (!locationElements.isEmpty()) {
+                String fullLocation = locationElements.get(0).getText().trim();
+                String[] result = processLocationString(fullLocation);
+                venueName = result[0];
+                location = result[1];
+            } else {
+                locationElements = driver.findElements(By.cssSelector("div.event-time-summary p.mb-1"));
+                if (locationElements.size() > 2) {
+                    String fullLocation = locationElements.get(2).getText().trim();
                     String[] result = processLocationString(fullLocation);
                     venueName = result[0];
                     location = result[1];
                 } else {
-                    locationElements = driver.findElements(By.cssSelector("div.event-time-summary p.mb-1"));
-                    if (locationElements.size() > 2) {
-                        String fullLocation = locationElements.get(2).getText().trim();
+                    locationElements = driver.findElements(By.xpath("//label[contains(@class, 'venue-title')]/following-sibling::p"));
+                    if (!locationElements.isEmpty()) {
+                        String fullLocation = locationElements.get(0).getText().trim();
                         String[] result = processLocationString(fullLocation);
                         venueName = result[0];
                         location = result[1];
-                    } else {
-                        locationElements = driver.findElements(By.xpath("//label[contains(@class, 'venue-title')]/following-sibling::p"));
-                        if (!locationElements.isEmpty()) {
-                            String fullLocation = locationElements.get(0).getText().trim();
-                            String[] result = processLocationString(fullLocation);
-                            venueName = result[0];
-                            location = result[1];
-                        }
                     }
                 }
-            } catch (Exception ignored) {}
-            String dateStr = startDate;
-            if (!endDate.isEmpty()) dateStr = startDate + " - " + endDate;
-            return new DetailedEventInfo(title, "", dateStr, venueName, location, eventUrl);
-        } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Error fetching detailed event info from: " + eventUrl, e);
-            return null;
-        }
+            }
+        } catch (Exception ignored) {}
+        String dateStr = startDate;
+        if (!endDate.isEmpty()) dateStr = startDate + " - " + endDate;
+        return new DetailedEventInfo(title, "", dateStr, venueName, location, eventUrl);
     }
 
     private Event createEventFromDetailedInfo(EventType eventType, EventInfo basicInfo, DetailedEventInfo detailedInfo) {
