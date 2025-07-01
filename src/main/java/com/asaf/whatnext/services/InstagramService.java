@@ -18,7 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.PriorityBlockingQueue;
 import jakarta.annotation.PostConstruct;
 
 @Service
@@ -43,30 +43,39 @@ public class InstagramService {
     private static final int RETRY_WAIT_MS = 10000; // 5 saniye
     private static final int API_LIMIT_WAIT_MS = 1000 * 60 * 5; // 15 dakika
 
-    private final BlockingQueue<PostTask> postQueue = new LinkedBlockingQueue<>();
+    private final PriorityBlockingQueue<PostTask> postQueue = new PriorityBlockingQueue<>();
+    private final List<LocalDate> postedDates = new ArrayList<>();
 
     private enum PostType {
         POST, STORY
     }
 
-    private static class PostTask {
+    private static class PostTask implements Comparable<PostTask> {
         final PostType type;
         final List<InstagramImage> images;
         final String caption;
         final InstagramImage storyImage;
+        final LocalDate date;
 
-        PostTask(List<InstagramImage> images, String caption) {
+        PostTask(List<InstagramImage> images, String caption, LocalDate date) {
             this.type = PostType.POST;
             this.images = images;
             this.caption = caption;
             this.storyImage = null;
+            this.date = date;
         }
 
-        PostTask(InstagramImage storyImage) {
+        PostTask(InstagramImage storyImage, LocalDate date) {
             this.type = PostType.STORY;
             this.storyImage = storyImage;
             this.images = null;
             this.caption = null;
+            this.date = date;
+        }
+
+        @Override
+        public int compareTo(PostTask o) {
+            return this.date.compareTo(o.date);
         }
     }
 
@@ -111,7 +120,15 @@ public class InstagramService {
             System.err.println("❌ Paylaşılacak görsel bulunmadığı için post görevi kuyruğa eklenmedi.");
             return;
         }
-        boolean added = postQueue.offer(new PostTask(images, caption));
+        LocalDate date = images.get(0).getCreationDate();
+        // Aynı gün için kuyrukta veya işlenmişte paylaşım var mı kontrol et
+        boolean alreadyQueued = postQueue.stream().anyMatch(task -> task.date.equals(date));
+        boolean alreadyPosted = postedDates.contains(date);
+        if (alreadyQueued || alreadyPosted) {
+            System.err.println("❌ Aynı gün için zaten bir paylaşım kuyruğa alınmış veya paylaşılmış: " + date);
+            return;
+        }
+        boolean added = postQueue.offer(new PostTask(images, caption, date));
         if(added) {
             System.out.println("✅ Post görevi kuyruğa eklendi. Kuyruktaki görev sayısı: " + postQueue.size());
         } else {
@@ -124,7 +141,14 @@ public class InstagramService {
             System.err.println("❌ Paylaşılacak görsel bulunmadığı için story görevi kuyruğa eklenmedi.");
             return;
         }
-        boolean added = postQueue.offer(new PostTask(image));
+        LocalDate date = image.getCreationDate();
+        boolean alreadyQueued = postQueue.stream().anyMatch(task -> task.date.equals(date));
+        boolean alreadyPosted = postedDates.contains(date);
+        if (alreadyQueued || alreadyPosted) {
+            System.err.println("❌ Aynı gün için zaten bir paylaşım kuyruğa alınmış veya paylaşılmış: " + date);
+            return;
+        }
+        boolean added = postQueue.offer(new PostTask(image, date));
          if(added) {
             System.out.println("✅ Story görevi kuyruğa eklendi. Kuyruktaki görev sayısı: " + postQueue.size());
         } else {
@@ -250,7 +274,6 @@ public class InstagramService {
     private void postPublisher() {
         while (true) {
             try {
-                Thread.sleep(10000);
                 PostTask task = postQueue.take();
                 System.out.println("Processing task from queue. Remaining: " + postQueue.size());
                 boolean success = false;
@@ -279,9 +302,14 @@ public class InstagramService {
                     }
                 }
 
-                if (!success) {
+                if (success) {
+                    postedDates.add(task.date);
+                } else {
                     System.err.println("❌ Görev " + RETRY_COUNT + " deneme sonunda kalıcı olarak başarısız oldu.");
                 }
+
+                // Her paylaşım sonrası 30 saniye bekle
+                Thread.sleep(30000);
 
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
