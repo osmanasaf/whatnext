@@ -552,16 +552,7 @@ public class BiletinoScraper implements EventSource {
 
     @Override
     public boolean isAvailable() {
-        try {
-            initializeBrowser();
-            driver.get(BASE_URL);
-            boolean available = driver.getTitle().contains("Biletino");
-            closeBrowser();
-            return available;
-        } catch (Exception e) {
-            if (driver != null) closeBrowser();
-            return false;
-        }
+        return true;
     }
 
     @Override
