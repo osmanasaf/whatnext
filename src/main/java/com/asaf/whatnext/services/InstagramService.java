@@ -305,50 +305,54 @@ public class InstagramService {
                 PostTask task = postQueue.take();
                 System.out.println("[Publisher] İşlenecek görev: " + task.id + " | Gün: " + task.date + " | Kuyrukta kalan: " + postQueue.size());
                 boolean success = false;
-                int attempt = 0;
                 String lastContainerId = null;
-                while (attempt < RETRY_COUNT && !success) {
-                    attempt++;
-                    System.out.println("[Publisher] Görev: " + task.id + " | Deneme: " + attempt);
-                    try {
-                        if (task.type == PostType.POST) {
-                            lastContainerId = executeSharePost(task.images, task.caption);
-                        } else {
-                            lastContainerId = executeShareStory(task.storyImage);
-                        }
-                        String status = lastContainerId != null ? getContainerStatus(lastContainerId) : "-";
-                        success = true;
-                        System.out.println("[Publisher] Görev BAŞARILI: " + task.id + " | Gün: " + task.date + " | ContainerID: " + lastContainerId + " | Status: " + status);
-                        rateLimitWaitMinutes = 15; // Başarılı olursa bekleme süresini sıfırla
-                    } catch (InstagramApiException e) {
-                        String status = lastContainerId != null ? getContainerStatus(lastContainerId) : "-";
-                        System.err.println("[Publisher] ❌ Instagram API hatası (" + attempt + ") | Görev: " + task.id + " | Gün: " + task.date + " | ContainerID: " + lastContainerId + " | Status: " + status + " | " + e.getMessage());
-                        if (e.isRateLimitError() || e.isActionBlockedError()) {
-                            System.err.println("[Publisher] 🕒 API limit/engel hatası. " + rateLimitWaitMinutes + " dakika bekleniyor...");
-                            Thread.sleep(1000L * 60 * rateLimitWaitMinutes); // 15 dk bekle
-                        } else if (attempt < RETRY_COUNT) {
-                            Thread.sleep(RETRY_WAIT_MS * attempt);
-                        }
-                    } catch (Exception e) {
-                        String status = lastContainerId != null ? getContainerStatus(lastContainerId) : "-";
-                        System.err.println("[Publisher] ❌ Beklenmedik paylaşım hatası (" + attempt + ") | Görev: " + task.id + " | Gün: " + task.date + " | ContainerID: " + lastContainerId + " | Status: " + status + " | " + e.getMessage());
-                        if (attempt < RETRY_COUNT) {
-                            Thread.sleep(RETRY_WAIT_MS * attempt);
+                String status = "-";
+                try {
+                    if (task.type == PostType.POST) {
+                        lastContainerId = executeSharePost(task.images, task.caption);
+                    } else {
+                        lastContainerId = executeShareStory(task.storyImage);
+                    }
+                    if (lastContainerId != null) {
+                        status = getContainerStatus(lastContainerId);
+                        if ("PUBLISHED".equalsIgnoreCase(status)) {
+                            success = true;
                         }
                     }
+                    if (success) {
+                        System.out.println("[Publisher] Görev BAŞARILI: " + task.id + " | Gün: " + task.date + " | ContainerID: " + lastContainerId + " | Status: " + status);
+                        rateLimitWaitMinutes = 15;
+                    } else {
+                        System.err.println("[Publisher] Görev BAŞARISIZ: " + task.id + " | Gün: " + task.date + " | ContainerID: " + lastContainerId + " | Status: " + status);
+                    }
+                } catch (InstagramApiException e) {
+                    if (lastContainerId != null) {
+                        status = getContainerStatus(lastContainerId);
+                        if ("PUBLISHED".equalsIgnoreCase(status)) {
+                            success = true;
+                            System.out.println("[Publisher] Görev BAŞARILI (API hata ama status PUBLISHED): " + task.id + " | Gün: " + task.date + " | ContainerID: " + lastContainerId + " | Status: " + status);
+                        } else {
+                            System.err.println("[Publisher] ❌ Instagram API hatası | Görev: " + task.id + " | Gün: " + task.date + " | ContainerID: " + lastContainerId + " | Status: " + status + " | " + e.getMessage());
+                        }
+                    } else {
+                        System.err.println("[Publisher] ❌ Instagram API hatası | Görev: " + task.id + " | Gün: " + task.date + " | ContainerID: null | Status: - | " + e.getMessage());
+                    }
+                    if (e.isRateLimitError() || e.isActionBlockedError()) {
+                        System.err.println("[Publisher] 🕒 API limit/engel hatası. " + rateLimitWaitMinutes + " dakika bekleniyor...");
+                        Thread.sleep(1000L * 60 * rateLimitWaitMinutes);
+                    }
+                } catch (Exception e) {
+                    System.err.println("[Publisher] ❌ Beklenmedik paylaşım hatası | Görev: " + task.id + " | Gün: " + task.date + " | ContainerID: " + lastContainerId + " | Status: " + status + " | " + e.getMessage());
                 }
 
-                if (success) {
-                    postedDates.add(task.date);
-                } else {
-                    System.err.println("[Publisher] ❌ Görev BAŞARISIZ: " + task.id + " | Gün: " + task.date + " | Tüm denemeler başarısız. FailedTasks'a atılıyor.");
-                    postedDates.add(task.date);
+                postedDates.add(task.date);
+                if (!success) {
                     failedTasks.add(task);
                 }
 
-                // Her paylaşım SONRASI 5 dakika bekle
-                System.out.println("[Publisher] Görev sonrası 5 dakika bekleniyor...");
-                Thread.sleep(300000);
+                // Her paylaşım SONRASI 3 dakika bekle
+                System.out.println("[Publisher] Görev sonrası 3 dakika bekleniyor...");
+                Thread.sleep(180000);
 
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
