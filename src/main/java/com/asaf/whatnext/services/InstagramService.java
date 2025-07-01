@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.CopyOnWriteArrayList;
 import jakarta.annotation.PostConstruct;
 
 @Service
@@ -45,12 +46,14 @@ public class InstagramService {
 
     private final PriorityBlockingQueue<PostTask> postQueue = new PriorityBlockingQueue<>();
     private final List<LocalDate> postedDates = new ArrayList<>();
+    private final List<PostTask> failedTasks = new CopyOnWriteArrayList<>();
 
     private enum PostType {
         POST, STORY
     }
 
     private static class PostTask implements Comparable<PostTask> {
+        final String id;
         final PostType type;
         final List<InstagramImage> images;
         final String caption;
@@ -63,6 +66,7 @@ public class InstagramService {
             this.caption = caption;
             this.storyImage = null;
             this.date = date;
+            this.id = "POST-" + date.toString();
         }
 
         PostTask(InstagramImage storyImage, LocalDate date) {
@@ -71,6 +75,7 @@ public class InstagramService {
             this.images = null;
             this.caption = null;
             this.date = date;
+            this.id = "STORY-" + date.toString();
         }
 
         @Override
@@ -275,27 +280,33 @@ public class InstagramService {
         while (true) {
             try {
                 PostTask task = postQueue.take();
-                System.out.println("Processing task from queue. Remaining: " + postQueue.size());
+                System.out.println("[Publisher] İşlenecek görev: " + task.id + " | Gün: " + task.date + " | Kuyrukta kalan: " + postQueue.size());
                 boolean success = false;
-                for (int attempt = 1; attempt <= RETRY_COUNT; attempt++) {
+                int attempt = 0;
+                while (attempt < RETRY_COUNT && !success) {
+                    attempt++;
+                    System.out.println("[Publisher] Görev: " + task.id + " | Deneme: " + attempt);
                     try {
+                        // Her paylaşım öncesi 5 dakika bekle
+                        System.out.println("[Publisher] Görev: " + task.id + " | " + task.date + " | 5 dakika bekleniyor...");
+                        Thread.sleep(300000);
                         if (task.type == PostType.POST) {
                             executeSharePost(task.images, task.caption);
                         } else {
                             executeShareStory(task.storyImage);
                         }
                         success = true;
-                        break; 
+                        System.out.println("[Publisher] Görev BAŞARILI: " + task.id + " | Gün: " + task.date);
                     } catch (InstagramApiException e) {
-                        System.err.println("❌ Instagram API hatası (" + attempt + "): " + e.getMessage());
+                        System.err.println("[Publisher] ❌ Instagram API hatası (" + attempt + ") | Görev: " + task.id + " | " + e.getMessage());
                         if (e.isRateLimitError() || e.isActionBlockedError()) {
-                             System.err.println("🕒 API limit veya engel hatası. " + (API_LIMIT_WAIT_MS / 60000) + " dakika bekleniyor...");
-                             Thread.sleep(API_LIMIT_WAIT_MS);
+                            System.err.println("[Publisher] 🕒 API limit/engel hatası. 1 saat bekleniyor...");
+                            Thread.sleep(1000 * 60 * 60); // 1 saat
                         } else if (attempt < RETRY_COUNT) {
                             Thread.sleep(RETRY_WAIT_MS * attempt);
                         }
                     } catch (Exception e) {
-                        System.err.println("❌ Beklenmedik paylaşım hatası (" + attempt + "): " + e.getMessage());
+                        System.err.println("[Publisher] ❌ Beklenmedik paylaşım hatası (" + attempt + ") | Görev: " + task.id + " | " + e.getMessage());
                         if (attempt < RETRY_COUNT) {
                             Thread.sleep(RETRY_WAIT_MS * attempt);
                         }
@@ -305,12 +316,10 @@ public class InstagramService {
                 if (success) {
                     postedDates.add(task.date);
                 } else {
-                    System.err.println("❌ Görev " + RETRY_COUNT + " deneme sonunda kalıcı olarak başarısız oldu.");
+                    System.err.println("[Publisher] ❌ Görev BAŞARISIZ: " + task.id + " | Gün: " + task.date + " | Tüm denemeler başarısız. FailedTasks'a atılıyor.");
                     postedDates.add(task.date);
+                    failedTasks.add(task);
                 }
-
-                // Her paylaşım sonrası 2 dakika bekle
-                Thread.sleep(120000);
 
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
