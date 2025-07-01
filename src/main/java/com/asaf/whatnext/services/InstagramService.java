@@ -276,37 +276,62 @@ public class InstagramService {
         throw new InstagramApiException(errorBody, responseCode);
     }
 
+    // Container durumunu sorgulayan fonksiyon
+    private String getContainerStatus(String containerId) {
+        try {
+            String endpoint = GRAPH_API_BASE + containerId + "?fields=status_code&access_token=" + accessToken;
+            URL url = new URL(endpoint);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            int responseCode = conn.getResponseCode();
+            if (responseCode == 200) {
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
+                    String status = objectMapper.readTree(reader).get("status_code").asText();
+                    return status;
+                }
+            } else {
+                System.err.println("[Publisher] Container status sorgusu başarısız. Response code: " + responseCode);
+            }
+        } catch (Exception e) {
+            System.err.println("[Publisher] Container status sorgusunda hata: " + e.getMessage());
+        }
+        return "UNKNOWN";
+    }
+
     private void postPublisher() {
+        int rateLimitWaitMinutes = 15;
         while (true) {
             try {
                 PostTask task = postQueue.take();
                 System.out.println("[Publisher] İşlenecek görev: " + task.id + " | Gün: " + task.date + " | Kuyrukta kalan: " + postQueue.size());
                 boolean success = false;
                 int attempt = 0;
+                String lastContainerId = null;
                 while (attempt < RETRY_COUNT && !success) {
                     attempt++;
                     System.out.println("[Publisher] Görev: " + task.id + " | Deneme: " + attempt);
                     try {
-                        // Her paylaşım öncesi 5 dakika bekle
-                        System.out.println("[Publisher] Görev: " + task.id + " | " + task.date + " | 5 dakika bekleniyor...");
-                        Thread.sleep(300000);
                         if (task.type == PostType.POST) {
-                            executeSharePost(task.images, task.caption);
+                            lastContainerId = executeSharePost(task.images, task.caption);
                         } else {
-                            executeShareStory(task.storyImage);
+                            lastContainerId = executeShareStory(task.storyImage);
                         }
+                        String status = lastContainerId != null ? getContainerStatus(lastContainerId) : "-";
                         success = true;
-                        System.out.println("[Publisher] Görev BAŞARILI: " + task.id + " | Gün: " + task.date);
+                        System.out.println("[Publisher] Görev BAŞARILI: " + task.id + " | Gün: " + task.date + " | ContainerID: " + lastContainerId + " | Status: " + status);
+                        rateLimitWaitMinutes = 15; // Başarılı olursa bekleme süresini sıfırla
                     } catch (InstagramApiException e) {
-                        System.err.println("[Publisher] ❌ Instagram API hatası (" + attempt + ") | Görev: " + task.id + " | " + e.getMessage());
+                        String status = lastContainerId != null ? getContainerStatus(lastContainerId) : "-";
+                        System.err.println("[Publisher] ❌ Instagram API hatası (" + attempt + ") | Görev: " + task.id + " | Gün: " + task.date + " | ContainerID: " + lastContainerId + " | Status: " + status + " | " + e.getMessage());
                         if (e.isRateLimitError() || e.isActionBlockedError()) {
-                            System.err.println("[Publisher] 🕒 API limit/engel hatası. 1 saat bekleniyor...");
-                            Thread.sleep(1000 * 60 * 60); // 1 saat
+                            System.err.println("[Publisher] 🕒 API limit/engel hatası. " + rateLimitWaitMinutes + " dakika bekleniyor...");
+                            Thread.sleep(1000L * 60 * rateLimitWaitMinutes); // 15 dk bekle
                         } else if (attempt < RETRY_COUNT) {
                             Thread.sleep(RETRY_WAIT_MS * attempt);
                         }
                     } catch (Exception e) {
-                        System.err.println("[Publisher] ❌ Beklenmedik paylaşım hatası (" + attempt + ") | Görev: " + task.id + " | " + e.getMessage());
+                        String status = lastContainerId != null ? getContainerStatus(lastContainerId) : "-";
+                        System.err.println("[Publisher] ❌ Beklenmedik paylaşım hatası (" + attempt + ") | Görev: " + task.id + " | Gün: " + task.date + " | ContainerID: " + lastContainerId + " | Status: " + status + " | " + e.getMessage());
                         if (attempt < RETRY_COUNT) {
                             Thread.sleep(RETRY_WAIT_MS * attempt);
                         }
@@ -321,6 +346,10 @@ public class InstagramService {
                     failedTasks.add(task);
                 }
 
+                // Her paylaşım SONRASI 5 dakika bekle
+                System.out.println("[Publisher] Görev sonrası 5 dakika bekleniyor...");
+                Thread.sleep(300000);
+
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 System.err.println("❌ Instagram Publisher thread kesintiye uğradı.");
@@ -329,10 +358,9 @@ public class InstagramService {
         }
     }
 
-    private void executeSharePost(List<InstagramImage> images, String caption) throws IOException, InstagramApiException {
+    private String executeSharePost(List<InstagramImage> images, String caption) throws IOException, InstagramApiException {
         List<String> containerIds = new ArrayList<>();
         for (InstagramImage image : images) {
-            // Bir önceki paylaşım denemesinde zaten yüklendiyse tekrar yükleme.
             if(image.isPostedToInstagram()){
                 System.out.println("ℹ️ Görsel zaten paylaşıldı olarak işaretlenmiş, atlanıyor: " + image.getId());
                 continue;
@@ -354,13 +382,14 @@ public class InstagramService {
             instagramImageRepository.save(image);
         });
 
-        System.out.println("✅ Instagram post paylaşımı başarılı.");
+        System.out.println("[Publisher] executeSharePost: CarouselID: " + carouselId + " | Görsel sayısı: " + images.size());
+        return carouselId;
     }
 
-    private void executeShareStory(InstagramImage image) throws IOException, InstagramApiException {
+    private String executeShareStory(InstagramImage image) throws IOException, InstagramApiException {
          if(image.isPostedToInstagram()){
             System.out.println("ℹ️ Story zaten paylaşıldı olarak işaretlenmiş, atlanıyor: " + image.getId());
-            return;
+            return null;
         }
         String containerId = createContainerFromUrl(image.getCloudinaryUrl(), true);
         if (containerId == null) throw new IOException("Story container oluşturulamadı.");
@@ -370,7 +399,8 @@ public class InstagramService {
         image.setPostedToInstagram(true);
         instagramImageRepository.save(image);
         
-        System.out.println("✅ Instagram story paylaşımı başarılı.");
+        System.out.println("[Publisher] executeShareStory: ContainerID: " + containerId + " | Story paylaşıldı.");
+        return containerId;
     }
 
     public String getAccessToken() {
