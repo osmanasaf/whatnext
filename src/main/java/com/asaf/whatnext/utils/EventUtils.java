@@ -33,13 +33,10 @@ public class EventUtils {
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd.MM.yyyy");
     private static final DateTimeFormatter SEARCH_RESULT_DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yy");
 
-    // Eşdeğer venue isimleri
     private static final Map<String, String> VENUE_EQUIVALENTS = new HashMap<>();
     static {
-        // Buraya eşdeğer venue isimlerini ekle
         VENUE_EQUIVALENTS.put("dorock xl kadıköy", "dorock xl by holly stone");
         VENUE_EQUIVALENTS.put("dorock xl by holly stone", "dorock xl kadıköy");
-        // Gerekirse daha fazla ekle
     }
 
     public static boolean isSimilarVenueName(String v1, String v2) {

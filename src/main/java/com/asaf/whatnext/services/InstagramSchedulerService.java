@@ -81,7 +81,7 @@ public class InstagramSchedulerService {
         try {
             LocalDate today = LocalDate.now();
             // Önümüzdeki haftanın pazartesi gününü bul
-            LocalDate nextMonday = today.minusDays(1);
+            LocalDate nextMonday = today.plusDays((8 - today.getDayOfWeek().getValue()) % 7);
             // Pazartesi'den pazar'a kadar 7 gün için döngü
             for (int i = 0; i < 7; i++) {
                 LocalDate targetDate = nextMonday.plusDays(i);
@@ -119,8 +119,8 @@ public class InstagramSchedulerService {
         List<String> results = new ArrayList<>();
         System.out.println("[Scheduler] Haftalık postları Instagram'a gönderme işlemi başlatılıyor...");
         LocalDate today = LocalDate.now();
+        LocalDate nextMonday = today.plusDays((8 - today.getDayOfWeek().getValue()) % 7);
         // Önümüzdeki haftanın pazartesi gününü bul
-        LocalDate nextMonday = today.minusDays(1);
         // LocalDate nextMonday = today.plusDays((8 - today.getDayOfWeek().getValue()) % 7);
         for (int i = 0; i < 7; i++) {
             LocalDate targetDate = nextMonday.plusDays(i);
