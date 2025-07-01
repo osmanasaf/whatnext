@@ -306,10 +306,11 @@ public class InstagramService {
                     postedDates.add(task.date);
                 } else {
                     System.err.println("❌ Görev " + RETRY_COUNT + " deneme sonunda kalıcı olarak başarısız oldu.");
+                    postedDates.add(task.date);
                 }
 
-                // Her paylaşım sonrası 30 saniye bekle
-                Thread.sleep(30000);
+                // Her paylaşım sonrası 2 dakika bekle
+                Thread.sleep(120000);
 
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
