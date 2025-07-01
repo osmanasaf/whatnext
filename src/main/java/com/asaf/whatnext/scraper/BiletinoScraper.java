@@ -40,7 +40,7 @@ import static com.asaf.whatnext.utils.EventUtils.determineEventType;
 @Service
 public class BiletinoScraper implements EventSource {
     private static final Logger LOGGER = Logger.getLogger(BiletinoScraper.class.getName());
-    private static final String IMAGE_SELECTOR = "img[src*='resources-biletino.s3-external-3.amazonaws.com']";
+    private static final String IMAGE_SELECTOR = ".event-image img";
     
     private final ConcertEventService concertEventService;
     private final TheaterEventService theaterEventService;
@@ -75,6 +75,7 @@ public class BiletinoScraper implements EventSource {
         try {
             this.driver = WebScraperUtils.initializeBrowser(chromePath, config.getWaitTimeoutSeconds());
             this.wait = new WebDriverWait(driver, Duration.ofSeconds(config.getWaitTimeoutSeconds()));
+            LOGGER.info("[BiletinoScraper] Browser başarıyla başlatıldı.");
         } catch (Exception e) {
             LOGGER.severe("[BiletinoScraper] Browser başlatılamadı! Chrome path: " + chromePath + " | CHROME_BIN: " + envChromeBin + " | Hata: " + e.getMessage());
             throw e;
@@ -177,11 +178,13 @@ public class BiletinoScraper implements EventSource {
             handleOverlays();
             scrollToLoadAllEvents();
             List<WebElement> eventCards = driver.findElements(By.cssSelector(EVENT_CARD_SELECTOR));
+            LOGGER.info("[BiletinoScraper] Bulunan etkinlik kartı sayısı: " + eventCards.size());
             List<String> eventCardsHtml = new ArrayList<>();
             for (WebElement card : eventCards) {
                 eventCardsHtml.add(card.getAttribute("outerHTML"));
             }
             events = extractBasicInfoFromCards(eventCardsHtml, category);
+            LOGGER.info("[BiletinoScraper] Parse edilen etkinlik sayısı: " + events.size());
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Error fetching events for category: " + category.name(), e);
         }
@@ -191,12 +194,6 @@ public class BiletinoScraper implements EventSource {
     private void navigateToUrl(String url) {
         driver.get(url);
         wait.until(ExpectedConditions.presenceOfElementLocated(By.tagName("body")));
-        try {
-            String html = driver.getPageSource();
-            LOGGER.info("[BiletinoScraper] navigateToUrl HTML preview: " + html.substring(0, Math.min(1000, html.length())));
-        } catch (Exception e) {
-            LOGGER.warning("[BiletinoScraper] navigateToUrl HTML log error: " + e.getMessage());
-        }
     }
 
     private void scrollToLoadAllEvents() {
@@ -304,7 +301,6 @@ public class BiletinoScraper implements EventSource {
 
                 Event event = createEventFromDetailedInfo(eventType, basicInfo, detailedInfo);
                 if (event != null) {
-                    // Extract and upload image to Cloudinary
                     try {
                         Element imgElement = doc.select(IMAGE_SELECTOR).first();
                         if (imgElement != null) {
@@ -316,8 +312,12 @@ public class BiletinoScraper implements EventSource {
                                     if (cloudinaryUrl != null) {
                                         event.setImage(null, "image/jpeg", cloudinaryUrl);
                                     }
+                                } else {
+                                    LOGGER.warning("[BiletinoScraper] Görsel indirilemedi: " + imageUrl);
                                 }
                             }
+                        } else {
+                            LOGGER.fine("[BiletinoScraper] Kartta görsel bulunamadı.");
                         }
                     } catch (Exception e) {
                         LOGGER.log(Level.WARNING, "Error extracting image from card", e);
@@ -334,12 +334,6 @@ public class BiletinoScraper implements EventSource {
     private DetailedEventInfo fetchDetailedEventInfo(String eventUrl) {
         driver.get(eventUrl);
         wait.until(ExpectedConditions.presenceOfElementLocated(By.tagName("body")));
-        try {
-            String html = driver.getPageSource();
-            LOGGER.info("[BiletinoScraper] fetchDetailedEventInfo HTML preview: " + html.substring(0, Math.min(1000, html.length())));
-        } catch (Exception e) {
-            LOGGER.warning("[BiletinoScraper] fetchDetailedEventInfo HTML log error: " + e.getMessage());
-        }
         String title = "";
         try {
             WebElement titleElement = driver.findElement(By.cssSelector("h1.event-title"));

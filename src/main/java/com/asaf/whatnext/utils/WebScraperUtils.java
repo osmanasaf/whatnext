@@ -21,8 +21,6 @@ public class WebScraperUtils {
     public static ChromeOptions configureChromeBrowser(String chromePath) {
         LOGGER.info("Configuring Chrome browser options for Railway environment");
         ChromeOptions options = new ChromeOptions();
-        
-        // Railway/Linux container için gerekli options
         options.addArguments("--headless=new");
         options.addArguments("--no-sandbox");
         options.addArguments("--disable-dev-shm-usage");
@@ -41,10 +39,7 @@ public class WebScraperUtils {
         options.addArguments("--allow-running-insecure-content");
         options.addArguments("--remote-debugging-port=9222");
         LOGGER.info("Chrome arguments configured for Railway");
-        
-        // Chrome binary path'ini belirle
         String finalChromePath = determineChromePath(chromePath);
-        
         if (finalChromePath != null && !finalChromePath.isEmpty()) {
             try {
                 options.setBinary(finalChromePath);
@@ -55,7 +50,6 @@ public class WebScraperUtils {
         } else {
             LOGGER.info("Using default Chrome installation (WebDriverManager will handle the driver)");
         }
-        
         LOGGER.info("ChromeOptions configuration completed");
         return options;
     }
@@ -63,23 +57,16 @@ public class WebScraperUtils {
     private static String determineChromePath(String configChromePath) {
         LOGGER.info("Determining Chrome path...");
         LOGGER.info("Config Chrome path: " + configChromePath);
-
-        // Önce environment variable'ları kontrol et
         String envChromeBin = System.getenv("CHROME_BIN");
         LOGGER.info("CHROME_BIN environment variable: " + envChromeBin);
-
         if (envChromeBin != null && !envChromeBin.isEmpty()) {
             LOGGER.info("Using Chrome path from CHROME_BIN environment variable: " + envChromeBin);
             return envChromeBin;
         }
-
-        // Sonra config'den gelen path'i kontrol et
         if (configChromePath != null && !configChromePath.isEmpty()) {
             LOGGER.info("Using Chrome path from configuration: " + configChromePath);
             return configChromePath;
         }
-
-        // Hiçbiri yoksa null döndür (WebDriverManager otomatik bulacak)
         LOGGER.info("No specific Chrome path found, WebDriverManager will auto-detect");
         return null;
     }
@@ -87,15 +74,9 @@ public class WebScraperUtils {
     public static WebDriver initializeBrowser(String chromePath, int timeoutSeconds) {
         LOGGER.info("Initializing browser with timeout: " + timeoutSeconds + " seconds");
         LOGGER.info("Chrome path parameter: " + chromePath);
-        
         try {
-            // WebDriverManager'ı kullanma, sistemdeki chromedriver kullanılacak
-            // LOGGER.info("Setting up ChromeDriver with WebDriverManager...");
-            // WebDriverManager.chromedriver().setup();
-            
             ChromeOptions options = configureChromeBrowser(chromePath);
             LOGGER.info("ChromeOptions configured successfully");
-            
             LOGGER.info("Creating ChromeDriver instance...");
             try {
                 WebDriver driver = new ChromeDriver(options);
@@ -103,8 +84,6 @@ public class WebScraperUtils {
                 return driver;
             } catch (Exception e) {
                 LOGGER.log(Level.SEVERE, "Failed to create ChromeDriver instance with full options", e);
-                
-                // Alternatif olarak daha basit options ile deneyelim
                 LOGGER.info("Trying with minimal ChromeOptions...");
                 ChromeOptions minimalOptions = new ChromeOptions();
                 minimalOptions.addArguments("--headless=new");
