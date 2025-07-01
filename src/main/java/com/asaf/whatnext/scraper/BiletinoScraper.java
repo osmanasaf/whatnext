@@ -414,7 +414,7 @@ public class BiletinoScraper implements EventSource {
                 venue = new Venue();
                 venue.setName(venueName);
                 venue.setLocation(location);
-                venue.setCity(city);
+                venue.setCity(normalizeCityName(city));
                 venue = venueService.save(venue);
             }
         }
@@ -568,5 +568,23 @@ public class BiletinoScraper implements EventSource {
     @Override
     public String getSourceUrl() {
         return BASE_URL;
+    }
+
+    private static String normalizeCityName(String city) {
+        if (city == null) return null;
+        String normalized = city.trim().toLowerCase(Locale.ROOT)
+            .replace('ı', 'i')
+            .replace('ğ', 'g')
+            .replace('ü', 'u')
+            .replace('ş', 's')
+            .replace('ö', 'o')
+            .replace('ç', 'c')
+            .replace('İ', 'i')
+            .replace('Ğ', 'g')
+            .replace('Ü', 'u')
+            .replace('Ş', 's')
+            .replace('Ö', 'o')
+            .replace('Ç', 'c');
+        return normalized;
     }
 }
