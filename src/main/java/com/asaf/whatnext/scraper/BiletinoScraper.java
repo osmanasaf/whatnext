@@ -68,8 +68,17 @@ public class BiletinoScraper implements EventSource {
     }
 
     private void initializeBrowser() {
-        this.driver = WebScraperUtils.initializeBrowser(config.getChromePath(), config.getWaitTimeoutSeconds());
-        this.wait = new WebDriverWait(driver, Duration.ofSeconds(config.getWaitTimeoutSeconds()));
+        String chromePath = config.getChromePath();
+        String envChromeBin = System.getenv("CHROME_BIN");
+        LOGGER.info("[BiletinoScraper] initializeBrowser - config.getChromePath(): " + chromePath);
+        LOGGER.info("[BiletinoScraper] initializeBrowser - CHROME_BIN env: " + envChromeBin);
+        try {
+            this.driver = WebScraperUtils.initializeBrowser(chromePath, config.getWaitTimeoutSeconds());
+            this.wait = new WebDriverWait(driver, Duration.ofSeconds(config.getWaitTimeoutSeconds()));
+        } catch (Exception e) {
+            LOGGER.severe("[BiletinoScraper] Browser başlatılamadı! Chrome path: " + chromePath + " | CHROME_BIN: " + envChromeBin + " | Hata: " + e.getMessage());
+            throw e;
+        }
     }
 
     private void closeBrowser() {
