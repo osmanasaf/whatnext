@@ -140,7 +140,7 @@ public class EventService {
         String dateStr = date.toString();
         List<Event> events = findByDateRangeAndTypeAndCity(
             dateStr, 
-            date.plusDays(1).toString(),
+            dateStr,
             eventType, 
             com.asaf.whatnext.enums.City.valueOf(city.toUpperCase(java.util.Locale.ENGLISH))
         );

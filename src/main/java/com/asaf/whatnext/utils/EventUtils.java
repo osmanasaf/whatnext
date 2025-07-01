@@ -25,11 +25,32 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.Optional;
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 
 public class EventUtils {
     private static final Logger LOGGER = Logger.getLogger(EventUtils.class.getName());
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd.MM.yyyy");
     private static final DateTimeFormatter SEARCH_RESULT_DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yy");
+
+    // Eşdeğer venue isimleri
+    private static final Map<String, String> VENUE_EQUIVALENTS = new HashMap<>();
+    static {
+        // Buraya eşdeğer venue isimlerini ekle
+        VENUE_EQUIVALENTS.put("dorock xl kadıköy", "dorock xl by holly stone");
+        VENUE_EQUIVALENTS.put("dorock xl by holly stone", "dorock xl kadıköy");
+        // Gerekirse daha fazla ekle
+    }
+
+    public static boolean isSimilarVenueName(String v1, String v2) {
+        if (v1 == null || v2 == null) return false;
+        String n1 = v1.trim().toLowerCase();
+        String n2 = v2.trim().toLowerCase();
+        if (n1.equals(n2)) return true;
+        if (VENUE_EQUIVALENTS.containsKey(n1) && VENUE_EQUIVALENTS.get(n1).equals(n2)) return true;
+        if (VENUE_EQUIVALENTS.containsKey(n2) && VENUE_EQUIVALENTS.get(n2).equals(n1)) return true;
+        return false;
+    }
 
     public static void setCommonEventProperties(Event event, String title, String description, String dateStr, String ticketUrl, EventSourceType eventSourceType) {
         event.setTitle(title);
@@ -235,13 +256,12 @@ public class EventUtils {
         Optional<ConcertEvent> existingEvent = sameDateVenueEvents.stream()
             .filter(e -> {
                 boolean titleMatch = isSimilarTitle(title, e.getTitle());
-                
+                boolean venueMatch = isSimilarVenueName(venueName, e.getVenue().getName());
                 boolean artistMatch = false;
                 if (artistName != null && e.getArtist() != null) {
                     artistMatch = artistName.equalsIgnoreCase(e.getArtist().getName());
                 }
-                
-                return titleMatch || artistMatch;
+                return (titleMatch && venueMatch) || artistMatch;
             })
             .findFirst();
 
