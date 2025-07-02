@@ -53,7 +53,7 @@ public class InstagramSchedulerService {
         }
     }
 
-    @Scheduled(cron = "0 0 12 * * ?")
+    @Scheduled(cron = "0 0 9 * * ?")
     public void shareDailyStoryToInstagram() {
         System.out.println("[Scheduler] Günlük story paylaşma görevi başlatıldı.");
         try {
