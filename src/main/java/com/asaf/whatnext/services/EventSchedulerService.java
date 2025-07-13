@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -32,6 +33,7 @@ public class EventSchedulerService {
      * Sonraki ay için tüm etkinlikleri çeker
      */
     @Scheduled(cron = "0 0 2 30 * ?")
+    @Transactional
     public void scrapeMonthlyEvents() {
         LOGGER.info("=== AYLIK ETKİNLİK SCRAPING İŞLEMİ BAŞLATILDI ===");
         
@@ -62,6 +64,7 @@ public class EventSchedulerService {
      * Sonraki hafta için etkinlikleri çeker
      */
     @Scheduled(cron = "0 0 3 ? * SUN")
+    @Transactional
     public void scrapeWeeklyEvents() {
         LOGGER.info("=== HAFTALIK ETKİNLİK SCRAPING İŞLEMİ BAŞLATILDI ===");
         

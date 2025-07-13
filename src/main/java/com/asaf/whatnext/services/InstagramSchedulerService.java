@@ -5,6 +5,7 @@ import com.asaf.whatnext.repository.InstagramImageRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -33,6 +34,7 @@ public class InstagramSchedulerService {
 
 
     @Scheduled(cron = "0 0 1 * * ?")
+    @Transactional
     public void createDailyStory() {
         System.out.println("[Scheduler] Günlük story görseli oluşturma ve kaydetme görevi başlatıldı.");
         try {
@@ -54,6 +56,7 @@ public class InstagramSchedulerService {
     }
 
     @Scheduled(cron = "0 0 9 * * ?")
+    @Transactional
     public void shareDailyStoryToInstagram() {
         System.out.println("[Scheduler] Günlük story paylaşma görevi başlatıldı.");
         try {
@@ -76,6 +79,7 @@ public class InstagramSchedulerService {
     }
 
     @Scheduled(cron = "0 15 1 ? * SUN")
+    @Transactional
     public void createWeeklyPosts() {
         System.out.println("[Scheduler] Haftalık post görselleri oluşturuluyor...");
         try {
@@ -115,6 +119,7 @@ public class InstagramSchedulerService {
 
     // Her pazar 14:00'te haftanın postlarını paylaş
     @Scheduled(cron = "0 0 14 ? * SUN")
+    @Transactional
     public List<String> shareWeeklyPostsToInstagram() throws InterruptedException {
         List<String> results = new ArrayList<>();
         System.out.println("[Scheduler] Haftalık postları Instagram'a gönderme işlemi başlatılıyor...");
