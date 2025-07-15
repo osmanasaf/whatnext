@@ -126,11 +126,13 @@ public class InstagramService {
             return;
         }
         LocalDate date = images.get(0).getCreationDate();
-        // Aynı gün için kuyrukta veya işlenmişte paylaşım var mı kontrol et
-        boolean alreadyQueued = postQueue.stream().anyMatch(task -> task.date.equals(date));
-        boolean alreadyPosted = postedDates.contains(date);
+        boolean alreadyQueued = postQueue.stream().anyMatch(task ->
+            task.date.equals(date) && task.type == PostType.POST
+        );
+        boolean alreadyPosted = postedDates.contains(date) &&
+            instagramImageRepository.existsByCreationDateAndPostTypeAndPostedToInstagramIsTrue(date, "cover");
         if (alreadyQueued || alreadyPosted) {
-            System.err.println("❌ Aynı gün için zaten bir paylaşım kuyruğa alınmış veya paylaşılmış: " + date);
+            System.err.println("❌ Aynı gün için zaten bir POST/COVER paylaşım kuyruğa alınmış veya paylaşılmış: " + date);
             return;
         }
         boolean added = postQueue.offer(new PostTask(images, caption, date));
@@ -147,14 +149,14 @@ public class InstagramService {
             return;
         }
         LocalDate date = image.getCreationDate();
-        boolean alreadyQueued = postQueue.stream().anyMatch(task -> task.date.equals(date));
-        boolean alreadyPosted = postedDates.contains(date);
-        if (alreadyQueued || alreadyPosted) {
-            System.err.println("❌ Aynı gün için zaten bir paylaşım kuyruğa alınmış veya paylaşılmış: " + date);
+        // Sadece veritabanında ilgili gün için story paylaşılmış mı kontrol et
+        boolean alreadyPosted = instagramImageRepository.existsByCreationDateAndPostTypeAndPostedToInstagramIsTrue(date, "story");
+        if (alreadyPosted) {
+            System.err.println("❌ Aynı gün için zaten bir STORY paylaşılmış: " + date);
             return;
         }
         boolean added = postQueue.offer(new PostTask(image, date));
-         if(added) {
+        if(added) {
             System.out.println("✅ Story görevi kuyruğa eklendi. Kuyruktaki görev sayısı: " + postQueue.size());
         } else {
             System.err.println("❌ Story görevi kuyruğa eklenemedi.");
