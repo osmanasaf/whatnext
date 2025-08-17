@@ -78,7 +78,7 @@ public class InstagramSchedulerService {
         }
     }
 
-    @Scheduled(cron = "0 15 8 ? * SUN")
+    @Scheduled(cron = "0 05 15 ? * SUN")
     @Transactional
     public void createWeeklyPosts() {
         System.out.println("[Scheduler] Haftalık post görselleri oluşturuluyor...");
@@ -118,7 +118,7 @@ public class InstagramSchedulerService {
     }
 
     // Her pazar 14:00'te haftanın postlarını paylaş
-    @Scheduled(cron = "0 0 14 ? * SUN")
+    @Scheduled(cron = "0 30 15 ? * SUN")
     @Transactional
     public List<String> shareWeeklyPostsToInstagram() throws InterruptedException {
         List<String> results = new ArrayList<>();
