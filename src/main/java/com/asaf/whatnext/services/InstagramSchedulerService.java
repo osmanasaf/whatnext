@@ -78,7 +78,7 @@ public class InstagramSchedulerService {
         }
     }
 
-    @Scheduled(cron = "0 05 15 ? * SUN")
+    @Scheduled(cron = "0 15 15 ? * SUN")
     @Transactional
     public void createWeeklyPosts() {
         System.out.println("[Scheduler] Haftalık post görselleri oluşturuluyor...");
