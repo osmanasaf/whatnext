@@ -41,8 +41,8 @@ public class InstagramService {
     private static final String GRAPH_API_BASE = "https://graph.facebook.com/v19.0/";
     private final ObjectMapper objectMapper = new ObjectMapper();
     private static final int RETRY_COUNT = 3;
-    private static final int RETRY_WAIT_MS = 10000; // 5 saniye
-    private static final int API_LIMIT_WAIT_MS = 1000 * 60 * 5; // 15 dakika
+    private static final int RETRY_WAIT_MS = 10000;
+    private static final int API_LIMIT_WAIT_MS = 1000 * 60 * 5;
 
     private final PriorityBlockingQueue<PostTask> postQueue = new PriorityBlockingQueue<>();
     private final List<LocalDate> postedDates = new ArrayList<>();
@@ -86,6 +86,13 @@ public class InstagramService {
 
     @PostConstruct
     public void init() {
+        if (accessToken == null || accessToken.isEmpty()) {
+            String envToken = System.getenv("FACEBOOK_TOKEN");
+            if (envToken != null && !envToken.isEmpty()) {
+                accessToken = envToken;
+                System.out.println("ℹ️ Instagram access token env'den yüklendi (FACEBOOK_TOKEN).");
+            }
+        }
         Thread publisherThread = new Thread(this::postPublisher);
         publisherThread.setDaemon(true);
         publisherThread.start();
@@ -149,7 +156,7 @@ public class InstagramService {
             return;
         }
         LocalDate date = image.getCreationDate();
-        // Sadece veritabanında ilgili gün için story paylaşılmış mı kontrol et
+        
         boolean alreadyPosted = instagramImageRepository.existsByCreationDateAndPostTypeAndPostedToInstagramIsTrue(date, "story");
         if (alreadyPosted) {
             System.err.println("❌ Aynı gün için zaten bir STORY paylaşılmış: " + date);
@@ -278,7 +285,7 @@ public class InstagramService {
         throw new InstagramApiException(errorBody, responseCode);
     }
 
-    // Container durumunu sorgulayan fonksiyon
+    
     private String getContainerStatus(String containerId) {
         try {
             String endpoint = GRAPH_API_BASE + containerId + "?fields=status_code&access_token=" + accessToken;
@@ -307,6 +314,7 @@ public class InstagramService {
                 PostTask task = postQueue.take();
                 System.out.println("[Publisher] İşlenecek görev: " + task.id + " | Gün: " + task.date + " | Kuyrukta kalan: " + postQueue.size());
                 boolean success = false;
+                boolean retrySuggested = false;
                 String lastContainerId = null;
                 String status = "-";
                 try {
@@ -339,20 +347,33 @@ public class InstagramService {
                     } else {
                         System.err.println("[Publisher] ❌ Instagram API hatası | Görev: " + task.id + " | Gün: " + task.date + " | ContainerID: null | Status: - | " + e.getMessage());
                     }
-                    if (e.isRateLimitError() || e.isActionBlockedError()) {
+                    if (e.isExpiredOrInvalidToken()) {
+                        System.err.println("[Publisher] ❌ Access token geçersiz/expired. Kuyruk beklemeye alındı. Yeni token gereklidir.");
+                        
+                        Thread.sleep(1000L * 60 * 30);
+                    } else if (e.isRateLimitError() || e.isActionBlockedError()) {
                         System.err.println("[Publisher] 🕒 API limit/engel hatası. " + rateLimitWaitMinutes + " dakika bekleniyor...");
                         Thread.sleep(1000L * 60 * rateLimitWaitMinutes);
+                        retrySuggested = true;
                     }
                 } catch (Exception e) {
                     System.err.println("[Publisher] ❌ Beklenmedik paylaşım hatası | Görev: " + task.id + " | Gün: " + task.date + " | ContainerID: " + lastContainerId + " | Status: " + status + " | " + e.getMessage());
                 }
 
-                postedDates.add(task.date);
-                if (!success) {
+                if (retrySuggested) {
+                    System.out.println("[Publisher] Görev tekrar deneme için yeniden kuyruğa alınıyor: " + task.id);
+                    postQueue.offer(task);
+                    
+                    continue;
+                }
+
+                if (success) {
+                    postedDates.add(task.date);
+                } else {
                     failedTasks.add(task);
                 }
 
-                // Her paylaşım SONRASI 3 dakika bekle
+                
                 System.out.println("[Publisher] Görev sonrası 3 dakika bekleniyor...");
                 Thread.sleep(180000);
 
@@ -383,10 +404,10 @@ public class InstagramService {
 
         publishContainer(carouselId);
 
-        images.forEach(image -> {
+        for (InstagramImage image : images) {
             image.setPostedToInstagram(true);
-            instagramImageRepository.save(image);
-        });
+        }
+        instagramImageRepository.saveAll(images);
 
         System.out.println("[Publisher] executeSharePost: CarouselID: " + carouselId + " | Görsel sayısı: " + images.size());
         return carouselId;
@@ -433,6 +454,19 @@ public class InstagramService {
 
         public boolean isActionBlockedError() {
             return errorBody.contains("\"error_subcode\": 2207051");
+        }
+
+        public boolean isExpiredOrInvalidToken() {
+            
+            return errorBody.contains("\"code\": 190")
+                || errorBody.contains("\"code\": 102")
+                || errorBody.contains("\"error_subcode\": 463")
+                || errorBody.contains("\"error_subcode\": 460")
+                || errorBody.contains("\"error_subcode\": 467")
+                || errorBody.toLowerCase().contains("invalid oauth")
+                || errorBody.toLowerCase().contains("access token has expired")
+                || errorBody.toLowerCase().contains("session has expired")
+                || errorBody.toLowerCase().contains("invalid token");
         }
     }
 } 

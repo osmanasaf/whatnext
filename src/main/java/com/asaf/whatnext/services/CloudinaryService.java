@@ -80,4 +80,15 @@ public class CloudinaryService {
             throw new IOException("Failed to upload image from URL to Cloudinary: " + e.getMessage(), e);
         }
     }
+
+    public boolean deleteByPublicId(String publicId) throws IOException {
+        if (publicId == null || publicId.isEmpty()) return false;
+        try {
+            Map<String, Object> result = cloudinary.uploader().destroy(publicId, ObjectUtils.emptyMap());
+            Object status = result.get("result");
+            return status != null && ("ok".equals(status) || "not_found".equals(status));
+        } catch (Exception e) {
+            throw new IOException("Failed to delete Cloudinary asset: " + publicId, e);
+        }
+    }
 } 

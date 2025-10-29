@@ -24,8 +24,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.io.InputStream;
 import java.util.Base64;
 import java.util.UUID;
@@ -206,7 +204,6 @@ public class BiletinialScraper implements EventSource {
             WebElement addressElement = card.findElement(By.cssSelector(LOCATION_SELECTOR));
 
             String city = addressElement.findElement(By.cssSelector("b")).getText();
-            // İstanbul varyasyonlarını normalize et
             if (city != null && city.toLowerCase().contains("stanbul")) {
                 city = "istanbul";
             }
@@ -224,17 +221,13 @@ public class BiletinialScraper implements EventSource {
             EventType eventType = determineEventType(title, category);
             Event event = createEvent(eventType, title, dateStr, city, venue, ticketUrl);
             
-            // Extract and upload image to Cloudinary
             try {
                 WebElement imgElement = card.findElement(By.cssSelector(IMAGE_SELECTOR));
                 String imageUrl = imgElement.getAttribute("src");
                 if (imageUrl != null && !imageUrl.isEmpty()) {
-                    byte[] imageBytes = downloadImageAsBytes(imageUrl);
-                    if (imageBytes != null) {
-                        String cloudinaryUrl = uploadImageToCloudinary(imageBytes, title);
-                        if (cloudinaryUrl != null) {
-                            event.setImage(null, "image/jpeg", cloudinaryUrl);
-                        }
+                    String cloudinaryUrl = uploadImageUrlToCloudinary(imageUrl, title);
+                    if (cloudinaryUrl != null) {
+                        event.setImage(null, "image/jpeg", cloudinaryUrl);
                     }
                 }
             } catch (Exception e) {
@@ -250,11 +243,7 @@ public class BiletinialScraper implements EventSource {
 
     private String downloadImageAsBase64(String imageUrl) {
         try {
-            URL url = new URL(imageUrl);
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.setRequestProperty("User-Agent", "Mozilla/5.0");
-            
-            try (InputStream in = connection.getInputStream()) {
+            try (InputStream in = new java.net.URL(imageUrl).openStream()) {
                 byte[] imageBytes = in.readAllBytes();
                 return Base64.getEncoder().encodeToString(imageBytes);
             }
@@ -264,25 +253,10 @@ public class BiletinialScraper implements EventSource {
         }
     }
 
-    private byte[] downloadImageAsBytes(String imageUrl) {
-        try {
-            URL url = new URL(imageUrl);
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.setRequestProperty("User-Agent", "Mozilla/5.0");
-            
-            try (InputStream in = connection.getInputStream()) {
-                return in.readAllBytes();
-            }
-        } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Error downloading image: " + imageUrl, e);
-            return null;
-        }
-    }
-
-    private String uploadImageToCloudinary(byte[] imageBytes, String eventTitle) {
+    private String uploadImageUrlToCloudinary(String imageUrl, String eventTitle) {
         try {
             String fileName = "biletinial_" + UUID.randomUUID().toString().replace("-", "");
-            Map<String, Object> uploadResult = cloudinaryService.uploadImageFromBytes(imageBytes, "events/biletinial", fileName);
+            Map<String, Object> uploadResult = cloudinaryService.uploadImageFromUrl(imageUrl, "events/biletinial", fileName);
             return cloudinaryService.getImageUrl(uploadResult);
         } catch (Exception e) {
             LOGGER.log(Level.WARNING, "Error uploading image to Cloudinary for event: " + eventTitle, e);

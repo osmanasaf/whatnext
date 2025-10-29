@@ -21,10 +21,6 @@ import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-
-import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -112,7 +108,6 @@ public class BiletinoScraper implements EventSource {
     @Override
     public List<Event> fetchEvents(String city, java.time.LocalDate startDate, java.time.LocalDate endDate) {
         List<Event> allEvents = fetchEvents(city);
-        // Eğer eventlerin tarihi varsa, filtre uygula
         List<Event> filtered = new ArrayList<>();
         for (Event event : allEvents) {
             if (event.getStartDate() != null &&
@@ -306,14 +301,9 @@ public class BiletinoScraper implements EventSource {
                         if (imgElement != null) {
                             String imageUrl = imgElement.attr("src");
                             if (imageUrl != null && !imageUrl.isEmpty()) {
-                                byte[] imageBytes = downloadImageAsBytes(imageUrl);
-                                if (imageBytes != null) {
-                                    String cloudinaryUrl = uploadImageToCloudinary(imageBytes, basicInfo.getTitle());
-                                    if (cloudinaryUrl != null) {
-                                        event.setImage(null, "image/jpeg", cloudinaryUrl);
-                                    }
-                                } else {
-                                    LOGGER.warning("[BiletinoScraper] Görsel indirilemedi: " + imageUrl);
+                                String cloudinaryUrl = uploadImageUrlToCloudinary(imageUrl, basicInfo.getTitle());
+                                if (cloudinaryUrl != null) {
+                                    event.setImage(null, "image/jpeg", cloudinaryUrl);
                                 }
                             }
                         } else {
@@ -438,25 +428,10 @@ public class BiletinoScraper implements EventSource {
         }
     }
 
-    private byte[] downloadImageAsBytes(String imageUrl) {
-        try {
-            URL url = new URL(imageUrl);
-            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-            connection.setRequestProperty("User-Agent", "Mozilla/5.0");
-            
-            try (InputStream in = connection.getInputStream()) {
-                return in.readAllBytes();
-            }
-        } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Error downloading image: " + imageUrl, e);
-            return null;
-        }
-    }
-
-    private String uploadImageToCloudinary(byte[] imageBytes, String eventTitle) {
+    private String uploadImageUrlToCloudinary(String imageUrl, String eventTitle) {
         try {
             String fileName = "biletino_" + UUID.randomUUID().toString().replace("-", "");
-            Map<String, Object> uploadResult = cloudinaryService.uploadImageFromBytes(imageBytes, "events/biletino", fileName);
+            Map<String, Object> uploadResult = cloudinaryService.uploadImageFromUrl(imageUrl, "events/biletino", fileName);
             return cloudinaryService.getImageUrl(uploadResult);
         } catch (Exception e) {
             LOGGER.log(Level.WARNING, "Error uploading image to Cloudinary for event: " + eventTitle, e);
