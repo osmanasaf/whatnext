@@ -3,7 +3,7 @@ WORKDIR /app
 COPY . .
 RUN mvn clean package -DskipTests -q
 
-FROM openjdk:21-jdk-slim
+FROM eclipse-temurin:21-jdk-jammy
 RUN apt-get update -qq && apt-get install -qq -y --no-install-recommends \
     wget curl unzip imagemagick ca-certificates fonts-liberation \
     libayatana-appindicator3-1 libasound2 libatk-bridge2.0-0 libatk1.0-0 \
