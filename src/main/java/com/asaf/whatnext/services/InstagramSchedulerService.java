@@ -79,16 +79,16 @@ public class InstagramSchedulerService {
     }
 
     @Scheduled(cron = "0 0 16 ? * SUN", zone = "Europe/Istanbul")
-    @Transactional
     public void createWeeklyPosts() {
         System.out.println("[Scheduler] Haftalık post görselleri oluşturuluyor...");
-        try {
-            LocalDate today = LocalDate.now();
-            // Önümüzdeki haftanın pazartesi gününü bul
-            LocalDate nextMonday = today.plusDays((8 - today.getDayOfWeek().getValue()) % 7);
-            // Pazartesi'den pazar'a kadar 7 gün için döngü
-            for (int i = 0; i < 7; i++) {
-                LocalDate targetDate = nextMonday.plusDays(i);
+        LocalDate today = LocalDate.now();
+        // Önümüzdeki haftanın pazartesi gününü bul
+        LocalDate nextMonday = today.plusDays((8 - today.getDayOfWeek().getValue()) % 7);
+        
+        // Pazartesi'den pazar'a kadar 7 gün için döngü
+        for (int i = 0; i < 7; i++) {
+            LocalDate targetDate = nextMonday.plusDays(i);
+            try {
                 System.out.println("[Scheduler] " + targetDate + " için görseller oluşturuluyor...");
                 
                 InstagramImage coverImage = instagramService.createImage("cover", "cover", null, targetDate);
@@ -110,11 +110,12 @@ public class InstagramSchedulerService {
                 if (standupImage != null) {
                     System.out.println("[Scheduler] " + targetDate + " için stand-up görseli oluşturuldu.");
                 }
+            } catch (Exception e) {
+                System.err.println("[Scheduler] " + targetDate + " için görsel oluşturma hatası: " + e.getMessage());
+                e.printStackTrace();
             }
-            System.out.println("[Scheduler] Haftalık post görselleri başarıyla oluşturuldu.");
-        } catch (Exception e) {
-            System.err.println("[Scheduler] Haftalık postlar oluşturulamadı: " + e.getMessage());
         }
+        System.out.println("[Scheduler] Haftalık post görselleri oluşturma işlemi tamamlandı.");
     }
 
     // Her pazar 16:30'da haftanın postlarını paylaş
