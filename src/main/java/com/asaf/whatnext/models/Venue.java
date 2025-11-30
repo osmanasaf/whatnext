@@ -15,6 +15,8 @@ public class Venue extends BaseEntity {
     private String city;
     private String location;
     private int capacity;
+    
+    @jakarta.persistence.Column(name = "popularity_score", columnDefinition = "integer default 0")
     private int popularityScore = 0;
     
     @OneToMany(mappedBy = "venue")

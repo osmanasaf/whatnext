@@ -14,6 +14,8 @@ public class Artist extends BaseEntity {
     private String name;
     private String genre;
     private String biography;
+    
+    @jakarta.persistence.Column(name = "popularity_score", columnDefinition = "integer default 0")
     private int popularityScore = 0;
     
     @OneToMany(mappedBy = "artist")
