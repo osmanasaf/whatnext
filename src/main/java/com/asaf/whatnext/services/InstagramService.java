@@ -385,7 +385,25 @@ public class InstagramService {
         }
     }
 
-    private String executeSharePost(List<InstagramImage> images, String caption) throws IOException, InstagramApiException {
+    private void waitForContainerReady(String containerId) throws IOException, InterruptedException {
+        int maxRetries = 30; // Toplam 60 saniye bekleme süresi (30 * 2sn)
+        int retryCount = 0;
+        while (retryCount < maxRetries) {
+            String status = getContainerStatus(containerId);
+            if ("FINISHED".equalsIgnoreCase(status)) {
+                System.out.println("✅ Container hazır: " + containerId);
+                return;
+            } else if ("ERROR".equalsIgnoreCase(status) || "EXPIRED".equalsIgnoreCase(status)) {
+                throw new IOException("Container hatası veya süresi doldu. Status: " + status + " ID: " + containerId);
+            }
+            System.out.println("⏳ Container hazırlanıyor (" + status + ")... ID: " + containerId);
+            Thread.sleep(2000);
+            retryCount++;
+        }
+        throw new IOException("Container hazırlama zaman aşımı. ID: " + containerId);
+    }
+
+    private String executeSharePost(List<InstagramImage> images, String caption) throws IOException, InstagramApiException, InterruptedException {
         List<String> containerIds = new ArrayList<>();
         for (InstagramImage image : images) {
             if(image.isPostedToInstagram()){
@@ -394,6 +412,7 @@ public class InstagramService {
             }
             String containerId = createContainerFromUrl(image.getCloudinaryUrl(), false);
             if (containerId != null) {
+                waitForContainerReady(containerId); // Container hazır olana kadar bekle
                 containerIds.add(containerId);
             }
         }
@@ -401,6 +420,8 @@ public class InstagramService {
 
         String carouselId = createCarouselContainer(containerIds, caption);
         if (carouselId == null) throw new IOException("Carousel container oluşturulamadı.");
+        
+        waitForContainerReady(carouselId); // Carousel container hazır olana kadar bekle
 
         publishContainer(carouselId);
 
@@ -413,13 +434,15 @@ public class InstagramService {
         return carouselId;
     }
 
-    private String executeShareStory(InstagramImage image) throws IOException, InstagramApiException {
+    private String executeShareStory(InstagramImage image) throws IOException, InstagramApiException, InterruptedException {
          if(image.isPostedToInstagram()){
             System.out.println("ℹ️ Story zaten paylaşıldı olarak işaretlenmiş, atlanıyor: " + image.getId());
             return null;
         }
         String containerId = createContainerFromUrl(image.getCloudinaryUrl(), true);
         if (containerId == null) throw new IOException("Story container oluşturulamadı.");
+        
+        waitForContainerReady(containerId); // Container hazır olana kadar bekle
         
         publishContainer(containerId);
 

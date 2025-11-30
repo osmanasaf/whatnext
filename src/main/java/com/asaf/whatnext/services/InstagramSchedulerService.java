@@ -126,49 +126,84 @@ public class InstagramSchedulerService {
         System.out.println("[Scheduler] Haftalık postları Instagram'a gönderme işlemi başlatılıyor...");
         LocalDate today = LocalDate.now();
         LocalDate nextMonday = today.plusDays((8 - today.getDayOfWeek().getValue()) % 7);
-        // Önümüzdeki haftanın pazartesi gününü bul
-        // LocalDate nextMonday = today.plusDays((8 - today.getDayOfWeek().getValue()) % 7);
+
         for (int i = 0; i < 7; i++) {
             LocalDate targetDate = nextMonday.plusDays(i);
             try {
                 System.out.println("[Scheduler] İşlenen gün: " + targetDate);
+                
+                // 1. Daha önce paylaşılmış mı kontrolü
                 boolean coverShared = instagramImageRepository.existsByCreationDateAndPostTypeAndPostedToInstagramIsTrue(targetDate, "cover");
                 if (coverShared) {
-                    String msg = "[Scheduler] " + targetDate + " için zaten bir cover paylaşılmış. İşlem atlanıyor.";
+                    String msg = "[Scheduler] " + targetDate + " için zaten bir cover paylaşılmış. Diğer güne geçiliyor.";
                     System.out.println(msg);
                     results.add(msg);
                     continue;
                 }
+
+                // 2. Paylaşılacak görselleri çek ve filtrele
                 List<InstagramImage> imagesToShare = instagramImageRepository.findByCreationDateAndPostedToInstagramFalse(targetDate);
-                System.out.println("[Scheduler] " + targetDate + " için paylaşılacak toplam görsel: " + imagesToShare.size());
-                List<InstagramImage> posts = new ArrayList<>(
-                    imagesToShare.stream()
-                        .filter(img -> "post".equals(img.getPostType()) || "cover".equals(img.getPostType()))
-                        .toList()
-                );
-                System.out.println("[Scheduler] " + targetDate + " için paylaşılacak post/cover sayısı: " + posts.size());
+                List<InstagramImage> posts = new ArrayList<>();
+                
+                // Duplicate önleme: Her eventType'dan en son oluşturulanı al
+                java.util.Map<String, InstagramImage> uniqueImages = new java.util.HashMap<>();
+                for (InstagramImage img : imagesToShare) {
+                    if ("post".equals(img.getPostType()) || "cover".equals(img.getPostType())) {
+                        // Aynı eventType varsa (örn: 2 tane cover), en son kaydedileni (ID'si büyük olanı) tut
+                        if (!uniqueImages.containsKey(img.getEventType()) || img.getId() > uniqueImages.get(img.getEventType()).getId()) {
+                             uniqueImages.put(img.getEventType(), img);
+                        }
+                    }
+                }
+                posts.addAll(uniqueImages.values());
+
                 if (!posts.isEmpty()) {
+                    // Sıralama: Cover en başta olsun
                     posts.sort((img1, img2) -> "cover".equals(img1.getEventType()) ? -1 : 1);
+                    
                     String date = targetDate.format(DateTimeFormatter.ofPattern("dd MMMM yyyy", new Locale("tr")));
                     String caption = String.format(DAILY_CAPTION_TEMPLATE, date);
-                    System.out.println("[Scheduler] " + targetDate + " için caption: " + caption);
-                    System.out.println("[Scheduler] " + targetDate + " için paylaşılacak post id'leri: " + posts.stream().map(img -> img.getId() + ":" + img.getPostType() + ":" + img.getEventType()).toList());
+                    
+                    System.out.println("[Scheduler] " + targetDate + " için paylaşım başlatılıyor. Görsel ID'leri: " + posts.stream().map(InstagramImage::getId).toList());
+                    
+                    // Paylaşım isteğini gönder
                     instagramService.sharePost(posts, caption);
-                    String msg = "[Scheduler] " + targetDate + " için haftalık postlar paylaşım isteği gönderildi.";
-                    System.out.println(msg);
-                    results.add(msg);
+                    
+                    // 3. Paylaşımın sonucunu bekle (Polling)
+                    // Maksimum 5 dakika (30 x 10sn) bekle
+                    boolean isPublished = false;
+                    for (int attempt = 0; attempt < 30; attempt++) {
+                        Thread.sleep(10000); // 10 saniye bekle
+                        boolean checkShared = instagramImageRepository.existsByCreationDateAndPostTypeAndPostedToInstagramIsTrue(targetDate, "cover");
+                        if (checkShared) {
+                            isPublished = true;
+                            break;
+                        }
+                        System.out.println("[Scheduler] " + targetDate + " paylaşımı bekleniyor... Deneme: " + (attempt + 1));
+                    }
+
+                    if (isPublished) {
+                        String msg = "[Scheduler] ✅ " + targetDate + " paylaşımı başarıyla tamamlandı.";
+                        System.out.println(msg);
+                        results.add(msg);
+                    } else {
+                        String msg = "[Scheduler] ❌ " + targetDate + " paylaşımı zaman aşımına uğradı veya başarısız oldu. Sonraki günler İPTAL edildi.";
+                        System.err.println(msg);
+                        results.add(msg);
+                        break; // Döngüyü kır, diğer günlere geçme!
+                    }
                 } else {
-                    String msg = "[Scheduler] " + targetDate + " için paylaşılacak haftalık post bulunamadı. Etkinlik olmadığı için görsel üretilmemiş olabilir.";
+                    String msg = "[Scheduler] " + targetDate + " için paylaşılacak görsel bulunamadı.";
                     System.out.println(msg);
                     results.add(msg);
                 }
             } catch (Exception ex) {
-                String err = "[Scheduler] HATA! " + targetDate + " için paylaşım sırasında exception: " + ex.getMessage();
+                String err = "[Scheduler] HATA! " + targetDate + " işleminde kritik hata: " + ex.getMessage();
                 System.err.println(err);
                 ex.printStackTrace();
                 results.add(err);
+                break; // Hata durumunda akışı durdur
             }
-            Thread.sleep(15000);
         }
         return results;
     }
