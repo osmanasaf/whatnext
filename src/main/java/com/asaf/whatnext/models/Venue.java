@@ -15,6 +15,7 @@ public class Venue extends BaseEntity {
     private String city;
     private String location;
     private int capacity;
+    private int popularityScore = 0;
     
     @OneToMany(mappedBy = "venue")
     @JsonManagedReference(value = "venue-events")

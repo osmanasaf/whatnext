@@ -14,6 +14,7 @@ public class Artist extends BaseEntity {
     private String name;
     private String genre;
     private String biography;
+    private int popularityScore = 0;
     
     @OneToMany(mappedBy = "artist")
     @JsonManagedReference(value = "artist-events")
