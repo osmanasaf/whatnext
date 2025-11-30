@@ -33,7 +33,7 @@ public class InstagramSchedulerService {
 
 
 
-    @Scheduled(cron = "0 0 1 * * ?")
+    @Scheduled(cron = "0 0 1 * * ?", zone = "Europe/Istanbul")
     @Transactional
     public void createDailyStory() {
         System.out.println("[Scheduler] Günlük story görseli oluşturma ve kaydetme görevi başlatıldı.");
@@ -55,7 +55,7 @@ public class InstagramSchedulerService {
         }
     }
 
-    @Scheduled(cron = "0 0 9 * * ?")
+    @Scheduled(cron = "0 0 12 * * ?", zone = "Europe/Istanbul")
     @Transactional
     public void shareDailyStoryToInstagram() {
         System.out.println("[Scheduler] Günlük story paylaşma görevi başlatıldı.");
@@ -78,7 +78,7 @@ public class InstagramSchedulerService {
         }
     }
 
-    @Scheduled(cron = "0 15 15 ? * SUN")
+    @Scheduled(cron = "0 0 16 ? * SUN", zone = "Europe/Istanbul")
     @Transactional
     public void createWeeklyPosts() {
         System.out.println("[Scheduler] Haftalık post görselleri oluşturuluyor...");
@@ -117,8 +117,8 @@ public class InstagramSchedulerService {
         }
     }
 
-    // Her pazar 14:00'te haftanın postlarını paylaş
-    @Scheduled(cron = "0 30 15 ? * SUN")
+    // Her pazar 16:30'da haftanın postlarını paylaş
+    @Scheduled(cron = "0 30 16 ? * SUN", zone = "Europe/Istanbul")
     @Transactional
     public List<String> shareWeeklyPostsToInstagram() throws InterruptedException {
         List<String> results = new ArrayList<>();
