@@ -17,7 +17,6 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import jakarta.annotation.PostConstruct;
@@ -40,9 +39,6 @@ public class InstagramService {
 
     private static final String GRAPH_API_BASE = "https://graph.facebook.com/v19.0/";
     private final ObjectMapper objectMapper = new ObjectMapper();
-    private static final int RETRY_COUNT = 3;
-    private static final int RETRY_WAIT_MS = 10000;
-    private static final int API_LIMIT_WAIT_MS = 1000 * 60 * 5;
 
     private final PriorityBlockingQueue<PostTask> postQueue = new PriorityBlockingQueue<>();
     private final List<LocalDate> postedDates = new ArrayList<>();

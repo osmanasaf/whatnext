@@ -2,7 +2,6 @@ package com.asaf.whatnext.repository;
 
 import com.asaf.whatnext.enums.EventSourceType;
 import com.asaf.whatnext.enums.EventType;
-import com.asaf.whatnext.enums.City;
 import com.asaf.whatnext.models.Event;
 import com.asaf.whatnext.models.Venue;
 import org.springframework.stereotype.Repository;

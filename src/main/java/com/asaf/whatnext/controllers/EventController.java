@@ -10,7 +10,6 @@ import com.asaf.whatnext.models.EventImage;
 import com.asaf.whatnext.models.Venue;
 import com.asaf.whatnext.repository.EventImageRepository;
 import com.asaf.whatnext.services.EventService;
-import com.asaf.whatnext.services.VenueService;
 import com.asaf.whatnext.mapper.EventMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -19,21 +18,18 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/events")
 public class EventController {
 
     private final EventService eventService;
-    private final VenueService venueService;
     private final EventImageRepository eventImageRepository;
     private final EventMapper eventMapper;
 
     @Autowired
-    public EventController(EventService eventService, VenueService venueService, EventImageRepository eventImageRepository, EventMapper eventMapper) {
+    public EventController(EventService eventService, EventImageRepository eventImageRepository, EventMapper eventMapper) {
         this.eventService = eventService;
-        this.venueService = venueService;
         this.eventImageRepository = eventImageRepository;
         this.eventMapper = eventMapper;
     }
@@ -43,7 +39,7 @@ public class EventController {
         List<Event> events = eventService.findAll();
         List<EventSummaryDTO> dtos = events.stream()
             .map(eventMapper::toSummaryDTO)
-            .collect(Collectors.toList());
+            .toList();
         return ResponseEntity.ok(dtos);
     }
 
@@ -60,7 +56,7 @@ public class EventController {
         List<Event> events = eventService.findByType(type);
         List<EventSummaryDTO> dtos = events.stream()
             .map(eventMapper::toSummaryDTO)
-            .collect(Collectors.toList());
+            .toList();
         return ResponseEntity.ok(dtos);
     }
 
@@ -69,7 +65,7 @@ public class EventController {
         List<Event> events = eventService.findBySource(source);
         List<EventSummaryDTO> dtos = events.stream()
             .map(eventMapper::toSummaryDTO)
-            .collect(Collectors.toList());
+            .toList();
         return ResponseEntity.ok(dtos);
     }
 
@@ -78,7 +74,7 @@ public class EventController {
         List<Event> events = eventService.findByCity(city);
         List<EventSummaryDTO> dtos = events.stream()
             .map(eventMapper::toSummaryDTO)
-            .collect(Collectors.toList());
+            .toList();
         return ResponseEntity.ok(dtos);
     }
 
@@ -88,7 +84,7 @@ public class EventController {
         List<Event> events = eventService.findByDate(date.toString());
         List<EventSummaryDTO> dtos = events.stream()
             .map(eventMapper::toSummaryDTO)
-            .collect(Collectors.toList());
+            .toList();
         return ResponseEntity.ok(dtos);
     }
 
@@ -117,7 +113,7 @@ public class EventController {
 
         List<EventSummaryDTO> dtos = events.stream()
             .map(eventMapper::toSummaryDTO)
-            .collect(Collectors.toList());
+            .toList();
         return ResponseEntity.ok(dtos);
     }
 
@@ -146,7 +142,7 @@ public class EventController {
 
         List<EventSummaryDTO> dtos = events.stream()
             .map(eventMapper::toSummaryDTO)
-            .collect(Collectors.toList());
+            .toList();
         return ResponseEntity.ok(dtos);
     }
 
@@ -173,7 +169,7 @@ public class EventController {
 
         List<EventSummaryDTO> dtos = events.stream()
             .map(eventMapper::toSummaryDTO)
-            .collect(Collectors.toList());
+            .toList();
         return ResponseEntity.ok(dtos);
     }
 
