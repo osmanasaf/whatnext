@@ -2,8 +2,12 @@ package com.asaf.whatnext.config;
 
 import com.asaf.whatnext.models.Venue;
 import com.asaf.whatnext.models.Artist;
+import com.asaf.whatnext.models.Director;
+import com.asaf.whatnext.models.Actor;
 import com.asaf.whatnext.repository.VenueRepository;
 import com.asaf.whatnext.repository.ArtistRepository;
+import com.asaf.whatnext.repository.DirectorRepository;
+import com.asaf.whatnext.repository.ActorRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,11 +30,16 @@ public class PopularitySeeder implements CommandLineRunner {
 
     private final VenueRepository venueRepository;
     private final ArtistRepository artistRepository;
+    private final DirectorRepository directorRepository;
+    private final ActorRepository actorRepository;
     private final ObjectMapper objectMapper;
 
-    public PopularitySeeder(VenueRepository venueRepository, ArtistRepository artistRepository) {
+    public PopularitySeeder(VenueRepository venueRepository, ArtistRepository artistRepository,
+                           DirectorRepository directorRepository, ActorRepository actorRepository) {
         this.venueRepository = venueRepository;
         this.artistRepository = artistRepository;
+        this.directorRepository = directorRepository;
+        this.actorRepository = actorRepository;
         this.objectMapper = new ObjectMapper();
     }
 
@@ -47,6 +56,8 @@ public class PopularitySeeder implements CommandLineRunner {
 
         seedTopVenuesFromDB();
         seedTopArtistsFromDB();
+        seedTopDirectorsFromDB();
+        seedTopActorsFromDB();
     }
 
     private PopularityData loadPopularityData() throws IOException {
@@ -111,6 +122,58 @@ public class PopularitySeeder implements CommandLineRunner {
             artist.setPopularityScore(score);
             artistRepository.save(artist);
             LOGGER.info("Updated artist popularity score: {} -> {}", artist.getName(), score);
+        }
+    }
+
+    private void seedTopDirectorsFromDB() {
+        try {
+            List<Director> topDirectors = directorRepository.findAll().stream()
+                .sorted((d1, d2) -> {
+                    int count1 = d1.getEvents() != null ? d1.getEvents().size() : 0;
+                    int count2 = d2.getEvents() != null ? d2.getEvents().size() : 0;
+                    return Integer.compare(count2, count1);
+                })
+                .limit(30)
+                .toList();
+            for (Director director : topDirectors) {
+                updateDirectorScore(director, MEDIUM_PRIORITY_SCORE);
+            }
+        } catch (Exception e) {
+            LOGGER.error("Error seeding directors from DB", e);
+        }
+    }
+
+    private void seedTopActorsFromDB() {
+        try {
+            List<Actor> topActors = actorRepository.findAll().stream()
+                .sorted((a1, a2) -> {
+                    int count1 = a1.getEvents() != null ? a1.getEvents().size() : 0;
+                    int count2 = a2.getEvents() != null ? a2.getEvents().size() : 0;
+                    return Integer.compare(count2, count1);
+                })
+                .limit(50)
+                .toList();
+            for (Actor actor : topActors) {
+                updateActorScore(actor, MEDIUM_PRIORITY_SCORE);
+            }
+        } catch (Exception e) {
+            LOGGER.error("Error seeding actors from DB", e);
+        }
+    }
+
+    private void updateDirectorScore(Director director, int score) {
+        if (director.getPopularityScore() < score) {
+            director.setPopularityScore(score);
+            directorRepository.save(director);
+            LOGGER.info("Updated director popularity score: {} -> {}", director.getName(), score);
+        }
+    }
+
+    private void updateActorScore(Actor actor, int score) {
+        if (actor.getPopularityScore() < score) {
+            actor.setPopularityScore(score);
+            actorRepository.save(actor);
+            LOGGER.info("Updated actor popularity score: {} -> {}", actor.getName(), score);
         }
     }
 

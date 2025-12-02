@@ -15,6 +15,9 @@ public class Actor extends BaseEntity {
     private String biography;
     private String birthDate;
     
+    @jakarta.persistence.Column(name = "popularity_score", columnDefinition = "integer default 0")
+    private int popularityScore = 0;
+    
     @ManyToMany(mappedBy = "actors")
     @JsonManagedReference(value = "actor-events")
     private List<PerformingArt> events;

@@ -4,7 +4,6 @@ import com.asaf.whatnext.dto.EventSummaryDTO;
 import com.asaf.whatnext.dto.WeeklyPopularEventsDTO;
 import com.asaf.whatnext.enums.EventType;
 import com.asaf.whatnext.models.Event;
-import com.asaf.whatnext.models.ConcertEvent;
 import com.asaf.whatnext.models.PerformingArt;
 import com.asaf.whatnext.repository.EventRepository;
 import com.asaf.whatnext.services.scoring.EventScoringStrategy;
@@ -12,8 +11,9 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
 
 @Service
 public class PopularEventService {
@@ -28,9 +28,33 @@ public class PopularEventService {
 
     public WeeklyPopularEventsDTO getWeeklyPopularEvents() {
         LocalDate today = LocalDate.now();
-        LocalDate nextWeek = today.plusDays(7);
+        LocalDate startDate = today.minusMonths(2);
         
-        List<Event> weeklyEvents = eventRepository.findByStartDateBetweenAndCity(today, nextWeek, "istanbul");
+        List<Event> allRecentEvents = eventRepository.findByStartDateBetweenAndCity(
+            startDate, today.plusDays(30), "istanbul"
+        );
+        
+        int daysFromMonday = today.getDayOfWeek().getValue() - 1;
+        LocalDate weekStart = today.minusDays(daysFromMonday);
+        LocalDate weekEnd = weekStart.plusDays(6);
+        
+        if (today.getDayOfWeek().getValue() >= 4) {
+            weekStart = weekStart.plusDays(7);
+            weekEnd = weekEnd.plusDays(7);
+        }
+        
+        final LocalDate finalWeekStart = weekStart;
+        final LocalDate finalWeekEnd = weekEnd;
+        List<Event> weeklyEvents = allRecentEvents.stream()
+            .filter(e -> !e.getStartDate().isBefore(finalWeekStart) && !e.getStartDate().isAfter(finalWeekEnd))
+            .toList();
+        
+        if (weeklyEvents.size() < 5) {
+            LocalDate extendedEnd = weekEnd.plusWeeks(2);
+            weeklyEvents = allRecentEvents.stream()
+                .filter(e -> !e.getStartDate().isBefore(finalWeekStart) && !e.getStartDate().isAfter(extendedEnd))
+                .toList();
+        }
         
         List<Event> concerts = filterAndSortEvents(weeklyEvents, EventType.CONCERT, 5);
         List<Event> theaters = filterAndSortEvents(weeklyEvents, EventType.THEATER, 5);
@@ -41,8 +65,8 @@ public class PopularEventService {
         response.setTheaters(mapToDTOs(theaters));
         response.setStandups(mapToDTOs(standups));
         
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd MMMM");
-        response.setWeekRange(today.format(formatter) + " - " + nextWeek.format(formatter));
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd MMMM", Locale.forLanguageTag("tr"));
+        response.setWeekRange(weekStart.format(formatter) + " - " + weekEnd.format(formatter));
         
         return response;
     }
@@ -52,11 +76,11 @@ public class PopularEventService {
                 .filter(e -> e.getType() == type)
                 .sorted(Comparator.comparingInt(scoringStrategy::calculateScore).reversed())
                 .limit(limit)
-                .collect(Collectors.toList());
+                .toList();
     }
     
     private List<EventSummaryDTO> mapToDTOs(List<Event> events) {
-        return events.stream().map(this::convertToDTO).collect(Collectors.toList());
+        return events.stream().map(this::convertToDTO).toList();
     }
     
     private EventSummaryDTO convertToDTO(Event event) {
@@ -75,8 +99,8 @@ public class PopularEventService {
             dto.setImageUrl(event.getEventImage().getImageSourceUrl());
         }
         
-        if (event instanceof PerformingArt) {
-            dto.setPerformanceType(((PerformingArt) event).getPerformanceType());
+        if (event instanceof PerformingArt performingArt) {
+            dto.setPerformanceType(performingArt.getPerformanceType());
         }
         
         return dto;
