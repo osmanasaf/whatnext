@@ -18,3 +18,4 @@ public interface ActorRepository extends JpaRepository<Actor, Long> {
     List<Actor> findTopActorsByEventCount(Pageable pageable);
 }
 
+

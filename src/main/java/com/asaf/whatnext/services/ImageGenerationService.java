@@ -44,6 +44,7 @@ public class ImageGenerationService {
     private static final String BASE_RESOURCE_PATH = "src/main/resources/instagram-posts/";
     private static final String OUTPUT_DIR = System.getProperty("java.io.tmpdir");
 
+    @Transactional
     public File createPost(String eventType, String postType, String city, LocalDate date) throws IOException, InterruptedException {
         String monthName = date.getMonth().getDisplayName(TextStyle.FULL, Locale.ENGLISH).toLowerCase();
         String templateResource = "instagram-posts/" + monthName + "/" + postType + "-template.png";
@@ -65,6 +66,12 @@ public class ImageGenerationService {
         if (events.isEmpty()) {
             System.out.println("⚠️ " + date + " tarihinde " + eventType + " türünde etkinlik bulunamadı. Görsel üretimi atlanıyor.");
             return null;
+        }
+        
+        for (Event event : events) {
+            if (event.getVenue() != null) {
+                event.getVenue().getName();
+            }
         }
         
         List<EventSummaryDTO> eventSummaries = events.stream()
@@ -271,12 +278,11 @@ public class ImageGenerationService {
             System.out.println("[DEBUG] magick/convert tespiti sırasında hata: " + e.getMessage());
         }
         System.out.println("[ERROR] ImageMagick komutu bulunamadı!");
-        return "magick"; // fallback
+        return "magick";
     }
 
     private File executeCommand(List<String> command, String outputPath) throws IOException, InterruptedException {
         System.out.println("ℹ️ ImageMagick komutu çalıştırılıyor. Çıktı dosyası: " + outputPath);
-        // DEBUG: PATH ve magick'in varlığı
         System.out.println("[DEBUG] PATH: " + System.getenv("PATH"));
         String magickCmd = detectImageMagickCommand();
         if (!command.isEmpty() && (command.get(0).equals("magick") || command.get(0).equals("convert"))) {

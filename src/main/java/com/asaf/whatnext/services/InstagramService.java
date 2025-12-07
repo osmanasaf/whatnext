@@ -55,6 +55,8 @@ public class InstagramService {
         final String caption;
         final InstagramImage storyImage;
         final LocalDate date;
+        int retryCount = 0;
+        private static final int MAX_RETRIES = 3;
 
         PostTask(List<InstagramImage> images, String caption, LocalDate date) {
             this.type = PostType.POST;
@@ -185,10 +187,17 @@ public class InstagramService {
     }
 
     private String createContainerFromUrl(String imageUrl, boolean isStory) throws IOException, InstagramApiException {
+        return createContainerFromUrl(imageUrl, isStory, null);
+    }
+
+    private String createContainerFromUrl(String imageUrl, boolean isStory, String caption) throws IOException, InstagramApiException {
         String endpoint = GRAPH_API_BASE + userId + "/media";
         String postData = "image_url=" + URLEncoder.encode(imageUrl, StandardCharsets.UTF_8) + "&access_token=" + accessToken;
         if (isStory) {
             postData += "&media_type=STORIES";
+        }
+        if (caption != null && !caption.isEmpty()) {
+            postData += "&caption=" + URLEncoder.encode(caption, StandardCharsets.UTF_8);
         }
         
         URL url = new URL(endpoint);
@@ -357,9 +366,14 @@ public class InstagramService {
                 }
 
                 if (retrySuggested) {
-                    System.out.println("[Publisher] Görev tekrar deneme için yeniden kuyruğa alınıyor: " + task.id);
+                    task.retryCount++;
+                    if (task.retryCount >= PostTask.MAX_RETRIES) {
+                        System.err.println("[Publisher] ❌ Görev maksimum deneme sayısına ulaştı: " + task.id + " | Deneme: " + task.retryCount);
+                        failedTasks.add(task);
+                        continue;
+                    }
+                    System.out.println("[Publisher] Görev tekrar deneme için yeniden kuyruğa alınıyor: " + task.id + " | Deneme: " + task.retryCount + "/" + PostTask.MAX_RETRIES);
                     postQueue.offer(task);
-                    
                     continue;
                 }
 
@@ -382,7 +396,7 @@ public class InstagramService {
     }
 
     private void waitForContainerReady(String containerId) throws IOException, InterruptedException {
-        int maxRetries = 30; // Toplam 60 saniye bekleme süresi (30 * 2sn)
+        int maxRetries = 30;
         int retryCount = 0;
         while (retryCount < maxRetries) {
             String status = getContainerStatus(containerId);
@@ -400,34 +414,51 @@ public class InstagramService {
     }
 
     private String executeSharePost(List<InstagramImage> images, String caption) throws IOException, InstagramApiException, InterruptedException {
-        List<String> containerIds = new ArrayList<>();
-        for (InstagramImage image : images) {
-            if(image.isPostedToInstagram()){
-                System.out.println("ℹ️ Görsel zaten paylaşıldı olarak işaretlenmiş, atlanıyor: " + image.getId());
-                continue;
-            }
-            String containerId = createContainerFromUrl(image.getCloudinaryUrl(), false);
-            if (containerId != null) {
-                waitForContainerReady(containerId); // Container hazır olana kadar bekle
-                containerIds.add(containerId);
-            }
-        }
-        if (containerIds.isEmpty()) throw new IOException("Hiçbir görsel yüklenemedi.");
-
-        String carouselId = createCarouselContainer(containerIds, caption);
-        if (carouselId == null) throw new IOException("Carousel container oluşturulamadı.");
+        List<InstagramImage> imagesToPost = images.stream()
+            .filter(img -> !img.isPostedToInstagram())
+            .collect(java.util.stream.Collectors.toList());
         
-        waitForContainerReady(carouselId); // Carousel container hazır olana kadar bekle
+        if (imagesToPost.isEmpty()) {
+            throw new IOException("Paylaşılacak görsel bulunamadı.");
+        }
 
-        publishContainer(carouselId);
+        String containerId;
+        if (imagesToPost.size() == 1) {
+            InstagramImage singleImage = imagesToPost.get(0);
+            containerId = createContainerFromUrl(singleImage.getCloudinaryUrl(), false, caption);
+            if (containerId == null) throw new IOException("Single image container oluşturulamadı.");
+            System.out.println("[Publisher] executeSharePost: Single image post | ContainerID: " + containerId);
+        } else {
+            if (imagesToPost.size() > 10) {
+                System.out.println("⚠️ " + imagesToPost.size() + " görsel bulundu, Instagram carousel limiti 10 olduğu için ilk 10 görsel kullanılacak.");
+                imagesToPost = imagesToPost.subList(0, 10);
+            }
+            
+            List<String> containerIds = new ArrayList<>();
+            for (InstagramImage image : imagesToPost) {
+                String childContainerId = createContainerFromUrl(image.getCloudinaryUrl(), false);
+                if (childContainerId != null) {
+                    waitForContainerReady(childContainerId);
+                    containerIds.add(childContainerId);
+                }
+            }
+            if (containerIds.isEmpty()) throw new IOException("Hiçbir görsel yüklenemedi.");
+            
+            containerId = createCarouselContainer(containerIds, caption);
+            if (containerId == null) throw new IOException("Carousel container oluşturulamadı.");
+            System.out.println("[Publisher] executeSharePost: Carousel post | CarouselID: " + containerId + " | Görsel sayısı: " + containerIds.size());
+        }
+        
+        waitForContainerReady(containerId);
 
-        for (InstagramImage image : images) {
+        publishContainer(containerId);
+
+        for (InstagramImage image : imagesToPost) {
             image.setPostedToInstagram(true);
         }
-        instagramImageRepository.saveAll(images);
+        instagramImageRepository.saveAll(imagesToPost);
 
-        System.out.println("[Publisher] executeSharePost: CarouselID: " + carouselId + " | Görsel sayısı: " + images.size());
-        return carouselId;
+        return containerId;
     }
 
     private String executeShareStory(InstagramImage image) throws IOException, InstagramApiException, InterruptedException {
@@ -438,7 +469,7 @@ public class InstagramService {
         String containerId = createContainerFromUrl(image.getCloudinaryUrl(), true);
         if (containerId == null) throw new IOException("Story container oluşturulamadı.");
         
-        waitForContainerReady(containerId); // Container hazır olana kadar bekle
+        waitForContainerReady(containerId);
         
         publishContainer(containerId);
 
