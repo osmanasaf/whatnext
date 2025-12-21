@@ -221,7 +221,7 @@ public class BiletixEventExtractor {
         if (info.getVenueName() != null && !info.getVenueName().isEmpty()) {
             performingArt.setVenue(venueService.findOrCreateVenue(info.getVenueName()));
         }
-        performingArt.setCity(info.getLocation().toLowerCase(Locale.ROOT));
+        performingArt.setCity(com.asaf.whatnext.utils.EventUtils.normalizeCityName(info.getLocation()));
         return performingArt;
     }
     
@@ -255,24 +255,7 @@ public class BiletixEventExtractor {
 
         return new DetailedEventInfo(title, description, dateStr, venueName, location, ticketUrl);
     }
-    
-    public Event extractDetailedEventInfo(WebDriver driver) {
-        try {
-            DetailedEventInfo info = extractDetailedInfo(driver);
 
-            if (info.getTitle().isEmpty()) {
-                LOGGER.warning("Cannot create event without a title");
-                return null;
-            }
-
-            EventType eventType = EventUtils.determineEventType(info.getTitle(), info.getDescription(), EventType.CONCERT);
-            return createDetailedEventFromInfo(eventType, info);
-
-        } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Error extracting detailed event info", e);
-            return null;
-        }
-    }
     
     private Event createDetailedEventFromInfo(EventType eventType, DetailedEventInfo info) {
         switch (eventType) {
