@@ -29,4 +29,8 @@ public interface EventRepository extends BaseRepository<Event, Long> {
     List<Event> findByStartDateBetweenAndCity(LocalDate startDate, LocalDate endDate, String city);
 
     List<Event> findByStartDateBetweenAndTypeAndCity(LocalDate startDate, LocalDate endDate, EventType type, String city);
+
+    List<Event> findByStartDateBetweenAndCityIgnoreCase(LocalDate startDate, LocalDate endDate, String city);
+
+    List<Event> findByStartDateBetweenAndTypeAndCityIgnoreCase(LocalDate startDate, LocalDate endDate, EventType type, String city);
 }

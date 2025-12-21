@@ -99,7 +99,7 @@ public class EventService {
     }
 
     public List<Event> findByDateRangeAndCity(String startDate, String endDate, City city) {
-        return eventRepository.findByStartDateBetweenAndCity(
+        return eventRepository.findByStartDateBetweenAndCityIgnoreCase(
                 java.time.LocalDate.parse(startDate),
                 java.time.LocalDate.parse(endDate),
                 city.name().toLowerCase(Locale.ROOT)
@@ -115,7 +115,7 @@ public class EventService {
             }
         }
         if (type != null && isPerformanceType) {
-            List<Event> events = eventRepository.findByStartDateBetweenAndTypeAndCity(
+            List<Event> events = eventRepository.findByStartDateBetweenAndTypeAndCityIgnoreCase(
                 java.time.LocalDate.parse(startDate),
                 java.time.LocalDate.parse(endDate),
                 EventType.PERFORMING_ART,
@@ -127,7 +127,7 @@ public class EventService {
                         performingArt.getPerformanceType().name().equals(type.name()))
                 .toList();
         } else {
-            return eventRepository.findByStartDateBetweenAndTypeAndCity(
+            return eventRepository.findByStartDateBetweenAndTypeAndCityIgnoreCase(
                 java.time.LocalDate.parse(startDate),
                 java.time.LocalDate.parse(endDate),
                 type,
