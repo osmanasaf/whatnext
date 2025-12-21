@@ -61,7 +61,29 @@ public class ImageGenerationService {
         try (InputStream input = Files.newInputStream(coordinatesFile.toPath())) {
             coordinates.load(input);
         }
-        List<Event> events = eventService.findTop6EventsForDateAndCity(date, EventType.valueOf(eventType.toUpperCase()), city);
+        EventType eventTypeEnum;
+        final PerformanceType targetPerformanceType;
+        
+        if ("theater".equalsIgnoreCase(eventType)) {
+            eventTypeEnum = EventType.PERFORMING_ART;
+            targetPerformanceType = PerformanceType.THEATER;
+        } else if ("standup".equalsIgnoreCase(eventType)) {
+            eventTypeEnum = EventType.PERFORMING_ART;
+            targetPerformanceType = PerformanceType.STANDUP;
+        } else {
+            eventTypeEnum = EventType.valueOf(eventType.toUpperCase());
+            targetPerformanceType = null;
+        }
+        
+        List<Event> events = eventService.findTop6EventsForDateAndCity(date, eventTypeEnum, city);
+
+        if (targetPerformanceType != null) {
+            events = events.stream()
+                .filter(event -> event instanceof PerformingArt performingArt &&
+                        performingArt.getPerformanceType() == targetPerformanceType)
+                .limit(6)
+                .toList();
+        }
         
         if (events.isEmpty()) {
             System.out.println("⚠️ " + date + " tarihinde " + eventType + " türünde etkinlik bulunamadı. Görsel üretimi atlanıyor.");
