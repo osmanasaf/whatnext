@@ -286,9 +286,9 @@ public class BiletinialScraper implements EventSource {
                 venue.setName(venueName);
                 venue.setLocation(venueName);
                 if(city != null && city.toLowerCase().contains(BiletinialCity.ISTANBUL.getValue())) {
-                    venue.setCity(com.asaf.whatnext.utils.EventUtils.normalizeCityName(BiletinialCity.ISTANBUL.getValue()));
+                    venue.setCity(BiletinialCity.ISTANBUL.getValue());
                 } else {
-                    venue.setCity(com.asaf.whatnext.utils.EventUtils.normalizeCityName(city));
+                    venue.setCity(city);
                 }
 
                 venue = venueService.save(venue);

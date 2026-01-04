@@ -39,30 +39,6 @@ public class EventUtils {
         VENUE_EQUIVALENTS.put("dorock xl by holly stone", "dorock xl kadıköy");
     }
 
-    /**
-     * Şehir adını normalize eder: küçük harfe çevirir ve Türkçe karakterleri İngilizce karşılıklarına çevirir.
-     * Örnek: "İstanbul", "i̇stanbul", "İSTANBUL" -> "istanbul"
-     */
-    public static String normalizeCityName(String city) {
-        if (city == null || city.isBlank()) {
-            return null;
-        }
-        String normalized = city.trim().toLowerCase(Locale.ROOT)
-            .replace('ı', 'i')
-            .replace('ğ', 'g')
-            .replace('ü', 'u')
-            .replace('ş', 's')
-            .replace('ö', 'o')
-            .replace('ç', 'c')
-            .replace('İ', 'i')
-            .replace('Ğ', 'g')
-            .replace('Ü', 'u')
-            .replace('Ş', 's')
-            .replace('Ö', 'o')
-            .replace('Ç', 'c');
-        return normalized;
-    }
-
     public static boolean isSimilarVenueName(String v1, String v2) {
         if (v1 == null || v2 == null) return false;
         String n1 = v1.trim().toLowerCase();
@@ -99,7 +75,7 @@ public class EventUtils {
             Venue venue = new Venue();
             venue.setName(venueName);
             venue.setLocation(location);
-            venue.setCity(normalizeCityName(location));
+            venue.setCity(location);
             event.setVenue(venue);
         }
     }
@@ -112,7 +88,7 @@ public class EventUtils {
         artist.setName(extractArtistName(info.getTitle(), ""));
         concert.setArtist(artist);
         setVenueProperties(concert, info.getVenueName(), info.getLocation(), venueService.findByName(info.getVenueName()));
-        concert.setCity(normalizeCityName(info.getLocation()));
+        concert.setCity(info.getLocation().toLowerCase(Locale.ROOT));
         return concert;
     }
 

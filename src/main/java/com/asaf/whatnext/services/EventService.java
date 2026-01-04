@@ -107,10 +107,6 @@ public class EventService {
     }
 
     public List<Event> findByDateRangeAndTypeAndCity(String startDate, String endDate, EventType type, City city) {
-        return findByDateRangeAndTypeAndCity(startDate, endDate, type, city.name().toLowerCase(Locale.ROOT));
-    }
-
-    public List<Event> findByDateRangeAndTypeAndCity(String startDate, String endDate, EventType type, String city) {
         boolean isPerformanceType = false;
         for (PerformanceType pt : PerformanceType.values()) {
             if (pt.name().equals(type.name())) {
@@ -123,7 +119,7 @@ public class EventService {
                 java.time.LocalDate.parse(startDate),
                 java.time.LocalDate.parse(endDate),
                 EventType.PERFORMING_ART,
-                city.toLowerCase(Locale.ROOT)
+                city.name().toLowerCase(java.util.Locale.ROOT)
             );
             return events.stream()
                 .filter(event -> event instanceof com.asaf.whatnext.models.PerformingArt performingArt &&
@@ -135,19 +131,18 @@ public class EventService {
                 java.time.LocalDate.parse(startDate),
                 java.time.LocalDate.parse(endDate),
                 type,
-                city.toLowerCase(Locale.ROOT)
+                city.name().toLowerCase(Locale.ROOT)
             );
         }
     }
 
     public List<Event> findTop6EventsForDateAndCity(LocalDate date, EventType eventType, String city) {
         String dateStr = date.toString();
-        
         List<Event> events = findByDateRangeAndTypeAndCity(
             dateStr, 
             dateStr,
             eventType, 
-            city
+            com.asaf.whatnext.enums.City.valueOf(city.toUpperCase(java.util.Locale.ENGLISH))
         );
         return events.stream()
             .filter(e -> e.getTitle() != null && e.getTitle().length() < 35)
@@ -176,13 +171,6 @@ public class EventService {
                 Venue savedVenue = venueService.save(event.getVenue());
                 event.setVenue(savedVenue);
             }
-            if (event.getVenue().getCity() != null) {
-                event.getVenue().setCity(com.asaf.whatnext.utils.EventUtils.normalizeCityName(event.getVenue().getCity()));
-            }
-        }
-
-        if (event.getCity() != null) {
-            event.setCity(com.asaf.whatnext.utils.EventUtils.normalizeCityName(event.getCity()));
         }
 
         return eventRepository.save(event);
