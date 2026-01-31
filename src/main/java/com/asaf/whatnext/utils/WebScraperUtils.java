@@ -69,7 +69,16 @@ public class WebScraperUtils {
         pageCounter.set(0);
         
         try {
-            WebDriverManager.chromedriver().setup();
+            boolean useDockerDriver = System.getenv("CHROMEDRIVER_PATH") != null 
+                || System.getenv("WEBDRIVER_CHROME_DRIVER") != null;
+            if (!useDockerDriver) {
+                var wdm = WebDriverManager.chromedriver();
+                String driverVersion = System.getenv("CHROMEDRIVER_VERSION");
+                if (driverVersion != null && !driverVersion.isEmpty()) {
+                    wdm.driverVersion(driverVersion);
+                }
+                wdm.setup();
+            }
             ChromeOptions options = configureChromeBrowser(chromePath);
             WebDriver driver = new ChromeDriver(options);
             driver.manage().timeouts().pageLoadTimeout(Duration.ofSeconds(timeoutSeconds));
