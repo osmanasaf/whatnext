@@ -2,6 +2,7 @@ package com.asaf.whatnext.config;
 
 import com.asaf.whatnext.enums.Biletino.BiletinoCategory;
 import com.asaf.whatnext.enums.Biletino.BiletinoCity;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 
@@ -9,31 +10,16 @@ import java.time.format.DateTimeFormatter;
 
 @Configuration
 public class BiletinoScraperConfig {
-    // URL and browser configuration
+    
     public static final String BASE_URL = "https://biletino.com";
     
-    @Value("${biletino.chrome.path:}")
-    private String chromePath;
-    
-    @Value("${biletino.wait.timeout:60}")
-    private int waitTimeoutSeconds;
-    
-    @Value("${biletino.scroll.attempts:20}")
-    private int maxScrollAttempts;
-    
-    @Value("${biletino.scroll.wait:2000}")
-    private int scrollWaitMs;
-
-    // Date formatters
     public static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd.MM.yyyy");
     public static final DateTimeFormatter SEARCH_RESULT_DATE_FORMATTER = DateTimeFormatter.ofPattern("dd MMM yyyy");
 
-    // Default search parameters
     public static final BiletinoCategory DEFAULT_CATEGORY = BiletinoCategory.MUSIC;
     public static final String DEFAULT_LOCATION = "İstanbul";
     public static final String DEFAULT_DATE_PARAM = "next10days";
 
-    // CSS Selectors
     public static final String EVENT_CARD_SELECTOR = "div.col-md-4.product";
     public static final String EVENT_TITLE_SELECTOR = "h3.title";
     public static final String EVENT_DATE_SELECTOR = "p.card-text.date";
@@ -42,24 +28,25 @@ public class BiletinoScraperConfig {
     public static final String EVENT_IMAGE_SELECTOR = "img";
     public static final String SEARCH_LOAD_END_SELECTOR = "p#search-load-end";
 
+    private final ScraperConfig scraperConfig;
+    
+    @Value("${biletino.scroll.attempts:15}")
+    private int maxScrollAttempts;
+    
+    @Value("${biletino.scroll.wait:1500}")
+    private int scrollWaitMs;
+
+    @Autowired
+    public BiletinoScraperConfig(ScraperConfig scraperConfig) {
+        this.scraperConfig = scraperConfig;
+    }
+
     public String getChromePath() {
-        // Önce environment variable'ı kontrol et
-        String envChromeBin = System.getenv("CHROME_BIN");
-        if (envChromeBin != null && !envChromeBin.isEmpty()) {
-            return envChromeBin;
-        }
-        
-        // Eğer chromePath boşsa veya Windows path'i ise, null döndür
-        // Bu durumda WebDriverManager otomatik olarak Chrome'u bulacak
-        if (chromePath == null || chromePath.isEmpty() || 
-            chromePath.equals("C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe")) {
-            return null;
-        }
-        return chromePath;
+        return scraperConfig.getChromePath();
     }
 
     public int getWaitTimeoutSeconds() {
-        return waitTimeoutSeconds;
+        return scraperConfig.getWaitTimeoutSeconds();
     }
 
     public int getMaxScrollAttempts() {

@@ -15,25 +15,16 @@ public class EventSchedulerController {
     @Autowired
     private EventSchedulerService eventSchedulerService;
 
-    /**
-     * Aktif şehirleri listeler
-     */
     @GetMapping("/cities/active")
     public ResponseEntity<List<String>> getActiveCities() {
         return ResponseEntity.ok(eventSchedulerService.getActiveCities());
     }
 
-    /**
-     * Gelecekte eklenecek şehirleri listeler
-     */
     @GetMapping("/cities/future")
     public ResponseEntity<List<String>> getFutureCities() {
         return ResponseEntity.ok(eventSchedulerService.getFutureCities());
     }
 
-    /**
-     * Belirli bir şehri aktif listeye ekler
-     */
     @PostMapping("/cities/add")
     public ResponseEntity<String> addCityToActiveList(@RequestParam String city) {
         try {
@@ -44,9 +35,6 @@ public class EventSchedulerController {
         }
     }
 
-    /**
-     * Belirli bir şehri aktif listeden çıkarır
-     */
     @PostMapping("/cities/remove")
     public ResponseEntity<String> removeCityFromActiveList(@RequestParam String city) {
         try {
@@ -57,9 +45,6 @@ public class EventSchedulerController {
         }
     }
 
-    /**
-     * Manuel olarak aylık scraping başlatır
-     */
     @PostMapping("/monthly/run")
     public ResponseEntity<String> runMonthlyScraping() {
         try {
@@ -70,9 +55,6 @@ public class EventSchedulerController {
         }
     }
 
-    /**
-     * Manuel olarak haftalık scraping başlatır
-     */
     @PostMapping("/weekly/run")
     public ResponseEntity<String> runWeeklyScraping() {
         try {
@@ -83,9 +65,6 @@ public class EventSchedulerController {
         }
     }
 
-    /**
-     * Belirli bir şehir için manuel scraping yapar
-     */
     @PostMapping("/city/run")
     public ResponseEntity<String> runScrapingForCity(
             @RequestParam String city,
@@ -102,9 +81,6 @@ public class EventSchedulerController {
         }
     }
 
-    /**
-     * Scheduler durumunu kontrol eder
-     */
     @GetMapping("/status")
     public ResponseEntity<String> getSchedulerStatus() {
         List<String> activeCities = eventSchedulerService.getActiveCities();

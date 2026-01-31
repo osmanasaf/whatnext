@@ -169,9 +169,6 @@ public class InstagramController {
         }
     }
 
-    /**
-     * Manuel olarak haftalık post görselleri oluşturur (scheduler fonksiyonunu tetikler)
-     */
     @PostMapping("/scheduler/create-weekly-posts")
     public ResponseEntity<?> createWeeklyPostsManually() {
         try {
@@ -182,9 +179,6 @@ public class InstagramController {
         }
     }
 
-    /**
-     * Manuel olarak haftalık postları Instagram'a paylaşır (scheduler fonksiyonunu tetikler)
-     */
     @PostMapping("/scheduler/share-weekly-posts")
     public ResponseEntity<?> shareWeeklyPostsManually() {
         try {

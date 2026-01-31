@@ -12,6 +12,5 @@ public interface InstagramImageRepository extends BaseRepository<InstagramImage,
     Optional<InstagramImage> findByPostTypeAndEventTypeAndCreationDate(String postType, String eventType, LocalDate creationDate);
     List<InstagramImage> findByCreationDateAndPostedToInstagramFalse(LocalDate date);
 
-    // Belirtilen günde, belirtilen post tipinde paylaşım yapılmış mı? (örn: postType="story" veya postType="cover")
     boolean existsByCreationDateAndPostTypeAndPostedToInstagramIsTrue(LocalDate date, String postType);
 } 

@@ -16,9 +16,6 @@ public class VenueService {
         this.venueRepository = venueRepository;
     }
 
-    public Optional<Venue> findById(Long id) {
-        return venueRepository.findById(id);
-    }
 
     public Venue findByName(String name) {
         return venueRepository.findByName(name);
@@ -38,7 +35,4 @@ public class VenueService {
         return venueRepository.save(venue);
     }
 
-    public void deleteById(Long id) {
-        venueRepository.deleteById(id);
-    }
 }

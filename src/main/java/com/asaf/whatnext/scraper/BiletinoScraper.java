@@ -5,529 +5,189 @@ import com.asaf.whatnext.enums.Biletino.BiletinoCategory;
 import com.asaf.whatnext.enums.Biletino.BiletinoCity;
 import com.asaf.whatnext.enums.EventSourceType;
 import com.asaf.whatnext.enums.EventType;
-import com.asaf.whatnext.enums.PerformanceType;
-import com.asaf.whatnext.models.*;
-import com.asaf.whatnext.services.ArtistService;
-import com.asaf.whatnext.services.CloudinaryService;
-import com.asaf.whatnext.services.ConcertEventService;
-import com.asaf.whatnext.services.TheaterEventService;
-import com.asaf.whatnext.services.VenueService;
-import com.asaf.whatnext.utils.EventUtils;
 import com.asaf.whatnext.utils.WebScraperUtils;
+import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
-import org.jsoup.nodes.Element;
-import org.openqa.selenium.*;
-import org.openqa.selenium.support.ui.ExpectedConditions;
-import org.openqa.selenium.support.ui.WebDriverWait;
+import org.openqa.selenium.By;
+import org.openqa.selenium.WebElement;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import java.time.Duration;
+
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
 import java.util.logging.Level;
-import java.util.logging.Logger;
-import java.util.UUID;
 
 import static com.asaf.whatnext.config.BiletinoScraperConfig.*;
-import static com.asaf.whatnext.utils.EventUtils.determineEventType;
 
 @Service
-public class BiletinoScraper implements EventSource {
-    private static final Logger LOGGER = Logger.getLogger(BiletinoScraper.class.getName());
-    private static final String IMAGE_SELECTOR = ".event-image img";
-    
-    private final ConcertEventService concertEventService;
-    private final TheaterEventService theaterEventService;
-    private final ArtistService artistService;
-    private final VenueService venueService;
+public class BiletinoScraper extends BaseScraper {
+
     private final BiletinoScraperConfig config;
-    private final CloudinaryService cloudinaryService;
-    private final BiletinoCity city = BiletinoCity.ISTANBUL;
-    private WebDriver driver;
-    private WebDriverWait wait;
 
     @Autowired
-    public BiletinoScraper(ConcertEventService concertEventService,
-                           TheaterEventService theaterEventService,
-                           ArtistService artistService,
-                           VenueService venueService,
-                           BiletinoScraperConfig config,
-                           CloudinaryService cloudinaryService) {
-        this.concertEventService = concertEventService;
-        this.theaterEventService = theaterEventService;
-        this.artistService = artistService;
-        this.venueService = venueService;
+    public BiletinoScraper(BiletinoScraperConfig config) {
+        super(config.getChromePath(), config.getWaitTimeoutSeconds(), BiletinoScraper.class);
         this.config = config;
-        this.cloudinaryService = cloudinaryService;
-    }
-
-    private void initializeBrowser() {
-        String chromePath = config.getChromePath();
-        String envChromeBin = System.getenv("CHROME_BIN");
-        LOGGER.info("[BiletinoScraper] initializeBrowser - config.getChromePath(): " + chromePath);
-        LOGGER.info("[BiletinoScraper] initializeBrowser - CHROME_BIN env: " + envChromeBin);
-        try {
-            this.driver = WebScraperUtils.initializeBrowser(chromePath, config.getWaitTimeoutSeconds());
-            this.wait = new WebDriverWait(driver, Duration.ofSeconds(config.getWaitTimeoutSeconds()));
-            LOGGER.info("[BiletinoScraper] Browser başarıyla başlatıldı.");
-        } catch (Exception e) {
-            LOGGER.severe("[BiletinoScraper] Browser başlatılamadı! Chrome path: " + chromePath + " | CHROME_BIN: " + envChromeBin + " | Hata: " + e.getMessage());
-            throw e;
-        }
-    }
-
-    private void closeBrowser() {
-        WebScraperUtils.closeBrowser(driver);
     }
 
     @Override
-    public List<Event> fetchEvents() {
-        return fetchEvents(BiletinoCity.ISTANBUL.getValue());
+    public List<ScrapedEventData> scrapeEvents(String city) {
+        logger.info("Scraping events from Biletino for city: " + city);
+        
+        BiletinoCity selectedCity = parseCity(city);
+        
+        List<CategoryScraper> scrapers = Arrays.asList(
+            (driver, wait) -> scrapeCategory(BiletinoCategory.MUSIC, selectedCity),
+            (driver, wait) -> scrapeCategory(BiletinoCategory.THEATRE, selectedCity),
+            (driver, wait) -> scrapeCategory(BiletinoCategory.COMEDY, selectedCity)
+        );
+        
+        List<ScrapedEventData> allData = scrapeForCategories(scrapers);
+        logger.info("Scraped " + allData.size() + " events from Biletino");
+        
+        long validCount = allData.stream().filter(ScrapedEventData::isValid).count();
+        logger.info("Valid events: " + validCount + "/" + allData.size());
+        
+        return allData;
     }
 
-    @Override
-    public List<Event> fetchEvents(String city) {
-        List<Event> allEvents = new ArrayList<>();
-        try {
-            BiletinoCity selectedCity = Arrays.stream(BiletinoCity.values())
-                    .filter(c -> c.getValue().equalsIgnoreCase(city))
-                    .findFirst()
-                    .orElse(BiletinoCity.ISTANBUL);
-
-            allEvents.addAll(processCategory(BiletinoCategory.MUSIC, selectedCity));
-            allEvents.addAll(processCategory(BiletinoCategory.THEATRE, selectedCity));
-            allEvents.addAll(processCategory(BiletinoCategory.COMEDY, selectedCity));
-        } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Error fetching events from Biletino", e);
-        }
-        return allEvents;
-    }
-
-    @Override
-    public List<Event> fetchEvents(String city, java.time.LocalDate startDate, java.time.LocalDate endDate) {
-        List<Event> allEvents = fetchEvents(city);
-        List<Event> filtered = new ArrayList<>();
-        for (Event event : allEvents) {
-            if (event.getStartDate() != null &&
-                (event.getStartDate().isEqual(startDate) || event.getStartDate().isAfter(startDate)) &&
-                (event.getStartDate().isEqual(endDate) || event.getStartDate().isBefore(endDate))) {
-                filtered.add(event);
-            }
-        }
-        return filtered;
-    }
-
-    @Override
-    public List<Event> fetchEvents(java.time.LocalDate startDate, java.time.LocalDate endDate) {
-        return fetchEvents(BiletinoCity.ISTANBUL.getValue(), startDate, endDate);
-    }
-
-    public List<Event> processCategory(BiletinoCategory category) {
-        return processCategory(category, BiletinoCity.ISTANBUL);
-    }
-
-    public List<Event> processCategory(BiletinoCategory category, BiletinoCity city) {
-        List<Event> events = new ArrayList<>();
-        try {
-            initializeBrowser();
-            List<Event> categoryEvents = fetchEventsByCategory(category, city);
-            saveEventsWithDuplicateChecking(categoryEvents);
-            events.addAll(categoryEvents);
-        } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Error processing category: " + category.name(), e);
-        } finally {
-            closeBrowser();
-        }
-        return events;
-    }
-
-    private void saveEventsWithDuplicateChecking(List<Event> events) {
-        for (Event event : events) {
-            try {
-                if (event instanceof ConcertEvent) {
-                    EventUtils.saveConcertEventWithDuplicateChecking((ConcertEvent) event, 
-                                                                   concertEventService, 
-                                                                   artistService, 
-                                                                   venueService);
-                } else if (event instanceof PerformingArt) {
-                    EventUtils.savePerformingArtWithDuplicateChecking((PerformingArt) event, theaterEventService);
-                }
-            } catch (Exception e) {
-                LOGGER.log(Level.WARNING, "Error saving event: " + event.getTitle(), e);
-            }
-        }
-    }
-
-    private List<Event> fetchEventsByCategory(BiletinoCategory category) {
-        return fetchEventsByCategory(category, BiletinoCity.ISTANBUL);
-    }
-
-    private List<Event> fetchEventsByCategory(BiletinoCategory category, BiletinoCity city) {
-        List<Event> events = new ArrayList<>();
+    private List<ScrapedEventData> scrapeCategory(BiletinoCategory category, BiletinoCity city) {
+        List<ScrapedEventData> events = new ArrayList<>();
+        
         try {
             String searchUrl = config.buildSearchUrl(category, city);
-            navigateToUrl(searchUrl);
-            handleCookieConsent();
-            handleOverlays();
-            scrollToLoadAllEvents();
-            List<WebElement> eventCards = driver.findElements(By.cssSelector(EVENT_CARD_SELECTOR));
-            LOGGER.info("[BiletinoScraper] Bulunan etkinlik kartı sayısı: " + eventCards.size());
-            List<String> eventCardsHtml = new ArrayList<>();
-            for (WebElement card : eventCards) {
-                eventCardsHtml.add(card.getAttribute("outerHTML"));
+            WebScraperUtils.navigateToUrl(driver, wait, searchUrl);
+            WebScraperUtils.handleCookieConsent(driver);
+            WebScraperUtils.handleOverlays(driver);
+            
+            WebScraperUtils.scrollToLoadAll(
+                driver,
+                config.getMaxScrollAttempts(),
+                config.getScrollWaitMs(),
+                EVENT_CARD_SELECTOR
+            );
+            
+            List<WebElement> cards = driver.findElements(By.cssSelector(EVENT_CARD_SELECTOR));
+            
+            for (WebElement card : cards) {
+                try {
+                    ScrapedEventData data = extractFromCard(card, category);
+                    if (data != null && data.isValid()) {
+                        events.add(data);
+                    }
+                } catch (Exception e) {
+                    logger.log(Level.FINE, "Error extracting card", e);
+                }
             }
-            events = extractBasicInfoFromCards(eventCardsHtml, category);
-            LOGGER.info("[BiletinoScraper] Parse edilen etkinlik sayısı: " + events.size());
+            
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Error fetching events for category: " + category.name(), e);
+            logger.log(Level.SEVERE, "Error scraping category: " + category.name(), e);
         }
+        
         return events;
     }
 
-    private void navigateToUrl(String url) {
-        driver.get(url);
-        wait.until(ExpectedConditions.presenceOfElementLocated(By.tagName("body")));
-    }
-
-    private void scrollToLoadAllEvents() {
-        int attempts = 0;
-        int previousEventCount = 0;
-        boolean endOfResultsFound = false;
-        try {
-            wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector(EVENT_CARD_SELECTOR)));
-            previousEventCount = driver.findElements(By.cssSelector(EVENT_CARD_SELECTOR)).size();
-        } catch (Exception e) {
-            return;
-        }
-        while (attempts < config.getMaxScrollAttempts() && !endOfResultsFound) {
-            try {
-                ((JavascriptExecutor) driver).executeScript("window.scrollTo(0, document.body.scrollHeight)");
-                Thread.sleep(config.getScrollWaitMs());
-                List<WebElement> endOfResultsElements = driver.findElements(By.cssSelector(SEARCH_LOAD_END_SELECTOR));
-                if (!endOfResultsElements.isEmpty() && endOfResultsElements.get(0).isDisplayed()) {
-                    endOfResultsFound = true;
-                    break;
-                }
-                int currentEventCount = driver.findElements(By.cssSelector(EVENT_CARD_SELECTOR)).size();
-                int newEvents = currentEventCount - previousEventCount;
-                if (newEvents <= 0 && attempts > 2) break;
-                previousEventCount = currentEventCount;
-                attempts++;
-            } catch (Exception e) {
-                attempts++;
-            }
-        }
-    }
-
-    private void handleCookieConsent() {
-        String[] consentSelectors = {
-                "#onetrust-accept-btn-handler",
-                ".cookie-consent-button",
-                ".accept-cookies",
-                ".cookie-accept",
-                "button[aria-label='Accept cookies']"
-        };
-        String[] xpathSelectors = {
-                "//button[contains(text(), 'Accept')]",
-                "//button[contains(text(), 'Kabul')]",
-                "//a[contains(text(), 'Accept')]",
-                "//a[contains(text(), 'Kabul')]"
-        };
-        for (String selector : consentSelectors) {
-            try {
-                List<WebElement> consentButtons = driver.findElements(By.cssSelector(selector));
-                if (!consentButtons.isEmpty()) {
-                    clickElementWithJavaScript(consentButtons.get(0));
-                    Thread.sleep(1000);
-                    return;
-                }
-            } catch (Exception ignored) {}
-        }
-        for (String xpath : xpathSelectors) {
-            try {
-                List<WebElement> consentButtons = driver.findElements(By.xpath(xpath));
-                if (!consentButtons.isEmpty()) {
-                    clickElementWithJavaScript(consentButtons.get(0));
-                    Thread.sleep(1000);
-                    return;
-                }
-            } catch (Exception ignored) {}
-        }
-    }
-
-    private void handleOverlays() {
-        try {
-            String removeOverlaysScript =
-                    "var overlays = document.querySelectorAll('.cookie-banner, .modal, .popup, .overlay, [class*=\"cookie\"], [id*=\"cookie\"], [class*=\"consent\"], [id*=\"consent\"]);" +
-                            "for(var i=0; i<overlays.length; i++) {" +
-                            "  overlays[i].style.display = 'none';" +
-                            "  overlays[i].style.zIndex = '-1000';" +
-                            "  overlays[i].style.pointerEvents = 'none';" +
-                            "}";
-            ((JavascriptExecutor) driver).executeScript(removeOverlaysScript);
-            Thread.sleep(500);
-        } catch (Exception ignored) {}
-    }
-
-    private void clickElementWithJavaScript(WebElement element) {
-        ((JavascriptExecutor) driver).executeScript("arguments[0].click();", element);
-    }
-
-    private List<Event> extractBasicInfoFromCards(List<String> eventCardsHtml, BiletinoCategory category) {
-        List<Event> events = new ArrayList<>();
-        for (String cardHtml : eventCardsHtml) {
-            try {
-                Document doc = org.jsoup.Jsoup.parse(cardHtml);
-                EventInfo basicInfo = extractCardInfoFromHtml(doc);
-                if (basicInfo == null || basicInfo.getTitle().isEmpty()) continue;
-                String ticketUrl = basicInfo.getTicketUrl();
-                if (ticketUrl == null || ticketUrl.isEmpty()) continue;
-
-                DetailedEventInfo detailedInfo = fetchDetailedEventInfo(ticketUrl);
-                if (detailedInfo == null) continue;
-
-                EventType eventType = determineEventType(
-                        basicInfo.getTitle(),
-                        detailedInfo.getDescription(),
-                        categoryToEventType(category)
-                );
-
-                Event event = createEventFromDetailedInfo(eventType, basicInfo, detailedInfo);
-                if (event != null) {
-                    try {
-                        Element imgElement = doc.select(IMAGE_SELECTOR).first();
-                        if (imgElement != null) {
-                            String imageUrl = imgElement.attr("src");
-                            if (imageUrl != null && !imageUrl.isEmpty()) {
-                                String cloudinaryUrl = uploadImageUrlToCloudinary(imageUrl, basicInfo.getTitle());
-                                if (cloudinaryUrl != null) {
-                                    event.setImage(null, "image/jpeg", cloudinaryUrl);
-                                }
-                            }
-                        } else {
-                            LOGGER.fine("[BiletinoScraper] Kartta görsel bulunamadı.");
-                        }
-                    } catch (Exception e) {
-                        LOGGER.log(Level.WARNING, "Error extracting image from card", e);
-                    }
-                    events.add(event);
-                }
-            } catch (Exception e) {
-                LOGGER.log(Level.WARNING, "Error processing event card", e);
-            }
-        }
-        return events;
-    }
-
-    private DetailedEventInfo fetchDetailedEventInfo(String eventUrl) {
-        driver.get(eventUrl);
-        wait.until(ExpectedConditions.presenceOfElementLocated(By.tagName("body")));
-        String title = "";
-        try {
-            WebElement titleElement = driver.findElement(By.cssSelector("h1.event-title"));
-            title = titleElement.getText().trim();
-        } catch (Exception ignored) {}
-        String startDate = "";
-        try {
-            List<WebElement> startDateElements = driver.findElements(By.xpath("//label[contains(text(), 'Start Date')]/following-sibling::p"));
-            if (!startDateElements.isEmpty()) {
-                startDate = startDateElements.get(0).getText().trim();
-            } else {
-                startDateElements = driver.findElements(By.cssSelector("div.event-time-summary p.mb-1"));
-                if (!startDateElements.isEmpty()) {
-                    startDate = startDateElements.get(0).getText().trim();
-                }
-            }
-        } catch (Exception ignored) {}
-        String endDate = "";
-        try {
-            List<WebElement> endDateElements = driver.findElements(By.xpath("//label[contains(text(), 'End Date')]/following-sibling::p"));
-            if (!endDateElements.isEmpty()) {
-                endDate = endDateElements.get(0).getText().trim();
-            } else {
-                List<WebElement> dateElements = driver.findElements(By.cssSelector("div.event-time-summary p.mb-1"));
-                if (dateElements.size() > 1) {
-                    endDate = dateElements.get(1).getText().trim();
-                }
-            }
-        } catch (Exception ignored) {}
-        String location = "";
-        String venueName = "";
-        try {
-            List<WebElement> locationElements = driver.findElements(By.xpath("//label[contains(text(), 'Location')]/following-sibling::p"));
-            if (!locationElements.isEmpty()) {
-                String fullLocation = locationElements.get(0).getText().trim();
-                String[] result = processLocationString(fullLocation);
-                venueName = result[0];
-                location = result[1];
-            } else {
-                locationElements = driver.findElements(By.cssSelector("div.event-time-summary p.mb-1"));
-                if (locationElements.size() > 2) {
-                    String fullLocation = locationElements.get(2).getText().trim();
-                    String[] result = processLocationString(fullLocation);
-                    venueName = result[0];
-                    location = result[1];
-                } else {
-                    locationElements = driver.findElements(By.xpath("//label[contains(@class, 'venue-title')]/following-sibling::p"));
-                    if (!locationElements.isEmpty()) {
-                        String fullLocation = locationElements.get(0).getText().trim();
-                        String[] result = processLocationString(fullLocation);
-                        venueName = result[0];
-                        location = result[1];
-                    }
-                }
-            }
-        } catch (Exception ignored) {}
-        String dateStr = startDate;
-        if (!endDate.isEmpty()) dateStr = startDate + " - " + endDate;
-        return new DetailedEventInfo(title, "", dateStr, venueName, location, eventUrl);
-    }
-
-    private Event createEventFromDetailedInfo(EventType eventType, EventInfo basicInfo, DetailedEventInfo detailedInfo) {
-        String title = !detailedInfo.getTitle().isEmpty() ? detailedInfo.getTitle() : basicInfo.getTitle();
-        String dateStr = !detailedInfo.getDateStr().isEmpty() ? detailedInfo.getDateStr() : basicInfo.getDateStr();
-        String venueName = !detailedInfo.getVenueName().isEmpty() ? detailedInfo.getVenueName() : basicInfo.getVenueName();
-        String location = !detailedInfo.getLocation().isEmpty() ? detailedInfo.getLocation() : basicInfo.getLocation();
-        String[] locationParts = location.trim().split(",");
-        String city = locationParts[locationParts.length - 1].trim();
-        String ticketUrl = !detailedInfo.getTicketUrl().isEmpty() ? detailedInfo.getTicketUrl() : basicInfo.getTicketUrl();
-        String description = detailedInfo.getDescription();
-        LocalDate parsedStartDate = extractStartDateTime(dateStr);
-        String date = parsedStartDate != null ? parsedStartDate.format(DateTimeFormatter.ofPattern("dd/MM/yy")) : dateStr;
-
-        Venue venue = null;
-        if (venueName != null && !venueName.isEmpty()) {
-            venue = venueService.findByName(venueName);
-            if (venue == null) {
-                venue = new Venue();
-                venue.setName(venueName);
-                venue.setLocation(location);
-                venue.setCity(normalizeCityName(city));
-                venue = venueService.save(venue);
-            }
-        }
-
-        switch (eventType) {
-            case CONCERT:
-                ConcertEvent concert = EventUtils.createDetailedConcertEvent(
-                    new DetailedEventInfo(title, description, date, venueName, location, ticketUrl), eventType, EventSourceType.BILETINO, venueService);
-                concert.setCity(Objects.requireNonNull(venue).getCity());
-                return concert;
-            case THEATER:
-            case STANDUP:
-                PerformingArt theater = EventUtils.createDetailedTheaterEvent(
-                    new DetailedEventInfo(title, description, date, venueName, location, ticketUrl), EventType.PERFORMING_ART,EventSourceType.BILETINO);
-                if (venue != null) theater.setVenue(venue);
-                theater.setPerformanceType(eventType == EventType.STANDUP ? PerformanceType.STANDUP : PerformanceType.THEATER);
-                theater.setCity(Objects.requireNonNull(venue).getCity());
-                return theater;
-            default:
-                return null;
-        }
-    }
-
-    private String uploadImageUrlToCloudinary(String imageUrl, String eventTitle) {
-        try {
-            String fileName = "biletino_" + UUID.randomUUID().toString().replace("-", "");
-            Map<String, Object> uploadResult = cloudinaryService.uploadImageFromUrl(imageUrl, "events/biletino", fileName);
-            return cloudinaryService.getImageUrl(uploadResult);
-        } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Error uploading image to Cloudinary for event: " + eventTitle, e);
+    private ScrapedEventData extractFromCard(WebElement card, BiletinoCategory category) {
+        String cardHtml = card.getAttribute("outerHTML");
+        Document doc = Jsoup.parse(cardHtml);
+        
+        String title = doc.select(EVENT_TITLE_SELECTOR).text();
+        String dateStr = doc.select(EVENT_DATE_SELECTOR).text();
+        String location = doc.select(EVENT_LOCATION_SELECTOR).text();
+        String ticketUrl = BASE_URL + doc.select(EVENT_LINK_SELECTOR).attr("href");
+        String imageUrl = doc.select(".event-image img").attr("src");
+        
+        if (title.isEmpty() || ticketUrl.equals(BASE_URL)) {
             return null;
         }
-    }
-
-    public static EventType categoryToEventType(BiletinoCategory category) {
-        switch (category) {
-            case MUSIC:    return EventType.CONCERT;
-            case THEATRE:  return EventType.THEATER;
-            case COMEDY:   return EventType.STANDUP;
-            default:       return EventType.CONCERT;
+        
+        String[] locationParts = parseLocation(location);
+        String venueName = locationParts[0];
+        String cityName = locationParts[1];
+        
+        EventType eventType = categoryToEventType(category);
+        LocalDate parsedDate = parseDate(dateStr);
+        
+        if (parsedDate == null) {
+            logger.fine("Failed to parse date: " + dateStr + " for event: " + title);
         }
+        
+        return ScrapedEventData.builder()
+            .title(title)
+            .rawDateString(dateStr)
+            .startDate(parsedDate)
+            .venueName(venueName)
+            .location(location)
+            .city(ScrapedEventData.normalizeCity(cityName))
+            .ticketUrl(ticketUrl)
+            .imageUrl(imageUrl)
+            .eventType(eventType)
+            .source(EventSourceType.BILETINO)
+            .build();
     }
 
-
-    private EventInfo extractCardInfoFromHtml(Document doc) {
-        return EventInfo.builder()
-                .title(doc.select(EVENT_TITLE_SELECTOR).text())
-                .dateStr(doc.select(EVENT_DATE_SELECTOR).text())
-                .location(doc.select(EVENT_LOCATION_SELECTOR).text())
-                .ticketUrl(BASE_URL + doc.select(EVENT_LINK_SELECTOR).attr("href"))
-                .build();
-    }
-
-    private LocalDate extractStartDateTime(String dateStr) {
-        if (dateStr == null || dateStr.isEmpty()) return null;
-        String[] parts = dateStr.split("-");
-        String startPart = parts[0].trim();
-        try {
-            String[] tokens = startPart.split(" ");
-            if (tokens.length >= 5) {
-                String day = tokens[0];
-                String month = tokens[1];
-                String year = tokens[2];
-                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.ENGLISH);
-                return LocalDate.parse(String.format("%s %s %s", day, month, year), formatter);
-            } else if (tokens.length >= 4) {
-                String day = tokens[0];
-                String month = tokens[1];
-                String year = tokens[2];
-                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.ENGLISH);
-                return LocalDate.parse(String.format("%s %s %s", day, month, year), formatter);
-            }
-        } catch (Exception e) {
-            return null;
-        }
-        return null;
-    }
-
-    public static String extractDate(String input) {
-        String part = input.contains("-") ? input.split("-")[0].trim() : input.trim();
-        String[] tokens = part.split(" ");
-        if (tokens.length < 3) return null;
-        String day = tokens[0];
-        String month = tokens[1];
-        String year = tokens[2];
-        String dateString = String.format("%s %s %s", day, month, year);
-        Locale systemLocale = Locale.getDefault();
-        DateTimeFormatter inputFormatter = DateTimeFormatter.ofPattern("d MMMM yyyy", systemLocale);
-        try {
-            LocalDate date = LocalDate.parse(dateString, inputFormatter);
-            DateTimeFormatter outputFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-            return date.format(outputFormatter);
-        } catch (DateTimeParseException e) {
-            try {
-                DateTimeFormatter fallbackFormatter = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH);
-                LocalDate date = LocalDate.parse(dateString, fallbackFormatter);
-                DateTimeFormatter outputFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-                return date.format(outputFormatter);
-            } catch (DateTimeParseException ex) {
-                return null;
-            }
-        }
-    }
-
-
-    private String[] processLocationString(String fullLocation) {
+    private String[] parseLocation(String fullLocation) {
         String venueName = "";
-        String location = "";
+        String city = "";
+        
         if (fullLocation != null && !fullLocation.isEmpty()) {
             if (fullLocation.contains(",")) {
                 String[] parts = fullLocation.split(",");
                 venueName = parts[0].trim();
-                StringBuilder locationBuilder = new StringBuilder();
-                for (int i = 1; i < parts.length; i++) {
-                    if (i > 1) locationBuilder.append(", ");
-                    locationBuilder.append(parts[i].trim());
+                if (parts.length > 1) {
+                    city = parts[parts.length - 1].trim();
                 }
-                location = locationBuilder.toString();
             } else {
-                location = fullLocation;
+                city = fullLocation.trim();
             }
         }
-        return new String[]{venueName, location};
+        
+        return new String[]{venueName, city};
+    }
+
+    private LocalDate parseDate(String dateStr) {
+        if (dateStr == null || dateStr.isEmpty()) {
+            return null;
+        }
+        
+        try {
+            String startPart = dateStr.contains("-") ? dateStr.split("-")[0].trim() : dateStr.trim();
+            String[] tokens = startPart.split("\\s+");
+            
+            if (tokens.length >= 2) {
+                String day = tokens[0];
+                String month = tokens[1];
+                int currentYear = LocalDate.now().getYear();
+                
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.ENGLISH);
+                return LocalDate.parse(String.format("%s %s %d", day, month, currentYear), formatter);
+            }
+        } catch (DateTimeParseException e) {
+            logger.log(Level.FINE, "Could not parse date: " + dateStr, e);
+        }
+        
+        return null;
+    }
+
+    private EventType categoryToEventType(BiletinoCategory category) {
+        return switch (category) {
+            case MUSIC -> EventType.CONCERT;
+            case THEATRE -> EventType.THEATER;
+            case COMEDY -> EventType.STANDUP;
+            default -> EventType.CONCERT;
+        };
+    }
+
+    private BiletinoCity parseCity(String city) {
+        return Arrays.stream(BiletinoCity.values())
+                .filter(c -> c.getValue().equalsIgnoreCase(city))
+                .findFirst()
+                .orElse(BiletinoCity.ISTANBUL);
     }
 
     @Override
@@ -536,30 +196,17 @@ public class BiletinoScraper implements EventSource {
     }
 
     @Override
-    public boolean isAvailable() {
-        return true;
-    }
-
-    @Override
     public String getSourceUrl() {
         return BASE_URL;
     }
 
-    private static String normalizeCityName(String city) {
-        if (city == null) return null;
-        String normalized = city.trim().toLowerCase(Locale.ROOT)
-            .replace('ı', 'i')
-            .replace('ğ', 'g')
-            .replace('ü', 'u')
-            .replace('ş', 's')
-            .replace('ö', 'o')
-            .replace('ç', 'c')
-            .replace('İ', 'i')
-            .replace('Ğ', 'g')
-            .replace('Ü', 'u')
-            .replace('Ş', 's')
-            .replace('Ö', 'o')
-            .replace('Ç', 'c');
-        return normalized;
+    @Override
+    public EventSourceType getEventSourceType() {
+        return EventSourceType.BILETINO;
+    }
+
+    @Override
+    protected String getDefaultCity() {
+        return BiletinoCity.ISTANBUL.getValue();
     }
 }

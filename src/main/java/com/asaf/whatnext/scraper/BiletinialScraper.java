@@ -1,265 +1,147 @@
 package com.asaf.whatnext.scraper;
 
+import com.asaf.whatnext.config.BiletinialScraperConfig;
 import com.asaf.whatnext.enums.Biletinial.BiletinialCategory;
 import com.asaf.whatnext.enums.Biletinial.BiletinialCity;
 import com.asaf.whatnext.enums.EventSourceType;
 import com.asaf.whatnext.enums.EventType;
-import com.asaf.whatnext.enums.PerformanceType;
-import com.asaf.whatnext.models.*;
-import com.asaf.whatnext.services.ArtistService;
-import com.asaf.whatnext.services.CloudinaryService;
-import com.asaf.whatnext.services.ConcertEventService;
-import com.asaf.whatnext.services.TheaterEventService;
-import com.asaf.whatnext.services.VenueService;
 import com.asaf.whatnext.utils.WebScraperUtils;
-import org.openqa.selenium.*;
-import org.openqa.selenium.support.ui.WebDriverWait;
+import org.openqa.selenium.By;
+import org.openqa.selenium.WebElement;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import com.asaf.whatnext.config.BiletinialScraperConfig;
 
-import java.time.Duration;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.logging.Level;
-import java.util.logging.Logger;
-import java.io.InputStream;
-import java.util.Base64;
-import java.util.UUID;
 
 @Service
-public class BiletinialScraper implements EventSource {
-    private static final Logger LOGGER = Logger.getLogger(BiletinialScraper.class.getName());
-    private static final String CHROME_PATH = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
-    private static final int WAIT_TIMEOUT = 60;
+public class BiletinialScraper extends BaseScraper {
+
     private static final String BASE_URL = "https://biletinial.com";
-    private static final String SEARCH_URL_TEMPLATE = "%s/tr-tr/%s/%s?date=%s&filmtypeid=0&loc=0&thisweekend=";
+    private static final String SEARCH_URL_TEMPLATE = "%s/tr-tr/%s/%s?date=%s&enddate=%s";
     private static final String EVENT_CARD_SELECTOR = "#kategori__etkinlikler li";
     private static final String TITLE_SELECTOR = "h3 a";
     private static final String DATE_SELECTOR = "span";
     private static final String LOCATION_SELECTOR = "address";
-    private static final String HREF_ATTRIBUTE = "href";
-    private static final String SMALL_TAG = "<small>";
-    private static final String SMALL_TAG_CLOSE = "</small>";
-    private static final String DATE_SEPARATOR = " - ";
     private static final String IMAGE_SELECTOR = "img[src*='merlincdn.net']";
-
-    private final BiletinialCity city = BiletinialCity.ISTANBUL;
-
-    private final ConcertEventService concertEventService;
-    private final TheaterEventService theaterEventService;
-    private final ArtistService artistService;
-    private final VenueService venueService;
-    private final CloudinaryService cloudinaryService;
+    
     private final BiletinialScraperConfig config;
-    private WebDriver driver;
-    private WebDriverWait wait;
 
     @Autowired
-    public BiletinialScraper(ConcertEventService concertEventService,
-                           TheaterEventService theaterEventService,
-                           ArtistService artistService,
-                           VenueService venueService,
-                           CloudinaryService cloudinaryService,
-                           BiletinialScraperConfig config) {
-        this.concertEventService = concertEventService;
-        this.theaterEventService = theaterEventService;
-        this.artistService = artistService;
-        this.venueService = venueService;
-        this.cloudinaryService = cloudinaryService;
+    public BiletinialScraper(BiletinialScraperConfig config) {
+        super(config.getChromePath(), config.getWaitTimeoutSeconds(), BiletinialScraper.class);
         this.config = config;
     }
 
-    private void initializeBrowser() {
-        this.driver = WebScraperUtils.initializeBrowser(config.getChromePath(), config.getWaitTimeoutSeconds());
-        this.wait = new WebDriverWait(driver, Duration.ofSeconds(config.getWaitTimeoutSeconds()));
-    }
-
-    private void closeBrowser() {
-        if (driver != null) {
-            WebScraperUtils.closeBrowser(driver);
+    @Override
+    public List<ScrapedEventData> scrapeEvents(String city) {
+        logger.info("Scraping events from Biletinial for city: " + city);
+        
+        BiletinialCity selectedCity = parseCity(city);
+        
+        List<CategoryScraper> scrapers = new ArrayList<>();
+        
+        if (selectedCity == BiletinialCity.ISTANBUL) {
+            scrapers.addAll(Arrays.asList(
+                (driver, wait) -> scrapeCategory(BiletinialCategory.THEATRE, "istanbul-anadolu"),
+                (driver, wait) -> scrapeCategory(BiletinialCategory.MUSIC, "istanbul-anadolu"),
+                (driver, wait) -> scrapeCategory(BiletinialCategory.STANDUP, "istanbul-anadolu"),
+                (driver, wait) -> scrapeCategory(BiletinialCategory.THEATRE, "istanbul-avrupa"),
+                (driver, wait) -> scrapeCategory(BiletinialCategory.MUSIC, "istanbul-avrupa"),
+                (driver, wait) -> scrapeCategory(BiletinialCategory.STANDUP, "istanbul-avrupa")
+            ));
+        } else {
+            scrapers.addAll(Arrays.asList(
+                (driver, wait) -> scrapeCategory(BiletinialCategory.THEATRE, selectedCity.getValue()),
+                (driver, wait) -> scrapeCategory(BiletinialCategory.MUSIC, selectedCity.getValue()),
+                (driver, wait) -> scrapeCategory(BiletinialCategory.STANDUP, selectedCity.getValue())
+            ));
         }
+        
+        List<ScrapedEventData> allData = scrapeForCategories(scrapers);
+        logger.info("Scraped " + allData.size() + " events from Biletinial");
+        
+        long validCount = allData.stream().filter(ScrapedEventData::isValid).count();
+        logger.info("Valid events: " + validCount + "/" + allData.size());
+        
+        return allData;
     }
 
-    @Override
-    public List<Event> fetchEvents() {
-        return fetchEvents(BiletinialCity.ISTANBUL.getValue());
-    }
-
-    @Override
-    public List<Event> fetchEvents(String city) {
-        List<Event> allEvents = new ArrayList<>();
-        try {
-            BiletinialCity selectedCity = Arrays.stream(BiletinialCity.values())
-                    .filter(c -> c.getValue().equalsIgnoreCase(city))
-                    .findFirst()
-                    .orElse(BiletinialCity.ISTANBUL);
-
-            allEvents.addAll(processCategory(BiletinialCategory.THEATRE, selectedCity));
-            allEvents.addAll(processCategory(BiletinialCategory.MUSIC, selectedCity));
-            allEvents.addAll(processCategory(BiletinialCategory.STANDUP, selectedCity));
-        } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Error fetching events from Biletinial", e);
-        }
-        return allEvents;
-    }
-
-    @Override
-    public List<Event> fetchEvents(String city, java.time.LocalDate startDate, java.time.LocalDate endDate) {
-        List<Event> allEvents = new ArrayList<>();
-        BiletinialCity selectedCity = java.util.Arrays.stream(BiletinialCity.values())
-                .filter(c -> c.getValue().equalsIgnoreCase(city))
-                .findFirst()
-                .orElse(BiletinialCity.ISTANBUL);
-        for (BiletinialCategory category : BiletinialCategory.values()) {
+    private List<ScrapedEventData> scrapeCategory(BiletinialCategory category, String cityValue) {
+        List<ScrapedEventData> events = new ArrayList<>();
+        LocalDate today = LocalDate.now();
+        
+        for (int i = 0; i < 7; i++) {
+            LocalDate date = today.plusDays(i);
+            String dateStr = date.format(DateTimeFormatter.ofPattern("dd-MM-yyyy"));
+            
+            String searchUrl = String.format(SEARCH_URL_TEMPLATE, BASE_URL, category.getValue(), cityValue, dateStr, dateStr);
+            
             try {
-                initializeBrowser();
-                java.time.LocalDate current = startDate;
-                while (!current.isAfter(endDate)) {
-                    String dateStr = current.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd"));
-                    String searchUrl = buildSearchUrl(category, dateStr, selectedCity);
-                    List<Event> dateEvents = fetchEventsByDate(searchUrl, category);
-                    allEvents.addAll(dateEvents);
-                    current = current.plusDays(1);
-                }
-            } catch (Exception e) {
-                LOGGER.log(java.util.logging.Level.SEVERE, "Error processing category: " + category.name(), e);
-            } finally {
-                closeBrowser();
-            }
-        }
-        return allEvents;
-    }
-
-    @Override
-    public List<Event> fetchEvents(java.time.LocalDate startDate, java.time.LocalDate endDate) {
-        return fetchEvents(BiletinialCity.ISTANBUL.getValue(), startDate, endDate);
-    }
-
-    public List<Event> processCategory(BiletinialCategory category) {
-        return processCategory(category, BiletinialCity.ISTANBUL);
-    }
-
-    public List<Event> processCategory(BiletinialCategory category, BiletinialCity city) {
-        List<Event> events = new ArrayList<>();
-        try {
-            initializeBrowser();
-            LOGGER.info("Processing category: " + category.name() + " for city: " + city.getValue());
-            
-            LocalDate today = LocalDate.now();
-            for (int i = 0; i < 7; i++) {
-                LocalDate date = today.plusDays(i);
-                String dateStr = date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
-                String searchUrl = buildSearchUrl(category, dateStr, city);
+                WebScraperUtils.navigateToUrl(driver, wait, searchUrl);
                 
-                LOGGER.info("Fetching events for date: " + dateStr);
-                List<Event> dateEvents = fetchEventsByDate(searchUrl, category);
-                events.addAll(dateEvents);
-            }
-            
-            LOGGER.info("Processed " + events.size() + " events for category: " + category.name());
-        } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Error processing category: " + category.name(), e);
-        } finally {
-            closeBrowser();
-        }
-        return events;
-    }
-
-    private String buildSearchUrl(BiletinialCategory category, String date) {
-        return buildSearchUrl(category, date, BiletinialCity.ISTANBUL);
-    }
-
-    private String buildSearchUrl(BiletinialCategory category, String date, BiletinialCity city) {
-        return String.format(SEARCH_URL_TEMPLATE, BASE_URL, category.getValue(), city.getValue(), date);
-    }
-
-    private List<Event> fetchEventsByDate(String searchUrl, BiletinialCategory category) {
-        List<Event> events = new ArrayList<>();
-        try {
-            WebScraperUtils.navigateToUrl(driver, wait, searchUrl);
-            List<WebElement> eventCards = driver.findElements(By.cssSelector(EVENT_CARD_SELECTOR));
-            
-            for (WebElement card : eventCards) {
-                try {
-                    Event event = extractEventFromCard(card, category);
-                    if (event != null) {
-                        events.add(event);
+                List<WebElement> cards = driver.findElements(By.cssSelector(EVENT_CARD_SELECTOR));
+                
+                for (WebElement card : cards) {
+                    try {
+                        ScrapedEventData data = extractFromCard(card, category, date);
+                        if (data != null && data.isValid()) {
+                            events.add(data);
+                        }
+                    } catch (Exception e) {
+                        logger.log(Level.FINE, "Error extracting card", e);
                     }
-                } catch (Exception e) {
-                    LOGGER.log(Level.WARNING, "Error processing event card", e);
                 }
+                
+                checkAndRestartBrowserIfNeeded();
+                
+            } catch (Exception e) {
+                logger.log(Level.WARNING, "Error scraping date: " + date, e);
             }
-        } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Error fetching events for URL: " + searchUrl, e);
         }
+        
         return events;
     }
 
-    private Event extractEventFromCard(WebElement card, BiletinialCategory category) {
+    private ScrapedEventData extractFromCard(WebElement card, BiletinialCategory category, LocalDate date) {
         try {
             String title = card.findElement(By.cssSelector(TITLE_SELECTOR)).getText();
-            String dateStr = card.findElement(By.cssSelector(DATE_SELECTOR)).getText();
             WebElement addressElement = card.findElement(By.cssSelector(LOCATION_SELECTOR));
 
             String city = addressElement.findElement(By.cssSelector("b")).getText();
             if (city != null && city.toLowerCase().contains("stanbul")) {
                 city = "istanbul";
             }
-            String venue = addressElement.findElement(By.cssSelector("small")).getText();
-
-            System.out.println("City: " + city);
-            System.out.println("Venue: " + venue);
-
-            String ticketUrl = card.findElement(By.cssSelector(TITLE_SELECTOR)).getAttribute(HREF_ATTRIBUTE);
+            String venueName = addressElement.findElement(By.cssSelector("small")).getText();
+            String ticketUrl = BASE_URL + card.findElement(By.cssSelector(TITLE_SELECTOR)).getAttribute("href");
             
-            if (title.isEmpty() || dateStr.isEmpty()) {
+            String imageUrl = null;
+            try {
+                imageUrl = card.findElement(By.cssSelector(IMAGE_SELECTOR)).getAttribute("src");
+            } catch (Exception ignored) {}
+            
+            if (title.isEmpty()) {
                 return null;
             }
 
             EventType eventType = determineEventType(title, category);
-            Event event = createEvent(eventType, title, dateStr, city, venue, ticketUrl);
             
-            try {
-                WebElement imgElement = card.findElement(By.cssSelector(IMAGE_SELECTOR));
-                String imageUrl = imgElement.getAttribute("src");
-                if (imageUrl != null && !imageUrl.isEmpty()) {
-                    String cloudinaryUrl = uploadImageUrlToCloudinary(imageUrl, title);
-                    if (cloudinaryUrl != null) {
-                        event.setImage(null, "image/jpeg", cloudinaryUrl);
-                    }
-                }
-            } catch (Exception e) {
-                LOGGER.log(Level.WARNING, "Error extracting image from card", e);
-            }
-            
-            return event;
+            return ScrapedEventData.builder()
+                .title(title)
+                .rawDateString(date.toString())
+                .startDate(date)
+                .venueName(venueName)
+                .location(venueName)
+                .city(ScrapedEventData.normalizeCity(city))
+                .ticketUrl(ticketUrl)
+                .imageUrl(imageUrl)
+                .eventType(eventType)
+                .source(EventSourceType.BILETINIAL)
+                .build();
+                
         } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Error extracting event from card", e);
-            return null;
-        }
-    }
-
-    private String downloadImageAsBase64(String imageUrl) {
-        try {
-            try (InputStream in = new java.net.URL(imageUrl).openStream()) {
-                byte[] imageBytes = in.readAllBytes();
-                return Base64.getEncoder().encodeToString(imageBytes);
-            }
-        } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Error downloading image: " + imageUrl, e);
-            return null;
-        }
-    }
-
-    private String uploadImageUrlToCloudinary(String imageUrl, String eventTitle) {
-        try {
-            String fileName = "biletinial_" + UUID.randomUUID().toString().replace("-", "");
-            Map<String, Object> uploadResult = cloudinaryService.uploadImageFromUrl(imageUrl, "events/biletinial", fileName);
-            return cloudinaryService.getImageUrl(uploadResult);
-        } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Error uploading image to Cloudinary for event: " + eventTitle, e);
             return null;
         }
     }
@@ -267,96 +149,19 @@ public class BiletinialScraper implements EventSource {
     private EventType determineEventType(String title, BiletinialCategory category) {
         String lowerTitle = title.toLowerCase();
         return switch (category) {
-            case THEATRE -> lowerTitle.contains("stand") ||  lowerTitle.contains("stand-up") ? EventType.STANDUP : EventType.THEATER;
+            case THEATRE -> lowerTitle.contains("stand") || lowerTitle.contains("stand-up") 
+                ? EventType.STANDUP : EventType.THEATER;
             case MUSIC -> EventType.CONCERT;
             case STANDUP -> EventType.STANDUP;
             default -> EventType.THEATER;
         };
     }
 
-    private Event createEvent(EventType eventType, String title, String dateStr, String city, String venueName, String ticketUrl) {
-        Event event = null;
-        Venue venue = null;
-
-
-        if (venueName != null && !venueName.isEmpty()) {
-            venue = venueService.findByName(venueName);
-            if (venue == null) {
-                venue = new Venue();
-                venue.setName(venueName);
-                venue.setLocation(venueName);
-                if(city != null && city.toLowerCase().contains(BiletinialCity.ISTANBUL.getValue())) {
-                    venue.setCity(BiletinialCity.ISTANBUL.getValue());
-                } else {
-                    venue.setCity(city);
-                }
-
-                venue = venueService.save(venue);
-            }
-        }
-
-        switch (eventType) {
-            case CONCERT:
-                ConcertEvent concert = new ConcertEvent();
-                concert.setTitle(title);
-                concert.setStartDate(parseDate(dateStr));
-                concert.setSource(EventSourceType.BILETINIAL);
-                concert.setType(eventType);
-                concert.addTicketUrl(ticketUrl);
-                if (venue != null) concert.setVenue(venue);
-                event = concert;
-                break;
-            case THEATER:
-            case STANDUP:
-                PerformingArt theater = new PerformingArt();
-                theater.setTitle(title);
-                theater.setStartDate(parseDate(dateStr));
-                theater.setSource(EventSourceType.BILETINIAL);
-                theater.setType(EventType.PERFORMING_ART);
-                theater.setPerformanceType(eventType == EventType.STANDUP ? PerformanceType.STANDUP : PerformanceType.THEATER);
-                theater.addTicketUrl(ticketUrl);
-                if (venue != null) theater.setVenue(venue);
-                event = theater;
-                break;
-            default:
-                return null;
-        }
-        event.setCity(Objects.requireNonNull(venue).getCity());
-        event.setVenue(venue);
-        return event;
-    }
-
-    private LocalDate parseDate(String dateStr) {
-        try {
-            String[] parts = dateStr.split(DATE_SEPARATOR);
-            if (parts.length >= 2) {
-                String month = parts[0].trim();
-                int day = Integer.parseInt(parts[1].trim());
-                int year = LocalDate.now().getYear();
-                int monthNum = getMonthNumber(month);
-                return LocalDate.of(year, monthNum, day);
-            }
-        } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Error parsing date: " + dateStr, e);
-        }
-        return null;
-    }
-
-    private int getMonthNumber(String month) {
-        Map<String, Integer> months = new HashMap<>();
-        months.put("Ocak", 1);
-        months.put("Şubat", 2);
-        months.put("Mart", 3);
-        months.put("Nisan", 4);
-        months.put("Mayıs", 5);
-        months.put("Haziran", 6);
-        months.put("Temmuz", 7);
-        months.put("Ağustos", 8);
-        months.put("Eylül", 9);
-        months.put("Ekim", 10);
-        months.put("Kasım", 11);
-        months.put("Aralık", 12);
-        return months.getOrDefault(month, 1);
+    private BiletinialCity parseCity(String city) {
+        return Arrays.stream(BiletinialCity.values())
+                .filter(c -> c.getValue().equalsIgnoreCase(city))
+                .findFirst()
+                .orElse(BiletinialCity.ISTANBUL);
     }
 
     @Override
@@ -365,23 +170,17 @@ public class BiletinialScraper implements EventSource {
     }
 
     @Override
-    public boolean isAvailable() {
-        try {
-            driver = WebScraperUtils.initializeBrowser(config.getChromePath(), config.getWaitTimeoutSeconds());
-            driver.get(BASE_URL);
-            boolean available = driver.getTitle().contains("Biletinial");
-            WebScraperUtils.closeBrowser(driver);
-            return available;
-        } catch (Exception e) {
-            if (driver != null) {
-                WebScraperUtils.closeBrowser(driver);
-            }
-            return false;
-        }
-    }
-
-    @Override
     public String getSourceUrl() {
         return BASE_URL;
     }
-} 
+
+    @Override
+    public EventSourceType getEventSourceType() {
+        return EventSourceType.BILETINIAL;
+    }
+
+    @Override
+    protected String getDefaultCity() {
+        return BiletinialCity.ISTANBUL.getValue();
+    }
+}

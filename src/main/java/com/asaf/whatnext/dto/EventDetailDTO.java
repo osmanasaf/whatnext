@@ -22,7 +22,6 @@ public class EventDetailDTO {
     private String imageUrl;
     private String imageSourceUrl;
     
-    // İlişkili entity'lerin ID'leri
     private Long venueId;
     private Long artistId;
     private Long directorId;

@@ -71,7 +71,6 @@ public class ScraperController {
             LocalDate start = startDate != null ? LocalDate.parse(startDate) : today;
             LocalDate end = endDate != null ? LocalDate.parse(endDate) : start.plusDays(6);
             
-            // Bugünden eski tarih kontrolü
             if (start.isBefore(today)) {
                 return ResponseEntity.badRequest().body("Başlangıç tarihi bugünden daha eski olamaz. Bugün: " + today);
             }

@@ -57,7 +57,6 @@ public class EventMapper {
             dto.setImageSourceUrl(event.getEventImage().getImageSourceUrl());
         }
         
-        // Event tipine göre ilişkili entity ID'lerini set et
         if (event instanceof ConcertEvent) {
             ConcertEvent concertEvent = (ConcertEvent) event;
             if (concertEvent.getArtist() != null) {

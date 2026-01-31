@@ -1,248 +1,134 @@
 package com.asaf.whatnext.scraper;
 
-import com.asaf.whatnext.models.Event;
-import com.asaf.whatnext.services.EventService;
-import com.asaf.whatnext.scraper.BiletinialScraper;
-import com.asaf.whatnext.scraper.BiletinoScraper;
-import com.asaf.whatnext.scraper.EventSource;
+import com.asaf.whatnext.services.EventSaveService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
+import java.time.LocalDate;
 import java.util.List;
-
-import com.asaf.whatnext.models.ConcertEvent;
-import com.asaf.whatnext.models.PerformingArt;
-import com.asaf.whatnext.models.ExhibitionEvent;
-import com.asaf.whatnext.services.ConcertEventService;
-import com.asaf.whatnext.services.ArtistService;
-import com.asaf.whatnext.services.VenueService;
-import com.asaf.whatnext.services.TheaterEventService;
-import com.asaf.whatnext.services.ExhibitionEventService;
-import com.asaf.whatnext.utils.EventUtils;
 
 @Service
 public class EventScraperService {
+    
     private static final Logger LOGGER = LoggerFactory.getLogger(EventScraperService.class);
 
     private final List<EventSource> scrapers;
-    private final EventService eventService;
-    private final ConcertEventService concertEventService;
-    private final ArtistService artistService;
-    private final VenueService venueService;
-    private final TheaterEventService theaterEventService;
-    private final ExhibitionEventService exhibitionEventService;
+    private final EventSaveService eventSaveService;
 
     @Autowired
     public EventScraperService(
-            BiletixScraper biletixScraper,
-            BiletinoScraper biletinoScraper,
-            BiletinialScraper biletinialScraper,
-            EventService eventService,
-            ConcertEventService concertEventService,
-            ArtistService artistService,
-            VenueService venueService,
-            TheaterEventService theaterEventService,
-            ExhibitionEventService exhibitionEventService) {
-        this.scrapers = new ArrayList<>();
-        this.scrapers.add(biletinialScraper);
-        this.scrapers.add(biletinoScraper);
-        this.scrapers.add(biletixScraper);
-        this.eventService = eventService;
-        this.concertEventService = concertEventService;
-        this.artistService = artistService;
-        this.venueService = venueService;
-        this.theaterEventService = theaterEventService;
-        this.exhibitionEventService = exhibitionEventService;
-    }
-
-    public void scrapeAllEvents() {
-        scrapeAllEvents(null);
+            List<EventSource> scrapers,
+            EventSaveService eventSaveService) {
+        this.scrapers = scrapers;
+        this.eventSaveService = eventSaveService;
+        LOGGER.info("EventScraperService initialized with {} scrapers", scrapers.size());
     }
 
     public void scrapeAllEvents(String city) {
-        LOGGER.info("Starting event scraping process{}...", city != null ? " for city: " + city : "");
+        LOGGER.info("Starting scrape for all sources{}", city != null ? " for city: " + city : "");
         
         for (EventSource scraper : scrapers) {
-            try {
-                LOGGER.info("Starting scraper: {}", scraper.getSourceName());
-                
-                if (!scraper.isAvailable()) {
-                    LOGGER.warn("Scraper {} is not available, skipping...", scraper.getSourceName());
-                    continue;
-                }
-
-                List<Event> events = city != null ? scraper.fetchEvents(city) : scraper.fetchEvents();
-                LOGGER.info("Found {} events from {}", events.size(), scraper.getSourceName());
-
-                for (Event event : events) {
-                    try {
-                        if (event instanceof ConcertEvent) {
-                            EventUtils.saveConcertEventWithDuplicateChecking((ConcertEvent) event, concertEventService, artistService, venueService);
-                        } else if (event instanceof PerformingArt) {
-                            EventUtils.savePerformingArtWithDuplicateChecking((PerformingArt) event, theaterEventService);
-                        } else if (event instanceof ExhibitionEvent) {
-                            EventUtils.saveExhibitionEventWithDuplicateChecking((ExhibitionEvent) event, exhibitionEventService);
-                        } else {
-                            eventService.save(event);
-                            LOGGER.warn("Unknown event type, saved directly: {} from {}", event.getTitle(), scraper.getSourceName());
-                        }
-                        LOGGER.debug("Saved event: {} from {}", event.getTitle(), scraper.getSourceName());
-                    } catch (Exception e) {
-                        LOGGER.error("Error saving event {} from {}: {}", 
-                            event.getTitle(), scraper.getSourceName(), e.getMessage());
-                    }
-                }
-
-                LOGGER.info("Completed scraper: {}", scraper.getSourceName());
-            } catch (Exception e) {
-                LOGGER.error("Error in scraper {}: {}", scraper.getSourceName(), e.getMessage());
-            }
+            scrapeAndSave(scraper, city);
         }
         
-        LOGGER.info("Completed event scraping process");
+        LOGGER.info("Completed scraping all sources");
     }
 
-    public void scrapeAllEvents(String city, java.time.LocalDate startDate, java.time.LocalDate endDate) {
-        // Bugünden eski tarih kontrolü
-        java.time.LocalDate today = java.time.LocalDate.now();
-        if (startDate.isBefore(today)) {
-            throw new IllegalArgumentException("Başlangıç tarihi bugünden daha eski olamaz. Bugün: " + today + ", Verilen tarih: " + startDate);
-        }
-        if (endDate.isBefore(today)) {
-            throw new IllegalArgumentException("Bitiş tarihi bugünden daha eski olamaz. Bugün: " + today + ", Verilen tarih: " + endDate);
-        }
+    public void scrapeAllEvents(String city, LocalDate startDate, LocalDate endDate) {
+        validateDateRange(startDate, endDate);
         
-        LOGGER.info("Starting event scraping process for city: {} and date range: {} - {}", city, startDate, endDate);
+        LOGGER.info("Starting scrape for all sources, city: {}, dates: {} - {}", city, startDate, endDate);
+        
         for (EventSource scraper : scrapers) {
-            try {
-                LOGGER.info("Starting scraper: {}", scraper.getSourceName());
-                if (!scraper.isAvailable()) {
-                    LOGGER.warn("Scraper {} is not available, skipping...", scraper.getSourceName());
-                    continue;
-                }
-                java.util.List<Event> events = scraper.fetchEvents(city, startDate, endDate);
-                LOGGER.info("Found {} events from {}", events.size(), scraper.getSourceName());
-                for (Event event : events) {
-                    try {
-                        if (event instanceof ConcertEvent) {
-                            EventUtils.saveConcertEventWithDuplicateChecking((ConcertEvent) event, concertEventService, artistService, venueService);
-                        } else if (event instanceof PerformingArt) {
-                            EventUtils.savePerformingArtWithDuplicateChecking((PerformingArt) event, theaterEventService);
-                        } else if (event instanceof ExhibitionEvent) {
-                            EventUtils.saveExhibitionEventWithDuplicateChecking((ExhibitionEvent) event, exhibitionEventService);
-                        } else {
-                            eventService.save(event);
-                            LOGGER.warn("Unknown event type, saved directly: {} from {}", event.getTitle(), scraper.getSourceName());
-                        }
-                        LOGGER.debug("Saved event: {} from {}", event.getTitle(), scraper.getSourceName());
-                    } catch (Exception e) {
-                        LOGGER.error("Error saving event {} from {}: {}", event.getTitle(), scraper.getSourceName(), e.getMessage());
-                    }
-                }
-                LOGGER.info("Completed scraper: {}", scraper.getSourceName());
-            } catch (Exception e) {
-                LOGGER.error("Error in scraper {}: {}", scraper.getSourceName(), e.getMessage());
-            }
+            scrapeAndSave(scraper, city, startDate, endDate);
         }
-        LOGGER.info("Completed event scraping process");
-    }
-
-    public void scrapeEventsBySource(String sourceName) {
-        scrapeEventsBySource(sourceName, null);
+        
+        LOGGER.info("Completed scraping all sources");
     }
 
     public void scrapeEventsBySource(String sourceName, String city) {
-        LOGGER.info("Starting event scraping for source: {}{}", 
-            sourceName, city != null ? " in city: " + city : "");
-        
-        EventSource targetScraper = scrapers.stream()
-                .filter(scraper -> scraper.getSourceName().equalsIgnoreCase(sourceName))
-                .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Scraper not found: " + sourceName));
+        EventSource scraper = findScraper(sourceName);
+        scrapeAndSave(scraper, city);
+    }
 
+    public void scrapeEventsBySource(String sourceName, String city, LocalDate startDate, LocalDate endDate) {
+        validateDateRange(startDate, endDate);
+        
+        EventSource scraper = findScraper(sourceName);
+        scrapeAndSave(scraper, city, startDate, endDate);
+    }
+
+    private void scrapeAndSave(EventSource scraper, String city) {
+        String name = scraper.getSourceName();
+        LOGGER.info("Starting: {}", name);
+        
         try {
-            if (!targetScraper.isAvailable()) {
-                LOGGER.warn("Scraper {} is not available", sourceName);
+            if (!scraper.isAvailable()) {
+                LOGGER.warn("{} is not available", name);
                 return;
             }
 
-            List<Event> events = city != null ? targetScraper.fetchEvents(city) : targetScraper.fetchEvents();
-            LOGGER.info("Found {} events from {}", events.size(), sourceName);
-
-            for (Event event : events) {
-                try {
-                    if (event instanceof ConcertEvent) {
-                        EventUtils.saveConcertEventWithDuplicateChecking((ConcertEvent) event, concertEventService, artistService, venueService);
-                    } else if (event instanceof PerformingArt) {
-                        EventUtils.savePerformingArtWithDuplicateChecking((PerformingArt) event, theaterEventService);
-                    } else if (event instanceof ExhibitionEvent) {
-                        EventUtils.saveExhibitionEventWithDuplicateChecking((ExhibitionEvent) event, exhibitionEventService);
-                    } else {
-                        eventService.save(event);
-                        LOGGER.warn("Unknown event type, saved directly: {} from {}", event.getTitle(), sourceName);
-                    }
-                    LOGGER.debug("Saved event: {} from {}", event.getTitle(), sourceName);
-                } catch (Exception e) {
-                    LOGGER.error("Error saving event {} from {}: {}", 
-                        event.getTitle(), sourceName, e.getMessage());
-                }
-            }
-
-            LOGGER.info("Completed scraping for source: {}", sourceName);
+            List<ScrapedEventData> data = city != null 
+                ? scraper.scrapeEvents(city) 
+                : scraper.scrapeEvents();
+            
+            LOGGER.info("{} returned {} events", name, data.size());
+            
+            int saved = eventSaveService.saveAll(data);
+            LOGGER.info("{}: saved {}/{} events", name, saved, data.size());
+            
         } catch (Exception e) {
-            LOGGER.error("Error in scraper {}: {}", sourceName, e.getMessage());
+            LOGGER.error("Error in {}: {}", name, e.getMessage(), e);
         }
     }
 
-    public void scrapeEventsBySource(String sourceName, String city, java.time.LocalDate startDate, java.time.LocalDate endDate) {
-        // Bugünden eski tarih kontrolü
-        java.time.LocalDate today = java.time.LocalDate.now();
-        if (startDate.isBefore(today)) {
-            throw new IllegalArgumentException("Başlangıç tarihi bugünden daha eski olamaz. Bugün: " + today + ", Verilen tarih: " + startDate);
-        }
-        if (endDate.isBefore(today)) {
-            throw new IllegalArgumentException("Bitiş tarihi bugünden daha eski olamaz. Bugün: " + today + ", Verilen tarih: " + endDate);
-        }
-        
-        LOGGER.info("Starting event scraping for source: {} in city: {} and date range: {} - {}", sourceName, city, startDate, endDate);
-        EventSource targetScraper = scrapers.stream()
-                .filter(scraper -> scraper.getSourceName().equalsIgnoreCase(sourceName))
-                .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Scraper not found: " + sourceName));
+    private void scrapeAndSave(EventSource scraper, String city, LocalDate startDate, LocalDate endDate) {
+        String name = scraper.getSourceName();
+        LOGGER.info("Starting: {} for dates {} - {}", name, startDate, endDate);
         
         try {
-            if (!targetScraper.isAvailable()) {
-                LOGGER.warn("Scraper {} is not available", sourceName);
-                throw new RuntimeException("Scraper " + sourceName + " is not available. Please check Chrome installation and network connectivity.");
+            if (!scraper.isAvailable()) {
+                LOGGER.warn("{} is not available", name);
+                throw new RuntimeException(name + " is not available");
             }
+
+            List<ScrapedEventData> data = scraper.scrapeEvents(city, startDate, endDate);
             
-            java.util.List<Event> events = targetScraper.fetchEvents(city, startDate, endDate);
-            LOGGER.info("Found {} events from {}", events.size(), sourceName);
+            LOGGER.info("{} returned {} events", name, data.size());
             
-            for (Event event : events) {
-                try {
-                    if (event instanceof ConcertEvent) {
-                        EventUtils.saveConcertEventWithDuplicateChecking((ConcertEvent) event, concertEventService, artistService, venueService);
-                    } else if (event instanceof PerformingArt) {
-                        EventUtils.savePerformingArtWithDuplicateChecking((PerformingArt) event, theaterEventService);
-                    } else if (event instanceof ExhibitionEvent) {
-                        EventUtils.saveExhibitionEventWithDuplicateChecking((ExhibitionEvent) event, exhibitionEventService);
-                    } else {
-                        eventService.save(event);
-                        LOGGER.warn("Unknown event type, saved directly: {} from {}", event.getTitle(), sourceName);
-                    }
-                    LOGGER.debug("Saved event: {} from {}", event.getTitle(), sourceName);
-                } catch (Exception e) {
-                    LOGGER.error("Error saving event {} from {}: {}", event.getTitle(), sourceName, e.getMessage());
-                }
-            }
-            LOGGER.info("Completed scraping for source: {}", sourceName);
+            int saved = eventSaveService.saveAll(data);
+            LOGGER.info("{}: saved {}/{} events", name, saved, data.size());
+            
         } catch (Exception e) {
-            LOGGER.error("Error in scraper {}: {}", sourceName, e.getMessage(), e);
-            throw new RuntimeException("Failed to scrape events from " + sourceName + ": " + e.getMessage(), e);
+            LOGGER.error("Error in {}: {}", name, e.getMessage(), e);
+            throw new RuntimeException("Failed to scrape from " + name + ": " + e.getMessage(), e);
         }
     }
-} 
+
+    private EventSource findScraper(String sourceName) {
+        return scrapers.stream()
+                .filter(s -> s.getSourceName().equalsIgnoreCase(sourceName))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Scraper not found: " + sourceName));
+    }
+
+    private void validateDateRange(LocalDate startDate, LocalDate endDate) {
+        LocalDate today = LocalDate.now();
+        
+        if (startDate.isBefore(today)) {
+            throw new IllegalArgumentException("Start date cannot be before today");
+        }
+        
+        if (endDate.isBefore(startDate)) {
+            throw new IllegalArgumentException("End date cannot be before start date");
+        }
+    }
+
+    public List<String> getAvailableScrapers() {
+        return scrapers.stream()
+                .map(EventSource::getSourceName)
+                .toList();
+    }
+}

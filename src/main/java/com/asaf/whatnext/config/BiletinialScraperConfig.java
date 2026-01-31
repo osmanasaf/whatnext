@@ -2,6 +2,7 @@ package com.asaf.whatnext.config;
 
 import com.asaf.whatnext.enums.Biletinial.BiletinialCategory;
 import com.asaf.whatnext.enums.Biletinial.BiletinialCity;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 
@@ -9,29 +10,14 @@ import java.time.format.DateTimeFormatter;
 
 @Configuration
 public class BiletinialScraperConfig {
-    // URL ve browser ayarları
+    
     public static final String BASE_URL = "https://biletinial.com";
 
-    @Value("${biletinial.chrome.path:}")
-    private String chromePath;
-
-    @Value("${biletinial.wait.timeout:60}")
-    private int waitTimeoutSeconds;
-
-    @Value("${biletinial.scroll.attempts:20}")
-    private int maxScrollAttempts;
-
-    @Value("${biletinial.scroll.wait:2000}")
-    private int scrollWaitMs;
-
-    // Tarih formatları
     public static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd.MM.yyyy");
 
-    // Varsayılan arama parametreleri
     public static final BiletinialCategory DEFAULT_CATEGORY = BiletinialCategory.MUSIC;
     public static final BiletinialCity DEFAULT_CITY = BiletinialCity.ISTANBUL;
 
-    // CSS Selectorlar
     public static final String EVENT_CARD_SELECTOR = "#kategori__etkinlikler li";
     public static final String EVENT_TITLE_SELECTOR = "h3 a";
     public static final String EVENT_DATE_SELECTOR = "span";
@@ -39,24 +25,25 @@ public class BiletinialScraperConfig {
     public static final String EVENT_LINK_SELECTOR = "a";
     public static final String EVENT_IMAGE_SELECTOR = "img[src*='merlincdn.net']";
 
+    private final ScraperConfig scraperConfig;
+    
+    @Value("${biletinial.scroll.attempts:15}")
+    private int maxScrollAttempts;
+    
+    @Value("${biletinial.scroll.wait:1500}")
+    private int scrollWaitMs;
+
+    @Autowired
+    public BiletinialScraperConfig(ScraperConfig scraperConfig) {
+        this.scraperConfig = scraperConfig;
+    }
+
     public String getChromePath() {
-        // Önce environment variable'ı kontrol et
-        String envChromeBin = System.getenv("CHROME_BIN");
-        if (envChromeBin != null && !envChromeBin.isEmpty()) {
-            return envChromeBin;
-        }
-        
-        // Eğer chromePath boşsa veya Windows path'i ise, null döndür
-        // Bu durumda WebDriverManager otomatik olarak Chrome'u bulacak
-        if (chromePath == null || chromePath.isEmpty() || 
-            chromePath.equals("C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe")) {
-            return null;
-        }
-        return chromePath;
+        return scraperConfig.getChromePath();
     }
 
     public int getWaitTimeoutSeconds() {
-        return waitTimeoutSeconds;
+        return scraperConfig.getWaitTimeoutSeconds();
     }
 
     public int getMaxScrollAttempts() {

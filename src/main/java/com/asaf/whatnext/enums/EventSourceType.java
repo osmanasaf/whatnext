@@ -7,5 +7,6 @@ package com.asaf.whatnext.enums;
 public enum EventSourceType {
     BILETIX,
     BILETINO,
-    BILETINIAL
+    BILETINIAL,
+    BUBILET
 }

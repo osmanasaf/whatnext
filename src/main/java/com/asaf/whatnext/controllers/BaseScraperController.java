@@ -1,7 +1,7 @@
 package com.asaf.whatnext.controllers;
 
-import com.asaf.whatnext.models.Event;
 import com.asaf.whatnext.scraper.EventSource;
+import com.asaf.whatnext.scraper.ScrapedEventData;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 
@@ -14,9 +14,9 @@ public abstract class BaseScraperController {
         this.scraper = scraper;
     }
 
-    @GetMapping("/events")
-    public ResponseEntity<List<Event>> getAllEvents() {
-        List<Event> events = scraper.fetchEvents();
+    @GetMapping("/scrape")
+    public ResponseEntity<List<ScrapedEventData>> scrapeEvents() {
+        List<ScrapedEventData> events = scraper.scrapeEvents();
         return ResponseEntity.ok(events);
     }
 
@@ -25,4 +25,4 @@ public abstract class BaseScraperController {
         boolean isAvailable = scraper.isAvailable();
         return ResponseEntity.ok(isAvailable);
     }
-} 
+}

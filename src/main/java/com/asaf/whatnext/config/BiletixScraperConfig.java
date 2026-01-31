@@ -3,6 +3,7 @@ package com.asaf.whatnext.config;
 import com.asaf.whatnext.enums.Biletix.BiletixCategory;
 import com.asaf.whatnext.enums.Biletix.BiletixCity;
 import com.asaf.whatnext.enums.Biletix.BiletixDate;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 
@@ -11,31 +12,16 @@ import java.time.format.DateTimeFormatter;
 
 @Configuration
 public class BiletixScraperConfig {
-    // URL and browser configuration
+    
     public static final String BASE_URL = "https://www.biletix.com";
     
-    @Value("${biletix.chrome.path:}")
-    private String chromePath;
-    
-    @Value("${biletix.wait.timeout:60}")
-    private int waitTimeoutSeconds;
-    
-    @Value("${biletix.load.more.attempts:20}")
-    private int maxLoadMoreAttempts;
-    
-    @Value("${biletix.load.more.wait:2000}")
-    private int loadMoreWaitMs;
-
-    // Date formatters
     public static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd.MM.yyyy");
     public static final DateTimeFormatter SEARCH_RESULT_DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yy");
 
-    // Default search parameters
     public static final BiletixCategory DEFAULT_CATEGORY = BiletixCategory.MUSIC;
     public static final BiletixDate DEFAULT_DATE = BiletixDate.THISWEEK;
     public static final BiletixCity DEFAULT_CITY = BiletixCity.ISTANBUL;
 
-    // CSS Selectors
     public static final String EVENT_CARD_SELECTOR = ".grid_21.alpha.omega.listevent.searchResultEvent";
     public static final String EVENT_TITLE_SELECTOR = ".ln1.searchResultEventName";
     public static final String EVENT_TITLE_MOBILE_SELECTOR = ".searchResultEventNameMobile";
@@ -46,24 +32,25 @@ public class BiletixScraperConfig {
     public static final String EVENT_LOCATION_SELECTOR = ".searchResultCity";
     public static final String LOAD_MORE_BUTTON_SELECTOR = ".search_load_more";
 
+    private final ScraperConfig scraperConfig;
+    
+    @Value("${biletix.load.more.attempts:15}")
+    private int maxLoadMoreAttempts;
+    
+    @Value("${biletix.load.more.wait:1500}")
+    private int loadMoreWaitMs;
+
+    @Autowired
+    public BiletixScraperConfig(ScraperConfig scraperConfig) {
+        this.scraperConfig = scraperConfig;
+    }
+
     public String getChromePath() {
-        // Önce environment variable'ı kontrol et
-        String envChromeBin = System.getenv("CHROME_BIN");
-        if (envChromeBin != null && !envChromeBin.isEmpty()) {
-            return envChromeBin;
-        }
-        
-        // Eğer chromePath boşsa veya Windows path'i ise, null döndür
-        // Bu durumda WebDriverManager otomatik olarak Chrome'u bulacak
-        if (chromePath == null || chromePath.isEmpty() || 
-            chromePath.equals("C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe")) {
-            return null;
-        }
-        return chromePath;
+        return scraperConfig.getChromePath();
     }
 
     public int getWaitTimeoutSeconds() {
-        return waitTimeoutSeconds;
+        return scraperConfig.getWaitTimeoutSeconds();
     }
 
     public int getMaxLoadMoreAttempts() {

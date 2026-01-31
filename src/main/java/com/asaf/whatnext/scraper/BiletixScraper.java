@@ -3,377 +3,206 @@ package com.asaf.whatnext.scraper;
 import com.asaf.whatnext.config.BiletixScraperConfig;
 import com.asaf.whatnext.enums.Biletix.BiletixCategory;
 import com.asaf.whatnext.enums.Biletix.BiletixCity;
-import com.asaf.whatnext.models.ConcertEvent;
-import com.asaf.whatnext.models.Event;
-import com.asaf.whatnext.models.ExhibitionEvent;
-import com.asaf.whatnext.models.PerformingArt;
-import com.asaf.whatnext.services.*;
-import com.asaf.whatnext.utils.EventUtils;
+import com.asaf.whatnext.enums.EventSourceType;
+import com.asaf.whatnext.enums.EventType;
+import com.asaf.whatnext.enums.PerformanceType;
 import com.asaf.whatnext.utils.WebScraperUtils;
-import org.openqa.selenium.*;
-import org.openqa.selenium.support.ui.WebDriverWait;
+import org.openqa.selenium.By;
+import org.openqa.selenium.WebElement;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.time.Duration;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.logging.Level;
-import java.util.logging.Logger;
 
 @Service
-public class BiletixScraper implements EventSource {
-    private static final Logger LOGGER = Logger.getLogger(BiletixScraper.class.getName());
+public class BiletixScraper extends BaseScraper {
 
-    private final TheaterEventService theaterEventService;
-    private final ExhibitionEventService exhibitionEventService;
-    private final ArtistService artistService;
-    private final VenueService venueService;
-    private final ConcertEventService concertEventService;
     private final BiletixScraperConfig config;
-    private final BiletixEventExtractor eventExtractor;
-    private WebDriver driver;
-    private WebDriverWait wait;
 
     @Autowired
-    public BiletixScraper(ConcertEventService concertEventService,
-                          TheaterEventService theaterEventService,
-                          ExhibitionEventService exhibitionEventService,
-                          ArtistService artistService,
-                          VenueService venueService,
-                          BiletixScraperConfig config,
-                          BiletixEventExtractor eventExtractor) {
-        LOGGER.info("Initializing BiletixScraper");
-        this.concertEventService = concertEventService;
-        this.theaterEventService = theaterEventService;
-        this.exhibitionEventService = exhibitionEventService;
-        this.artistService = artistService;
-        this.venueService = venueService;
+    public BiletixScraper(BiletixScraperConfig config) {
+        super(config.getChromePath(), config.getWaitTimeoutSeconds(), BiletixScraper.class);
         this.config = config;
-        this.eventExtractor = eventExtractor;
-        LOGGER.info("BiletixScraper initialized successfully");
-    }
-
-    private void initializeBrowser() {
-        LOGGER.info("Initializing browser");
-        try {
-            this.driver = WebScraperUtils.initializeBrowser(config.getChromePath(), config.getWaitTimeoutSeconds());
-            this.wait = new WebDriverWait(driver, Duration.ofSeconds(config.getWaitTimeoutSeconds()));
-            LOGGER.info("Browser initialized successfully");
-        } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Failed to initialize browser", e);
-            throw new RuntimeException("Browser initialization failed", e);
-        }
-    }
-
-    private void closeBrowser() {
-        if (driver != null) {
-            try {
-                WebScraperUtils.closeBrowser(driver);
-                driver = null;
-                wait = null;
-                LOGGER.info("Browser closed successfully");
-            } catch (Exception e) {
-                LOGGER.log(Level.WARNING, "Error closing browser", e);
-            }
-        }
     }
 
     @Override
-    public List<Event> fetchEvents() {
-        return fetchEvents(BiletixCity.ISTANBUL.getValue());
+    public List<ScrapedEventData> scrapeEvents(String city) {
+        logger.info("Scraping events from Biletix for city: " + city);
+        
+        BiletixCity selectedCity = parseCity(city);
+        
+        List<CategoryScraper> scrapers = Arrays.asList(
+            (driver, wait) -> scrapeCategory(BiletixCategory.MUSIC, selectedCity),
+            (driver, wait) -> scrapeCategory(BiletixCategory.ART, selectedCity)
+        );
+        
+        List<ScrapedEventData> allData = scrapeForCategories(scrapers);
+        logger.info("Scraped " + allData.size() + " events from Biletix");
+        
+        long validCount = allData.stream().filter(ScrapedEventData::isValid).count();
+        logger.info("Valid events: " + validCount + "/" + allData.size());
+        
+        return allData;
     }
 
-    @Override
-    public List<Event> fetchEvents(String city) {
-        LOGGER.info("Starting to fetch events from Biletix for city: " + city);
-        List<Event> allEvents = new ArrayList<>();
-
+    private List<ScrapedEventData> scrapeCategory(BiletixCategory category, BiletixCity city) {
+        List<ScrapedEventData> events = new ArrayList<>();
+        
         try {
-            BiletixCity selectedCity = Arrays.stream(BiletixCity.values())
-                    .filter(c -> c.getValue().equalsIgnoreCase(city))
-                    .findFirst()
-                    .orElse(BiletixCity.ISTANBUL);
-
-            // Process MUSIC category
-            LOGGER.info("Processing MUSIC category");
-            List<Event> musicEvents = processCategory(BiletixCategory.MUSIC, selectedCity);
-            allEvents.addAll(musicEvents);
-
-            // Process ART category
-            LOGGER.info("Processing ART category");
-            List<Event> artEvents = processCategory(BiletixCategory.ART, selectedCity);
-            allEvents.addAll(artEvents);
-
-            LOGGER.info("Successfully fetched and saved " + allEvents.size() + " events from Biletix");
-        } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Error fetching events from Biletix", e);
-        }
-
-        return allEvents;
-    }
-
-    @Override
-    public List<Event> fetchEvents(String city, java.time.LocalDate startDate, java.time.LocalDate endDate) {
-        List<Event> allEvents = fetchEvents(city);
-        // Eğer eventlerin tarihi varsa, filtre uygula
-        List<Event> filtered = new ArrayList<>();
-        for (Event event : allEvents) {
-            if (event.getStartDate() != null &&
-                (event.getStartDate().isEqual(startDate) || event.getStartDate().isAfter(startDate)) &&
-                (event.getStartDate().isEqual(endDate) || event.getStartDate().isBefore(endDate))) {
-                filtered.add(event);
-            }
-        }
-        return filtered;
-    }
-
-    @Override
-    public List<Event> fetchEvents(java.time.LocalDate startDate, java.time.LocalDate endDate) {
-        return fetchEvents(BiletixCity.ISTANBUL.getValue(), startDate, endDate);
-    }
-
-    public List<Event> processCategory(BiletixCategory category) {
-        return processCategory(category, BiletixCity.ISTANBUL, null, null);
-    }
-
-    public List<Event> processCategory(BiletixCategory category, BiletixCity city) {
-        return processCategory(category, city, null, null);
-    }
-
-    public List<Event> processCategory(BiletixCategory category, BiletixCity city, LocalDate startDate, LocalDate endDate) {
-        List<Event> events = new ArrayList<>();
-        try {
-            initializeBrowser();
-
-            LOGGER.info("Fetching events for category: " + category.name() + " in city: " + city.getValue());
-            List<Event> categoryEvents = fetchEventsByCategory(category, city, startDate, endDate);
-
-            saveEventsWithDuplicateChecking(categoryEvents);
-            events.addAll(categoryEvents);
-
-            LOGGER.info("Processed " + events.size() + " events for category: " + category.name());
-        } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Error processing category: " + category.name(), e);
-        } finally {
-            closeBrowser();
-        }
-        return events;
-    }
-
-    private void saveEventsWithDuplicateChecking(List<Event> events) {
-        for (Event event : events) {
-            try {
-                if (event instanceof ConcertEvent) {
-                    EventUtils.saveConcertEventWithDuplicateChecking((ConcertEvent) event, 
-                                                                   concertEventService, 
-                                                                   artistService, 
-                                                                   venueService);
-                } else if (event instanceof PerformingArt) {
-                    EventUtils.savePerformingArtWithDuplicateChecking((PerformingArt) event, theaterEventService);
-                } else if (event instanceof ExhibitionEvent) {
-                    EventUtils.saveExhibitionEventWithDuplicateChecking((ExhibitionEvent) event, exhibitionEventService);
-                } else {
-                    LOGGER.warning("Unknown event type: " + event.getClass().getName());
-                }
-            } catch (Exception e) {
-                LOGGER.log(Level.WARNING, "Error saving event: " + event.getTitle(), e);
-            }
-        }
-    }
-
-    private List<Event> fetchEventsByCategory(BiletixCategory category) {
-        return fetchEventsByCategory(category, BiletixCity.ISTANBUL, null, null);
-    }
-
-    private List<Event> fetchEventsByCategory(BiletixCategory category, BiletixCity city) {
-        return fetchEventsByCategory(category, city, null, null);
-    }
-
-    private List<Event> fetchEventsByCategory(BiletixCategory category, BiletixCity city, LocalDate startDate, LocalDate endDate) {
-        LOGGER.info("Fetching events for category: " + category.name() + " in city: " + city.getValue());
-        List<Event> events = new ArrayList<>();
-
-        try {
-            String searchUrl = config.buildSearchUrl(category, city, startDate, endDate);
+            String searchUrl = config.buildSearchUrl(category, city, null, null);
             WebScraperUtils.navigateToUrl(driver, wait, searchUrl);
-
-            EventCollection eventCollection = collectEventCardsAndUrls();
-            events = eventExtractor.extractBasicInfoFromCards(eventCollection.getEventCards(), category);
-
-            LOGGER.info("Successfully fetched " + events.size() + " events for category: " + category.name());
+            
+            WebScraperUtils.clickLoadMoreUntilEnd(
+                driver, wait,
+                BiletixScraperConfig.LOAD_MORE_BUTTON_SELECTOR,
+                BiletixScraperConfig.EVENT_CARD_SELECTOR,
+                config.getMaxLoadMoreAttempts(),
+                config.getLoadMoreWaitMs()
+            );
+            
+            List<WebElement> cards = driver.findElements(By.cssSelector(BiletixScraperConfig.EVENT_CARD_SELECTOR));
+            
+            for (WebElement card : cards) {
+                try {
+                    ScrapedEventData data = extractFromCard(card, category);
+                    if (data != null && data.isValid()) {
+                        events.add(data);
+                    }
+                } catch (Exception e) {
+                    logger.log(Level.FINE, "Error extracting card", e);
+                }
+            }
+            
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Error fetching events for category: " + category.name(), e);
+            logger.log(Level.SEVERE, "Error scraping category: " + category.name(), e);
         }
-
+        
         return events;
     }
 
-    private EventCollection collectEventCardsAndUrls() {
-        LOGGER.fine("Collecting event cards and URLs");
-
-        clickLoadMoreButton();
-
-        List<WebElement> eventDivs = driver.findElements(By.cssSelector(BiletixScraperConfig.EVENT_CARD_SELECTOR));
-        List<String> eventUrls = new ArrayList<>();
-        List<WebElement> eventCards = new ArrayList<>();
-
-        for (WebElement card : eventDivs) {
-            try {
-                String eventUrl = findEventUrl(card);
-
-                if (eventUrl != null && !eventUrl.isEmpty()) {
-                    eventUrls.add(eventUrl);
-                    eventCards.add(card);
-                } else {
-                    LOGGER.warning("Could not find event URL in card");
-                }
-            } catch (Exception e) {
-                LOGGER.log(Level.WARNING, "Error processing event card", e);
-            }
+    private ScrapedEventData extractFromCard(WebElement card, BiletixCategory category) {
+        String title = extractText(card, BiletixScraperConfig.EVENT_TITLE_SELECTOR);
+        if (title.isEmpty()) {
+            title = extractText(card, BiletixScraperConfig.EVENT_TITLE_MOBILE_SELECTOR);
         }
-
-        LOGGER.info("Collected " + eventCards.size() + " event cards");
-        return new EventCollection(eventCards, eventUrls);
+        
+        if (title.isEmpty()) {
+            return null;
+        }
+        
+        String dateStr = extractDate(card);
+        if (dateStr.isEmpty()) {
+            return null;
+        }
+        
+        String venueName = extractText(card, BiletixScraperConfig.EVENT_VENUE_SELECTOR);
+        String location = extractText(card, BiletixScraperConfig.EVENT_LOCATION_SELECTOR);
+        String ticketUrl = extractUrl(card);
+        
+        EventType eventType = determineEventType(title, category);
+        LocalDate parsedDate = parseDate(dateStr);
+        
+        if (parsedDate == null) {
+            logger.fine("Failed to parse date: " + dateStr + " for event: " + title);
+        }
+        
+        return ScrapedEventData.builder()
+            .title(title)
+            .rawDateString(dateStr)
+            .startDate(parsedDate)
+            .venueName(venueName)
+            .location(location)
+            .city(ScrapedEventData.normalizeCity(location))
+            .ticketUrl(ticketUrl)
+            .eventType(eventType)
+            .source(EventSourceType.BILETIX)
+            .build();
     }
 
-    private void clickLoadMoreButton() {
-        LOGGER.info("Starting to click 'Load More' button to load all events");
-        int attempts = 0;
-        int previousEventCount = 0;
-
+    private String extractText(WebElement card, String selector) {
         try {
-            wait.until(driver -> !driver.findElements(By.cssSelector(BiletixScraperConfig.EVENT_CARD_SELECTOR)).isEmpty());
-            previousEventCount = driver.findElements(By.cssSelector(BiletixScraperConfig.EVENT_CARD_SELECTOR)).size();
-            LOGGER.info("Initial page loaded with " + previousEventCount + " events");
-
-            WebScraperUtils.handleCookieConsent(driver);
-            WebScraperUtils.handleOverlays(driver);
-
-            Thread.sleep(1000);
+            return card.findElement(By.cssSelector(selector)).getText();
         } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Error waiting for initial page to load", e);
-            return;
+            return "";
         }
-
-        while (attempts < config.getMaxLoadMoreAttempts()) {
-            try {
-                List<WebElement> loadMoreButtons = driver.findElements(By.cssSelector(BiletixScraperConfig.LOAD_MORE_BUTTON_SELECTOR));
-
-                if (loadMoreButtons.isEmpty()) {
-                    LOGGER.info("No more 'Load More' buttons found. All events loaded.");
-                    break;
-                }
-
-                WebElement loadMoreButton = loadMoreButtons.get(0);
-                if (!loadMoreButton.isDisplayed() || !loadMoreButton.isEnabled()) {
-                    LOGGER.info("'Load More' butonu görünür veya tıklanabilir değil. Döngüden çıkılıyor.");
-                    break;
-                }
-                LOGGER.fine("Found 'Load More' button with text: " + loadMoreButton.getText());
-
-                boolean clickSuccess = false;
-
-                try {
-                    WebScraperUtils.scrollToElement(driver, loadMoreButton);
-                    loadMoreButton.click();
-                    clickSuccess = true;
-                    LOGGER.fine("Clicked 'Load More' button after scrolling, attempt " + (attempts + 1));
-                } catch (Exception e) {
-                    LOGGER.fine("Direct click after scroll failed, trying JavaScript click");
-                }
-
-                if (!clickSuccess) {
-                    try {
-                        WebScraperUtils.clickElementWithJavaScript(driver, loadMoreButton);
-                        clickSuccess = true;
-                        LOGGER.fine("Clicked 'Load More' button with JavaScript, attempt " + (attempts + 1));
-                    } catch (Exception e) {
-                        LOGGER.fine("JavaScript click failed, trying to handle overlays");
-                    }
-                }
-
-                if (!clickSuccess) {
-                    WebScraperUtils.handleOverlays(driver);
-                    try {
-                        loadMoreButton = driver.findElement(By.cssSelector(BiletixScraperConfig.LOAD_MORE_BUTTON_SELECTOR));
-                        if (!loadMoreButton.isDisplayed() || !loadMoreButton.isEnabled()) {
-                            LOGGER.info("'Load More' butonu tekrar kontrol edildi, görünür veya tıklanabilir değil. Döngüden çıkılıyor.");
-                            break;
-                        }
-                        WebScraperUtils.clickElementWithJavaScript(driver, loadMoreButton);
-                        clickSuccess = true;
-                        LOGGER.fine("Clicked 'Load More' button after handling overlays, attempt " + (attempts + 1));
-                    } catch (Exception e) {
-                        LOGGER.log(Level.WARNING, "All click strategies failed on attempt " + attempts, e);
-                    }
-                }
-
-                if (!clickSuccess) {
-                    LOGGER.warning("Failed to click 'Load More' button on attempt " + attempts + " after trying all strategies");
-                    attempts++;
-                    continue;
-                }
-
-                Thread.sleep(config.getLoadMoreWaitMs());
-
-                int currentEventCount = driver.findElements(By.cssSelector(BiletixScraperConfig.EVENT_CARD_SELECTOR)).size();
-                int newEvents = currentEventCount - previousEventCount;
-
-                LOGGER.info("After clicking 'Load More', now have " + currentEventCount + " events (+" + newEvents + ")");
-
-                if (newEvents <= 0 && attempts > 0) {
-                    LOGGER.info("No new events loaded after clicking 'Load More'. Might have reached the end.");
-                    if (attempts > 1) {
-                        break;
-                    }
-                }
-
-                previousEventCount = currentEventCount;
-                attempts++;
-            } catch (Exception e) {
-                LOGGER.log(Level.WARNING, "Error in 'Load More' button click process on attempt " + attempts, e);
-
-                try {
-                    WebScraperUtils.handleOverlays(driver);
-                    Thread.sleep(1000);
-                } catch (Exception ex) {
-                }
-
-                attempts++;
-            }
-        }
-
-        if (attempts >= config.getMaxLoadMoreAttempts()) {
-            LOGGER.warning("Reached maximum number of 'Load More' attempts (" + config.getMaxLoadMoreAttempts() + ")");
-        }
-
-        LOGGER.info("Finished loading additional events. Total events loaded: " + 
-                    driver.findElements(By.cssSelector(BiletixScraperConfig.EVENT_CARD_SELECTOR)).size());
     }
 
-    private String findEventUrl(WebElement card) {
-        String eventUrl = null;
-
+    private String extractDate(WebElement card) {
         try {
-            WebElement nameElement = card.findElement(By.cssSelector(BiletixScraperConfig.EVENT_TITLE_SELECTOR));
-            eventUrl = nameElement.getAttribute("href");
-        } catch (Exception ex) {
-            LOGGER.finest("Could not find URL in title element");
-        }
-
-        if (eventUrl == null || eventUrl.isEmpty()) {
+            String secondDate = card.findElement(By.cssSelector(BiletixScraperConfig.EVENT_SECONDARY_DATE_SELECTOR)).getText();
+            String firstDate = card.findElement(By.cssSelector(BiletixScraperConfig.EVENT_DATE_SELECTOR)).getText();
+            return !secondDate.isEmpty() ? secondDate : firstDate;
+        } catch (Exception e) {
             try {
-                WebElement linkElement = card.findElement(By.cssSelector(BiletixScraperConfig.EVENT_LINK_SELECTOR));
-                eventUrl = linkElement.getAttribute("href");
+                String day = card.findElement(By.cssSelector(".searchMobileDateDayNumber")).getText();
+                String month = card.findElement(By.cssSelector(".searchMobileDateMonth")).getText();
+                String year = card.findElement(By.cssSelector(".searchMobileDateYear")).getText();
+                return day + "/" + month + "/" + year;
             } catch (Exception ex) {
-                LOGGER.finest("Could not find URL in link element");
+                return "";
             }
         }
+    }
 
-        return eventUrl;
+    private String extractUrl(WebElement card) {
+        try {
+            return card.findElement(By.cssSelector(BiletixScraperConfig.EVENT_TITLE_SELECTOR)).getAttribute("href");
+        } catch (Exception e) {
+            try {
+                return card.findElement(By.cssSelector(BiletixScraperConfig.EVENT_LINK_SELECTOR)).getAttribute("href");
+            } catch (Exception ex) {
+                return "";
+            }
+        }
+    }
+
+    private LocalDate parseDate(String dateStr) {
+        if (dateStr == null || dateStr.isEmpty()) {
+            return null;
+        }
+
+        String normalized = dateStr.trim();
+        int commaIndex = normalized.indexOf(',');
+        if (commaIndex >= 0) {
+            normalized = normalized.substring(commaIndex + 1).trim();
+        }
+        normalized = normalized.replaceAll("\\s+", "");
+
+        List<String> patterns = Arrays.asList("dd/MM/yy", "dd/MM/yyyy");
+        for (String pattern : patterns) {
+            try {
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern(pattern);
+                return LocalDate.parse(normalized, formatter);
+            } catch (Exception ignored) {
+            }
+        }
+        return null;
+    }
+
+    private EventType determineEventType(String title, BiletixCategory category) {
+        if (category == BiletixCategory.MUSIC) {
+            return EventType.CONCERT;
+        }
+        
+        String lowerTitle = title.toLowerCase(Locale.forLanguageTag("tr"));
+        if (lowerTitle.contains("stand") || lowerTitle.contains("komedi")) {
+            return EventType.STANDUP;
+        }
+        
+        return EventType.THEATER;
+    }
+
+    private BiletixCity parseCity(String city) {
+        return Arrays.stream(BiletixCity.values())
+                .filter(c -> c.getValue().equalsIgnoreCase(city))
+                .findFirst()
+                .orElse(BiletixCity.ISTANBUL);
     }
 
     @Override
@@ -382,13 +211,17 @@ public class BiletixScraper implements EventSource {
     }
 
     @Override
-    public boolean isAvailable() {
-        LOGGER.info("Checking if Biletix is available - TEMPORARILY RETURNING TRUE");
-        return true; // Geçici olarak true döndürüyoruz
+    public String getSourceUrl() {
+        return BiletixScraperConfig.BASE_URL;
     }
 
     @Override
-    public String getSourceUrl() {
-        return BiletixScraperConfig.BASE_URL;
+    public EventSourceType getEventSourceType() {
+        return EventSourceType.BILETIX;
+    }
+
+    @Override
+    protected String getDefaultCity() {
+        return BiletixCity.ISTANBUL.getValue();
     }
 }

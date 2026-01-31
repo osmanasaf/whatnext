@@ -12,96 +12,70 @@ import io.github.bonigarcia.wdm.WebDriverManager;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class WebScraperUtils {
     private static final Logger LOGGER = Logger.getLogger(WebScraperUtils.class.getName());
     
+    private static final int MAX_PAGES_BEFORE_RESTART = 50;
+    private static final AtomicInteger pageCounter = new AtomicInteger(0);
+    
     public static ChromeOptions configureChromeBrowser(String chromePath) {
-        LOGGER.info("Configuring Chrome browser options for Railway environment");
+        LOGGER.fine("Configuring Chrome browser options");
         ChromeOptions options = new ChromeOptions();
+        
         options.addArguments("--headless=new");
         options.addArguments("--no-sandbox");
         options.addArguments("--disable-dev-shm-usage");
         options.addArguments("--disable-gpu");
-        options.addArguments("--disable-software-rasterizer");
         options.addArguments("--disable-extensions");
-        options.addArguments("--disable-plugins");
         options.addArguments("--disable-images");
-        options.addArguments("--disable-javascript");
+        options.addArguments("--blink-settings=imagesEnabled=false");
+        options.addArguments("--disable-popup-blocking");
         options.addArguments("--window-size=1920,1080");
-        options.addArguments("--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36");
-        options.addArguments("--ignore-certificate-errors");
-        options.addArguments("--ignore-ssl-errors");
-        options.addArguments("--ignore-certificate-errors-spki-list");
-        options.addArguments("--disable-web-security");
-        options.addArguments("--allow-running-insecure-content");
-        options.addArguments("--remote-debugging-port=9222");
-        LOGGER.info("Chrome arguments configured for Railway");
+        options.addArguments("--remote-allow-origins=*");
+        options.addArguments("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+        
+        options.setPageLoadStrategy(org.openqa.selenium.PageLoadStrategy.NORMAL);
+        
         String finalChromePath = determineChromePath(chromePath);
         if (finalChromePath != null && !finalChromePath.isEmpty()) {
             try {
                 options.setBinary(finalChromePath);
-                LOGGER.info("Chrome binary path set to: " + finalChromePath);
+                LOGGER.fine("Chrome binary path: " + finalChromePath);
             } catch (Exception e) {
-                LOGGER.warning("Failed to set Chrome binary path: " + finalChromePath + ". Using default Chrome installation.");
+                LOGGER.warning("Failed to set Chrome binary path: " + finalChromePath);
             }
-        } else {
-            LOGGER.info("Using default Chrome installation (WebDriverManager will handle the driver)");
         }
-        LOGGER.info("ChromeOptions configuration completed");
+        
         return options;
     }
     
     private static String determineChromePath(String configChromePath) {
-        LOGGER.info("Determining Chrome path...");
-        LOGGER.info("Config Chrome path: " + configChromePath);
         String envChromeBin = System.getenv("CHROME_BIN");
-        LOGGER.info("CHROME_BIN environment variable: " + envChromeBin);
         if (envChromeBin != null && !envChromeBin.isEmpty()) {
-            LOGGER.info("Using Chrome path from CHROME_BIN environment variable: " + envChromeBin);
             return envChromeBin;
         }
         if (configChromePath != null && !configChromePath.isEmpty()) {
-            LOGGER.info("Using Chrome path from configuration: " + configChromePath);
             return configChromePath;
         }
-        LOGGER.info("No specific Chrome path found, WebDriverManager will auto-detect");
         return null;
     }
     
     public static WebDriver initializeBrowser(String chromePath, int timeoutSeconds) {
-        LOGGER.info("Initializing browser with timeout: " + timeoutSeconds + " seconds");
-        LOGGER.info("Chrome path parameter: " + chromePath);
+        LOGGER.info("Initializing browser");
+        pageCounter.set(0);
+        
         try {
+            WebDriverManager.chromedriver().setup();
             ChromeOptions options = configureChromeBrowser(chromePath);
-            LOGGER.info("ChromeOptions configured successfully");
-            LOGGER.info("Creating ChromeDriver instance...");
-            try {
-                WebDriver driver = new ChromeDriver(options);
-                LOGGER.info("ChromeDriver instance created successfully");
-                return driver;
-            } catch (Exception e) {
-                LOGGER.log(Level.SEVERE, "Failed to create ChromeDriver instance with full options", e);
-                LOGGER.info("Trying with minimal ChromeOptions...");
-                ChromeOptions minimalOptions = new ChromeOptions();
-                minimalOptions.addArguments("--headless=new");
-                minimalOptions.addArguments("--no-sandbox");
-                minimalOptions.addArguments("--disable-dev-shm-usage");
-                minimalOptions.addArguments("--disable-gpu");
-                if (chromePath != null && !chromePath.isEmpty()) {
-                    try {
-                        minimalOptions.setBinary(chromePath);
-                        LOGGER.info("Set Chrome binary in minimal options: " + chromePath);
-                    } catch (Exception ex) {
-                        LOGGER.warning("Failed to set Chrome binary in minimal options: " + ex.getMessage());
-                    }
-                }
-                WebDriver driver = new ChromeDriver(minimalOptions);
-                LOGGER.info("ChromeDriver instance created successfully with minimal options");
-                return driver;
-            }
+            WebDriver driver = new ChromeDriver(options);
+            driver.manage().timeouts().pageLoadTimeout(Duration.ofSeconds(timeoutSeconds));
+            driver.manage().timeouts().implicitlyWait(Duration.ofSeconds(5));
+            LOGGER.info("Browser initialized successfully");
+            return driver;
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Failed to initialize browser", e);
             throw new RuntimeException("Browser initialization failed", e);
@@ -110,14 +84,23 @@ public class WebScraperUtils {
     
     public static void closeBrowser(WebDriver driver) {
         if (driver != null) {
-            LOGGER.info("Closing browser");
             try {
                 driver.quit();
-                LOGGER.info("Browser closed successfully");
+                LOGGER.fine("Browser closed");
             } catch (Exception e) {
                 LOGGER.log(Level.WARNING, "Error closing browser", e);
+            } finally {
+                System.gc();
             }
         }
+    }
+    
+    public static boolean shouldRestartBrowser() {
+        return pageCounter.incrementAndGet() >= MAX_PAGES_BEFORE_RESTART;
+    }
+    
+    public static void resetPageCounter() {
+        pageCounter.set(0);
     }
     
     public static void navigateToUrl(WebDriver driver, WebDriverWait wait, String url) {
@@ -129,7 +112,7 @@ public class WebScraperUtils {
     public static void scrollToElement(WebDriver driver, WebElement element) {
         try {
             ((JavascriptExecutor) driver).executeScript("arguments[0].scrollIntoView({block: 'center'});", element);
-            Thread.sleep(500);
+            Thread.sleep(200);
         } catch (Exception e) {
             LOGGER.log(Level.FINE, "Error scrolling to element", e);
         }
@@ -140,124 +123,155 @@ public class WebScraperUtils {
     }
     
     public static void handleCookieConsent(WebDriver driver) {
-        try {
-            String[] consentSelectors = {
-                "#onetrust-accept-btn-handler",
-                ".ot-sdk-container button.accept-cookies",
-                ".ot-sdk-container .ot-sdk-button",
-                ".cookie-consent-button",
-                ".accept-cookies",
-                ".cookie-accept",
-                "button[aria-label='Accept cookies']"
-            };
+        String[] consentSelectors = {
+            "#onetrust-accept-btn-handler",
+            ".cookie-consent-button",
+            ".accept-cookies",
+            ".cookie-accept",
+            "button[aria-label='Accept cookies']"
+        };
 
-            String[] xpathSelectors = {
-                "//button[contains(text(), 'Accept')]",
-                "//button[contains(text(), 'Kabul')]",
-                "//a[contains(text(), 'Accept')]",
-                "//a[contains(text(), 'Kabul')]"
-            };
-
-            for (String selector : consentSelectors) {
-                try {
-                    List<WebElement> consentButtons = driver.findElements(By.cssSelector(selector));
-                    if (!consentButtons.isEmpty()) {
-                        clickElementWithJavaScript(driver, consentButtons.get(0));
-                        LOGGER.info("Clicked cookie consent button with CSS selector: " + selector);
-                        Thread.sleep(1000);
-                        return;
-                    }
-                } catch (Exception e) {
-                    // Continue to next selector
+        for (String selector : consentSelectors) {
+            try {
+                List<WebElement> buttons = driver.findElements(By.cssSelector(selector));
+                if (!buttons.isEmpty() && buttons.get(0).isDisplayed()) {
+                    clickElementWithJavaScript(driver, buttons.get(0));
+                    return;
                 }
-            }
+            } catch (Exception ignored) {}
+        }
+        
+        String[] xpathSelectors = {
+            "//button[contains(text(), 'Accept')]",
+            "//button[contains(text(), 'Kabul')]"
+        };
 
-            for (String xpath : xpathSelectors) {
-                try {
-                    List<WebElement> consentButtons = driver.findElements(By.xpath(xpath));
-                    if (!consentButtons.isEmpty()) {
-                        clickElementWithJavaScript(driver, consentButtons.get(0));
-                        LOGGER.info("Clicked cookie consent button with XPath: " + xpath);
-                        Thread.sleep(1000);
-                        return;
-                    }
-                } catch (Exception e) {
-                    // Continue to next selector
+        for (String xpath : xpathSelectors) {
+            try {
+                List<WebElement> buttons = driver.findElements(By.xpath(xpath));
+                if (!buttons.isEmpty() && buttons.get(0).isDisplayed()) {
+                    clickElementWithJavaScript(driver, buttons.get(0));
+                    return;
                 }
-            }
-
-            List<WebElement> otSdkRows = driver.findElements(By.cssSelector("div.ot-sdk-row"));
-            if (!otSdkRows.isEmpty()) {
-                try {
-                    WebElement otSdkRow = otSdkRows.get(0);
-                    List<WebElement> buttons = otSdkRow.findElements(By.tagName("button"));
-                    if (!buttons.isEmpty()) {
-                        clickElementWithJavaScript(driver, buttons.get(0));
-                        LOGGER.info("Clicked button in ot-sdk-row");
-                        Thread.sleep(1000);
-                    }
-                } catch (Exception e) {
-                    LOGGER.log(Level.FINE, "Failed to interact with ot-sdk-row", e);
-                }
-            }
-        } catch (Exception e) {
-            LOGGER.log(Level.FINE, "Error handling cookie consent", e);
+            } catch (Exception ignored) {}
         }
     }
     
     public static void handleOverlays(WebDriver driver) {
         try {
-            String otSdkRowScript = 
-                "var otRows = document.querySelectorAll('.ot-sdk-row');" +
-                "for(var i=0; i<otRows.length; i++) {" +
-                "  otRows[i].style.display = 'none';" +
-                "  otRows[i].style.zIndex = '-1000';" +
-                "  otRows[i].style.pointerEvents = 'none';" +
-                "}";
-            ((JavascriptExecutor) driver).executeScript(otSdkRowScript);
-
-            String oneTrustScript = 
-                "var otContainers = document.querySelectorAll('#onetrust-banner-sdk, #onetrust-consent-sdk, .onetrust-pc-dark-filter');" +
-                "for(var i=0; i<otContainers.length; i++) {" +
-                "  otContainers[i].style.display = 'none';" +
-                "  otContainers[i].style.zIndex = '-1000';" +
-                "  otContainers[i].style.pointerEvents = 'none';" +
-                "}";
-            ((JavascriptExecutor) driver).executeScript(oneTrustScript);
-
-            String removeOverlaysScript = 
-                "var overlays = document.querySelectorAll('.cookie-banner, .modal, .popup, .overlay, [class*=\"cookie\"], [id*=\"cookie\"], [class*=\"consent\"], [id*=\"consent\"]);" +
-                "for(var i=0; i<overlays.length; i++) {" +
-                "  overlays[i].style.display = 'none';" +
-                "  overlays[i].style.zIndex = '-1000';" +
-                "  overlays[i].style.pointerEvents = 'none';" +
-                "}";
-            ((JavascriptExecutor) driver).executeScript(removeOverlaysScript);
-
-            Thread.sleep(500);
+            String removeAllOverlaysScript = 
+                "var selectors = [" +
+                "  '.ot-sdk-row', '#onetrust-banner-sdk', '#onetrust-consent-sdk'," +
+                "  '.onetrust-pc-dark-filter', '.cookie-banner', '.modal', '.popup'," +
+                "  '.overlay', '[class*=\"cookie\"]', '[id*=\"cookie\"]'," +
+                "  '[class*=\"consent\"]', '[id*=\"consent\"]'" +
+                "];" +
+                "selectors.forEach(function(sel) {" +
+                "  document.querySelectorAll(sel).forEach(function(el) {" +
+                "    el.style.display = 'none';" +
+                "    el.style.pointerEvents = 'none';" +
+                "  });" +
+                "});";
+            ((JavascriptExecutor) driver).executeScript(removeAllOverlaysScript);
         } catch (Exception e) {
             LOGGER.log(Level.FINE, "Error handling overlays", e);
         }
     }
     
     public static String extractTextWithMultipleSelectors(WebDriver driver, String elementType, String... selectors) {
-        try {
-            for (String selector : selectors) {
-                try {
-                    return driver.findElement(By.cssSelector(selector)).getText();
-                } catch (Exception e) {
-                    // Continue to next selector
+        for (String selector : selectors) {
+            try {
+                WebElement element = driver.findElement(By.cssSelector(selector));
+                String text = element.getText();
+                if (text != null && !text.isEmpty()) {
+                    return text;
                 }
-            }
-
-            if (elementType.equals("title")) {
-                return driver.getTitle().replace(" - Biletix", "").trim();
-            }
-
-            return "";
-        } catch (Exception e) {
-            LOGGER.log(Level.FINE, "Error extracting " + elementType, e);
-            return "";
+            } catch (Exception ignored) {}
         }
+
+        if ("title".equals(elementType)) {
+            return driver.getTitle().replace(" - Biletix", "").trim();
+        }
+
+        return "";
+    }
+    
+    public static int scrollToLoadAll(WebDriver driver, int maxScrolls, int waitMs, String contentSelector) {
+        int previousCount = 0;
+        int sameCountAttempts = 0;
+        
+        for (int i = 0; i < maxScrolls; i++) {
+            try {
+                ((JavascriptExecutor) driver).executeScript("window.scrollTo(0, document.body.scrollHeight)");
+                Thread.sleep(waitMs);
+                
+                int currentCount = driver.findElements(By.cssSelector(contentSelector)).size();
+                
+                if (currentCount == previousCount) {
+                    sameCountAttempts++;
+                    if (sameCountAttempts >= 2) {
+                        break;
+                    }
+                } else {
+                    sameCountAttempts = 0;
+                    previousCount = currentCount;
+                }
+            } catch (Exception e) {
+                break;
+            }
+        }
+        
+        return previousCount;
+    }
+    
+    public static int clickLoadMoreUntilEnd(WebDriver driver, WebDriverWait wait, 
+            String buttonSelector, String contentSelector, int maxAttempts, int waitMs) {
+        
+        int previousCount = 0;
+        handleCookieConsent(driver);
+        handleOverlays(driver);
+        
+        try {
+            wait.until(ExpectedConditions.presenceOfElementLocated(By.cssSelector(contentSelector)));
+            previousCount = driver.findElements(By.cssSelector(contentSelector)).size();
+        } catch (Exception e) {
+            return 0;
+        }
+        
+        for (int attempt = 0; attempt < maxAttempts; attempt++) {
+            try {
+                List<WebElement> buttons = driver.findElements(By.cssSelector(buttonSelector));
+                if (buttons.isEmpty()) {
+                    break;
+                }
+                
+                WebElement loadMoreButton = buttons.get(0);
+                if (!loadMoreButton.isDisplayed() || !loadMoreButton.isEnabled()) {
+                    break;
+                }
+                
+                scrollToElement(driver, loadMoreButton);
+                
+                try {
+                    loadMoreButton.click();
+                } catch (Exception e) {
+                    clickElementWithJavaScript(driver, loadMoreButton);
+                }
+                
+                Thread.sleep(waitMs);
+                
+                int currentCount = driver.findElements(By.cssSelector(contentSelector)).size();
+                if (currentCount == previousCount && attempt > 0) {
+                    break;
+                }
+                previousCount = currentCount;
+                
+            } catch (Exception e) {
+                LOGGER.log(Level.FINE, "Load more click failed", e);
+                break;
+            }
+        }
+        
+        return driver.findElements(By.cssSelector(contentSelector)).size();
     }
 }
