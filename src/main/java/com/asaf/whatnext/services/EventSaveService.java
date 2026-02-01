@@ -88,7 +88,7 @@ public class EventSaveService {
             venue = new Venue();
             venue.setName(data.getVenueName());
             venue.setLocation(data.getLocation());
-            venue.setCity(data.getCity());
+            venue.setCity(ScrapedEventData.normalizeCity(data.getCity()));
             venue = venueService.save(venue);
         }
         
@@ -174,7 +174,7 @@ public class EventSaveService {
         event.setStartDate(data.getStartDate());
         event.setEndDate(data.getEndDate());
         event.setSource(data.getSource());
-        event.setCity(data.getCity());
+        event.setCity(ScrapedEventData.normalizeCity(data.getCity()));
         event.addTicketUrl(data.getTicketUrl());
         
         if (venue != null) {

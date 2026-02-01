@@ -107,6 +107,11 @@ public class EventService {
     }
 
     public List<Event> findByDateRangeAndTypeAndCity(String startDate, String endDate, EventType type, City city) {
+        LocalDate start = LocalDate.parse(startDate);
+        LocalDate end = LocalDate.parse(endDate);
+        String cityStr = city.name().toLowerCase(Locale.ROOT);
+        boolean useIstanbulVariant = "istanbul".equals(cityStr);
+
         boolean isPerformanceType = false;
         for (PerformanceType pt : PerformanceType.values()) {
             if (pt.name().equals(type.name())) {
@@ -114,26 +119,33 @@ public class EventService {
                 break;
             }
         }
-        if (type != null && isPerformanceType) {
-            List<Event> events = eventRepository.findByStartDateBetweenAndTypeAndCityIgnoreCase(
-                java.time.LocalDate.parse(startDate),
-                java.time.LocalDate.parse(endDate),
-                EventType.PERFORMING_ART,
-                city.name().toLowerCase(java.util.Locale.ROOT)
-            );
-            return events.stream()
-                .filter(event -> event instanceof com.asaf.whatnext.models.PerformingArt performingArt &&
-                        performingArt.getPerformanceType() != null &&
-                        performingArt.getPerformanceType().name().equals(type.name()))
-                .toList();
+
+        List<Event> events;
+        if (useIstanbulVariant) {
+            if (type != null && isPerformanceType) {
+                events = eventRepository.findByStartDateBetweenAndTypeAndIstanbul(start, end, EventType.PERFORMING_ART);
+                return events.stream()
+                    .filter(event -> event instanceof com.asaf.whatnext.models.PerformingArt performingArt &&
+                            performingArt.getPerformanceType() != null &&
+                            performingArt.getPerformanceType().name().equals(type.name()))
+                    .toList();
+            } else {
+                events = eventRepository.findByStartDateBetweenAndTypeAndIstanbul(start, end, type);
+            }
         } else {
-            return eventRepository.findByStartDateBetweenAndTypeAndCityIgnoreCase(
-                java.time.LocalDate.parse(startDate),
-                java.time.LocalDate.parse(endDate),
-                type,
-                city.name().toLowerCase(Locale.ROOT)
-            );
+            if (type != null && isPerformanceType) {
+                events = eventRepository.findByStartDateBetweenAndTypeAndCityIgnoreCase(
+                    start, end, EventType.PERFORMING_ART, cityStr);
+                return events.stream()
+                    .filter(event -> event instanceof com.asaf.whatnext.models.PerformingArt performingArt &&
+                            performingArt.getPerformanceType() != null &&
+                            performingArt.getPerformanceType().name().equals(type.name()))
+                    .toList();
+            } else {
+                events = eventRepository.findByStartDateBetweenAndTypeAndCityIgnoreCase(start, end, type, cityStr);
+            }
         }
+        return events;
     }
 
     public List<Event> findTop6EventsForDateAndCity(LocalDate date, EventType eventType, String city) {
@@ -145,7 +157,7 @@ public class EventService {
             com.asaf.whatnext.enums.City.valueOf(city.toUpperCase(java.util.Locale.ENGLISH))
         );
         return events.stream()
-            .filter(e -> e.getTitle() != null && e.getTitle().length() < 35)
+            .filter(e -> e.getTitle() != null && e.getTitle().length() <= 40)
             .limit(6)
             .collect(Collectors.toList());
     }

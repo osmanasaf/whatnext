@@ -67,7 +67,7 @@ public class BubiletScraper extends BaseScraper {
             
             for (WebElement card : cards) {
                 try {
-                    ScrapedEventData data = extractFromCard(card, category);
+                    ScrapedEventData data = extractFromCard(card, category, city.getValue());
                     if (data != null && data.isValid()) {
                         events.add(data);
                     }
@@ -83,7 +83,7 @@ public class BubiletScraper extends BaseScraper {
         return events;
     }
 
-    private ScrapedEventData extractFromCard(WebElement card, BubiletCategory category) {
+    private ScrapedEventData extractFromCard(WebElement card, BubiletCategory category, String city) {
         try {
             String title = card.findElement(By.cssSelector(BubiletScraperConfig.EVENT_TITLE_SELECTOR)).getText();
             String ticketUrl = card.getAttribute("href");
@@ -129,6 +129,7 @@ public class BubiletScraper extends BaseScraper {
                 .imageUrl(imageUrl)
                 .eventType(eventType)
                 .source(EventSourceType.BUBILET)
+                .city(ScrapedEventData.normalizeCity(city))
                 .build();
                 
         } catch (Exception e) {

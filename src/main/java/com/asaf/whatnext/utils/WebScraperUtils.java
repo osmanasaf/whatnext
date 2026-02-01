@@ -284,3 +284,5 @@ public class WebScraperUtils {
         return driver.findElements(By.cssSelector(contentSelector)).size();
     }
 }
+}
+}

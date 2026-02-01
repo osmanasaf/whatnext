@@ -60,9 +60,9 @@ public class EventSchedulerService {
         
         LocalDate today = LocalDate.now();
         LocalDate nextWeekStart = today.plusDays(1);
-        LocalDate nextWeekEnd = today.plusDays(7);
+        LocalDate nextWeekEnd = today.plusDays(10);
         
-        LOGGER.info("Sonraki hafta için etkinlikler çekiliyor: {} - {}", 
+        LOGGER.info("Sonraki 10 gün için etkinlikler çekiliyor: {} - {}", 
             nextWeekStart.format(DateTimeFormatter.ofPattern("dd MMMM yyyy", new Locale("tr"))),
             nextWeekEnd.format(DateTimeFormatter.ofPattern("dd MMMM yyyy", new Locale("tr"))));
         
