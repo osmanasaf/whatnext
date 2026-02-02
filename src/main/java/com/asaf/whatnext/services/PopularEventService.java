@@ -3,6 +3,7 @@ package com.asaf.whatnext.services;
 import com.asaf.whatnext.dto.EventSummaryDTO;
 import com.asaf.whatnext.dto.WeeklyPopularEventsDTO;
 import com.asaf.whatnext.enums.EventType;
+import com.asaf.whatnext.enums.PerformanceType;
 import com.asaf.whatnext.models.Event;
 import com.asaf.whatnext.models.PerformingArt;
 import com.asaf.whatnext.repository.EventRepository;
@@ -28,12 +29,6 @@ public class PopularEventService {
 
     public WeeklyPopularEventsDTO getWeeklyPopularEvents() {
         LocalDate today = LocalDate.now();
-        LocalDate startDate = today.minusMonths(2);
-        
-        List<Event> allRecentEvents = eventRepository.findByStartDateBetweenAndCity(
-            startDate, today.plusDays(30), "istanbul"
-        );
-        
         int daysFromMonday = today.getDayOfWeek().getValue() - 1;
         LocalDate weekStart = today.minusDays(daysFromMonday);
         LocalDate weekEnd = weekStart.plusDays(6);
@@ -43,17 +38,11 @@ public class PopularEventService {
             weekEnd = weekEnd.plusDays(7);
         }
         
-        final LocalDate finalWeekStart = weekStart;
-        final LocalDate finalWeekEnd = weekEnd;
-        List<Event> weeklyEvents = allRecentEvents.stream()
-            .filter(e -> !e.getStartDate().isBefore(finalWeekStart) && !e.getStartDate().isAfter(finalWeekEnd))
-            .toList();
+        List<Event> weeklyEvents = eventRepository.findByStartDateBetweenAndIstanbul(weekStart, weekEnd);
         
         if (weeklyEvents.size() < 5) {
             LocalDate extendedEnd = weekEnd.plusWeeks(2);
-            weeklyEvents = allRecentEvents.stream()
-                .filter(e -> !e.getStartDate().isBefore(finalWeekStart) && !e.getStartDate().isAfter(extendedEnd))
-                .toList();
+            weeklyEvents = eventRepository.findByStartDateBetweenAndIstanbul(weekStart, extendedEnd);
         }
         
         List<Event> concerts = filterAndSortEvents(weeklyEvents, EventType.CONCERT, 5);
@@ -73,10 +62,21 @@ public class PopularEventService {
     
     private List<Event> filterAndSortEvents(List<Event> allEvents, EventType type, int limit) {
         return allEvents.stream()
-                .filter(e -> e.getType() == type)
+                .filter(e -> matchesEventType(e, type))
                 .sorted(Comparator.comparingInt(scoringStrategy::calculateScore).reversed())
                 .limit(limit)
                 .toList();
+    }
+
+    private boolean matchesEventType(Event event, EventType type) {
+        if (type == EventType.CONCERT) {
+            return event.getType() == EventType.CONCERT;
+        }
+        if (event instanceof PerformingArt pa && pa.getPerformanceType() != null) {
+            return (type == EventType.THEATER && pa.getPerformanceType() == PerformanceType.THEATER)
+                || (type == EventType.STANDUP && pa.getPerformanceType() == PerformanceType.STANDUP);
+        }
+        return false;
     }
     
     private List<EventSummaryDTO> mapToDTOs(List<Event> events) {

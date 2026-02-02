@@ -14,6 +14,9 @@ import java.util.List;
 @Repository
 public interface EventRepository extends BaseRepository<Event, Long> {
 
+    @Query("SELECT e FROM Event e WHERE e.startDate BETWEEN :start AND :end AND (LOWER(e.city) = 'istanbul' OR e.city = '\u0130stanbul')")
+    List<Event> findByStartDateBetweenAndIstanbul(@Param("start") LocalDate start, @Param("end") LocalDate end);
+
     @Query("SELECT e FROM Event e WHERE e.startDate BETWEEN :start AND :end AND e.type = :type AND (LOWER(e.city) = 'istanbul' OR e.city = '\u0130stanbul')")
     List<Event> findByStartDateBetweenAndTypeAndIstanbul(@Param("start") LocalDate start, @Param("end") LocalDate end, @Param("type") EventType type);
 

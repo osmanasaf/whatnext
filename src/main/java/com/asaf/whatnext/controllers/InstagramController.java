@@ -4,6 +4,7 @@ import com.asaf.whatnext.models.InstagramImage;
 import com.asaf.whatnext.repository.InstagramImageRepository;
 import com.asaf.whatnext.services.InstagramService;
 import com.asaf.whatnext.services.InstagramSchedulerService;
+import com.asaf.whatnext.services.WeeklyVideoService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -30,14 +31,17 @@ public class InstagramController {
     @Autowired
     private InstagramSchedulerService instagramSchedulerService;
 
+    @Autowired
+    private WeeklyVideoService weeklyVideoService;
+
     private static final String DAILY_CAPTION_TEMPLATE = """
         📅 %s İstanbul Etkinlikleri 🎫
         
-        🎭 Tiyatro | 🎶 Konser | 🎤 Stand-up  
+        🎭 Tiyatro | 🎶 Konser | 🎤 Stand-up
         Bugün şehirde ne var? Kaçırma!
         
-        🔗 Detaylar ve biletler profilde  
-        #istanbuletkinlikleri #tiyatro #konser #standup #bugünnevar #whatnext #etkinlikrehberi #istanbuldaetkinlik
+        🔗 Detaylar ve biletler profilde
+        #istanbul #istanbuletkinlikleri #etkinlik #konser #tiyatro #sanat #istanbullife #istanbuldayasam #igersistanbul #istanbulnightlife #istanbulbosphorus #galatatower
         """;
 
     @PostMapping("/create/{eventType}")
@@ -175,6 +179,17 @@ public class InstagramController {
             instagramSchedulerService.createWeeklyPosts();
             return ResponseEntity.ok("Haftalık post görselleri manuel olarak oluşturuldu.");
         } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Hata: " + e.getMessage());
+        }
+    }
+
+    @PostMapping("/scheduler/generate-weekly-reel")
+    public ResponseEntity<?> generateWeeklyReelManually() {
+        try {
+            weeklyVideoService.generateAndShareWeeklyReel();
+            return ResponseEntity.ok("Haftalık Reel oluşturuldu ve paylaşım kuyruğa alındı.");
+        } catch (Exception e) {
+            e.printStackTrace();
             return ResponseEntity.internalServerError().body("Hata: " + e.getMessage());
         }
     }

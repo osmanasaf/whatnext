@@ -55,6 +55,14 @@ public class CloudinaryService {
         }
     }
 
+    public Map<String, Object> uploadVideo(File file, String folder) throws IOException {
+        Map<String, Object> options = ObjectUtils.asMap(
+                "folder", folder,
+                "resource_type", "video"
+        );
+        return cloudinary.uploader().upload(file, options);
+    }
+
     public String getImageUrl(Map<String, Object> uploadResult) {
         return (String) uploadResult.get("secure_url");
     }

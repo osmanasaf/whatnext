@@ -396,7 +396,14 @@ public class InstagramService {
     }
 
     private void waitForContainerReady(String containerId) throws IOException, InterruptedException {
-        int maxRetries = 30;
+        waitForContainer(containerId, 30, 2000);
+    }
+
+    private void waitForReelContainerReady(String containerId) throws IOException, InterruptedException {
+        waitForContainer(containerId, 150, 2000);
+    }
+
+    private void waitForContainer(String containerId, int maxRetries, int sleepMs) throws IOException, InterruptedException {
         int retryCount = 0;
         while (retryCount < maxRetries) {
             String status = getContainerStatus(containerId);
@@ -407,7 +414,7 @@ public class InstagramService {
                 throw new IOException("Container hatası veya süresi doldu. Status: " + status + " ID: " + containerId);
             }
             System.out.println("⏳ Container hazırlanıyor (" + status + ")... ID: " + containerId);
-            Thread.sleep(2000);
+            Thread.sleep(sleepMs);
             retryCount++;
         }
         throw new IOException("Container hazırlama zaman aşımı. ID: " + containerId);
@@ -478,6 +485,47 @@ public class InstagramService {
         
         System.out.println("[Publisher] executeShareStory: ContainerID: " + containerId + " | Story paylaşıldı.");
         return containerId;
+    }
+
+    public void shareReel(String videoUrl, String caption) throws IOException, InstagramApiException, InterruptedException {
+        String containerId = createReelContainer(videoUrl, caption);
+        if (containerId == null) {
+            throw new IOException("Reel container oluşturulamadı.");
+        }
+        waitForReelContainerReady(containerId);
+        publishContainer(containerId);
+        System.out.println("[Publisher] Reel paylaşıldı. ContainerID: " + containerId);
+    }
+
+    private String createReelContainer(String videoUrl, String caption) throws IOException, InstagramApiException {
+        String endpoint = GRAPH_API_BASE + userId + "/media";
+        String postData = "media_type=REELS"
+            + "&video_url=" + URLEncoder.encode(videoUrl, StandardCharsets.UTF_8)
+            + "&access_token=" + accessToken;
+        if (caption != null && !caption.isEmpty()) {
+            postData += "&caption=" + URLEncoder.encode(caption, StandardCharsets.UTF_8);
+        }
+
+        URL url = new URL(endpoint);
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setRequestMethod("POST");
+        conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded");
+        conn.setRequestProperty("Content-Length", Integer.toString(postData.getBytes(StandardCharsets.UTF_8).length));
+        conn.setDoOutput(true);
+
+        try (OutputStream os = conn.getOutputStream()) {
+            os.write(postData.getBytes(StandardCharsets.UTF_8));
+        }
+
+        int responseCode = conn.getResponseCode();
+        if (responseCode == 200) {
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()))) {
+                return objectMapper.readTree(reader).get("id").asText();
+            }
+        } else {
+            handleApiError(conn);
+            return null;
+        }
     }
 
     public String getAccessToken() {

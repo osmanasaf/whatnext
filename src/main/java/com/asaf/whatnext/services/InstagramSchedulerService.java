@@ -21,17 +21,32 @@ public class InstagramSchedulerService {
 
     @Autowired
     private InstagramImageRepository instagramImageRepository;
+
+    @Autowired
+    private WeeklyVideoService weeklyVideoService;
     private static final String DAILY_CAPTION_TEMPLATE = """
         📅 %s İstanbul Etkinlikleri 🎫
         
-        🎭 Tiyatro | 🎶 Konser | 🎤 Stand-up  
+        🎭 Tiyatro | 🎶 Konser | 🎤 Stand-up
         Bugün şehirde ne var? Kaçırma!
         
-        🔗 Detaylar ve biletler profilde  
-        #istanbuletkinlikleri #tiyatro #konser #standup #bugünnevar #whatnext #etkinlikrehberi #istanbuldaetkinlik
+        🔗 Detaylar ve biletler profilde
+        #istanbul #istanbuletkinlikleri #etkinlik #konser #tiyatro #sanat #istanbullife #istanbuldayasam #igersistanbul #istanbulnightlife #istanbulbosphorus #galatatower
         """;
 
 
+
+    @Scheduled(cron = "0 0 12 ? * TUE", zone = "Europe/Istanbul")
+    public void generateAndShareWeeklyReel() {
+        System.out.println("[Scheduler] Haftalık Reel video oluşturma ve paylaşım görevi başlatıldı.");
+        try {
+            weeklyVideoService.generateAndShareWeeklyReel();
+            System.out.println("[Scheduler] Haftalık Reel görevi tamamlandı.");
+        } catch (Exception e) {
+            System.err.println("[Scheduler] Haftalık Reel hatası: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
 
     @Scheduled(cron = "0 0 1 * * ?", zone = "Europe/Istanbul")
     @Transactional

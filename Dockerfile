@@ -12,21 +12,16 @@ RUN apt-get update -qq && apt-get install -qq -y --no-install-recommends \
     gnupg2 software-properties-common libgbm1 libxshmfence1 >/dev/null && \
     rm -rf /var/lib/apt/lists/*
 
-# ImageMagick'in doğru yüklendiğini ve PATH'te olduğunu doğrula
 RUN which magick || which convert || ls -l /usr/bin/ | grep -i magick
 RUN convert -version || echo 'convert yok'
 
-# Chrome ve ChromeDriver'ı yükle
 ENV CHROME_FOR_TESTING_VERSION=138.0.7204.49
-
-# Chrome'u yükle
 RUN wget -q -O /tmp/chrome.zip \
     "https://storage.googleapis.com/chrome-for-testing-public/${CHROME_FOR_TESTING_VERSION}/linux64/chrome-linux64.zip" && \
     unzip -qq /tmp/chrome.zip -d /usr/local && \
     chmod +x /usr/local/chrome-linux64/chrome && \
     rm /tmp/chrome.zip
 
-# ChromeDriver'ı yükle
 RUN wget -q -O /tmp/chromedriver.zip \
     "https://storage.googleapis.com/chrome-for-testing-public/${CHROME_FOR_TESTING_VERSION}/linux64/chromedriver-linux64.zip" && \
     unzip -qq /tmp/chromedriver.zip -d /tmp && \
@@ -34,18 +29,23 @@ RUN wget -q -O /tmp/chromedriver.zip \
     chmod +x /usr/local/bin/chromedriver && \
     rm -rf /tmp/chromedriver*
 
-# Dosyaların varlığını kontrol et
-RUN ls -la /usr/local/chrome-linux64/ && \
-    ls -la /usr/local/bin/chromedriver
-
-# Environment variables for Chrome
+RUN ls -la /usr/local/chrome-linux64/ && ls -la /usr/local/bin/chromedriver
 ENV CHROME_BIN=/usr/local/chrome-linux64/chrome
 ENV CHROMEDRIVER_PATH=/usr/local/bin/chromedriver
 ENV WEBDRIVER_CHROME_DRIVER=/usr/local/bin/chromedriver
 
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get install -y nodejs && \
+    rm -rf /var/lib/apt/lists/*
+
 COPY --from=build /app/target/*.jar /app/whatnext.jar
+COPY --from=build /app/video /app/video
+
+WORKDIR /app/video
+RUN npm ci --omit=dev
 
 WORKDIR /app
 EXPOSE 8080
 
+ENV WHATNEXT_VIDEO_PROJECT_PATH=/app/video
 CMD ["java", "-Dspring.profiles.active=prod", "-Dlogging.file.name=/dev/stdout", "-jar", "whatnext.jar"]
