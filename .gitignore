@@ -36,3 +36,6 @@ help.md
 
 ### VS Code ###
 .vscode/
+
+### Node ###
+video/node_modules/
