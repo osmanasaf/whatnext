@@ -29,10 +29,17 @@ RUN wget -q -O /tmp/chromedriver.zip \
     chmod +x /usr/local/bin/chromedriver && \
     rm -rf /tmp/chromedriver*
 
+RUN wget -q -O /tmp/headless-shell.zip \
+    "https://storage.googleapis.com/chrome-for-testing-public/${CHROME_FOR_TESTING_VERSION}/linux64/chrome-headless-shell-linux64.zip" && \
+    unzip -qq /tmp/headless-shell.zip -d /usr/local && \
+    chmod +x /usr/local/chrome-headless-shell-linux64/chrome-headless-shell && \
+    rm /tmp/headless-shell.zip
+
 RUN ls -la /usr/local/chrome-linux64/ && ls -la /usr/local/bin/chromedriver
 ENV CHROME_BIN=/usr/local/chrome-linux64/chrome
 ENV CHROMEDRIVER_PATH=/usr/local/bin/chromedriver
 ENV WEBDRIVER_CHROME_DRIVER=/usr/local/bin/chromedriver
+ENV CHROME_HEADLESS_SHELL=/usr/local/chrome-headless-shell-linux64/chrome-headless-shell
 
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
     apt-get install -y nodejs && \
