@@ -136,7 +136,7 @@ public class WeeklyVideoService {
                 cmd.add(chromePath);
             }
             cmd.add("--chrome-mode");
-            cmd.add("chrome-headless-shell");
+            cmd.add("headless-shell");
             ProcessBuilder pb = new ProcessBuilder(cmd);
             pb.directory(new File(videoProjectPath).getAbsoluteFile());
             pb.inheritIO();
