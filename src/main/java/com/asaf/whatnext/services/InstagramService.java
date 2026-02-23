@@ -325,13 +325,19 @@ public class InstagramService {
                 try {
                     if (task.type == PostType.POST) {
                         lastContainerId = executeSharePost(task.images, task.caption);
+                        if (lastContainerId != null) {
+                            status = getContainerStatus(lastContainerId);
+                            if ("PUBLISHED".equalsIgnoreCase(status)) {
+                                success = true;
+                            }
+                        }
                     } else {
                         lastContainerId = executeShareStory(task.storyImage);
-                    }
-                    if (lastContainerId != null) {
-                        status = getContainerStatus(lastContainerId);
-                        if ("PUBLISHED".equalsIgnoreCase(status)) {
+                        // Story container'ları için publishContainer exception fırlatmazsa başarılıdır.
+                        // getContainerStatus story container'larında güvenilir sonuç vermeyebilir.
+                        if (lastContainerId != null) {
                             success = true;
+                            status = "STORY_PUBLISHED";
                         }
                     }
                     if (success) {
@@ -400,7 +406,7 @@ public class InstagramService {
     }
 
     private void waitForReelContainerReady(String containerId) throws IOException, InterruptedException {
-        waitForContainer(containerId, 150, 2000);
+        waitForContainer(containerId, 300, 2000);
     }
 
     private void waitForContainer(String containerId, int maxRetries, int sleepMs) throws IOException, InterruptedException {
@@ -547,20 +553,21 @@ public class InstagramService {
         }
 
         public boolean isRateLimitError() {
-            return errorBody.contains("\"code\": 4,") || errorBody.contains("\"code\": 9,") || errorBody.contains("request limit reached");
+            return errorBody.contains("\"code\":4") || errorBody.contains("\"code\": 4,")
+                || errorBody.contains("\"code\":9") || errorBody.contains("\"code\": 9,")
+                || errorBody.contains("request limit reached");
         }
 
         public boolean isActionBlockedError() {
-            return errorBody.contains("\"error_subcode\": 2207051");
+            return errorBody.contains("\"error_subcode\":2207051") || errorBody.contains("\"error_subcode\": 2207051");
         }
 
         public boolean isExpiredOrInvalidToken() {
-            
-            return errorBody.contains("\"code\": 190")
-                || errorBody.contains("\"code\": 102")
-                || errorBody.contains("\"error_subcode\": 463")
-                || errorBody.contains("\"error_subcode\": 460")
-                || errorBody.contains("\"error_subcode\": 467")
+            return errorBody.contains("\"code\":190") || errorBody.contains("\"code\": 190")
+                || errorBody.contains("\"code\":102") || errorBody.contains("\"code\": 102")
+                || errorBody.contains("\"error_subcode\":463") || errorBody.contains("\"error_subcode\": 463")
+                || errorBody.contains("\"error_subcode\":460") || errorBody.contains("\"error_subcode\": 460")
+                || errorBody.contains("\"error_subcode\":467") || errorBody.contains("\"error_subcode\": 467")
                 || errorBody.toLowerCase().contains("invalid oauth")
                 || errorBody.toLowerCase().contains("access token has expired")
                 || errorBody.toLowerCase().contains("session has expired")

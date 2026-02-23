@@ -135,14 +135,22 @@ public class WeeklyVideoService {
                 cmd.add("--browser-executable");
                 cmd.add(chromePath);
             }
-            cmd.add("--chrome-mode");
-            cmd.add("headless-shell");
+            cmd.add("--log");
+            cmd.add("verbose");
             ProcessBuilder pb = new ProcessBuilder(cmd);
             pb.directory(new File(videoProjectPath).getAbsoluteFile());
-            pb.inheritIO();
             pb.redirectErrorStream(true);
 
             Process process = pb.start();
+            StringBuilder output = new StringBuilder();
+            try (java.io.BufferedReader reader = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(process.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    LOGGER.info("[Remotion] {}", line);
+                    output.append(line).append("\n");
+                }
+            }
             int exitCode = process.waitFor();
 
             try {
@@ -150,8 +158,10 @@ public class WeeklyVideoService {
             } catch (IOException ignored) {}
 
             if (exitCode == 0 && outputFile.exists()) {
+                LOGGER.info("Video başarıyla render edildi: {}", outputFile.getAbsolutePath());
                 return outputFile;
             }
+            LOGGER.error("Remotion render başarısız. Exit code: {}. Output:\n{}", exitCode, output);
             return null;
         } catch (Exception e) {
             LOGGER.error("Remotion render hatası", e);
