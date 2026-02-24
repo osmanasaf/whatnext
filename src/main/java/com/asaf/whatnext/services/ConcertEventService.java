@@ -53,6 +53,10 @@ public class ConcertEventService extends BaseService<ConcertEvent, Long> {
         return ((ConcertEventRepository) repository).existsByTitleAndStartDateAndVenue_NameAndType(title, startDate, venueName, type);
     }
 
+    public boolean existsByTitleAndDate(String title, LocalDate startDate) {
+        return ((ConcertEventRepository) repository).existsByTitleAndStartDate(title, startDate);
+    }
+
     public List<ConcertEvent> findByTitleContainingAndDateAndVenueAndType(String title, LocalDate startDate, String venueName, EventType type) {
         return ((ConcertEventRepository) repository).findByTitleContainingAndStartDateAndVenue_NameAndType(title, startDate, venueName, type);
     }

@@ -111,12 +111,27 @@ public class EventSaveService {
         }
     }
     
+    private static String normalizeTitle(String title) {
+        if (title == null) return null;
+        return title.trim()
+            .toLowerCase(java.util.Locale.ROOT)
+            .replaceAll("[\\s\\-–—:]+", " ")
+            .trim();
+    }
+
     private boolean saveConcertEvent(ScrapedEventData data, Venue venue, String imageUrl) {
-        String venueName = venue != null ? venue.getName() : null;
-        if (venueName != null && data.getStartDate() != null &&
-            concertEventService.existsByTitleAndDateAndVenueAndType(
-                    data.getTitle(), data.getStartDate(), venueName, EventType.CONCERT)) {
-            return false;
+        if (data.getStartDate() != null) {
+            // Önce title + date ile kontrol et (kaynak bağımsız, en güvenilir)
+            if (concertEventService.existsByTitleAndDate(data.getTitle(), data.getStartDate())) {
+                LOGGER.debug("Duplicate concert skipped (title+date): {} on {}", data.getTitle(), data.getStartDate());
+                return false;
+            }
+            // Normalize edilmiş başlıkla da kontrol et
+            String normalized = normalizeTitle(data.getTitle());
+            if (normalized != null && concertEventService.existsByTitleAndDate(normalized, data.getStartDate())) {
+                LOGGER.debug("Duplicate concert skipped (normalized title+date): {} on {}", data.getTitle(), data.getStartDate());
+                return false;
+            }
         }
         
         ConcertEvent event = new ConcertEvent();
@@ -143,11 +158,19 @@ public class EventSaveService {
             case THEATER -> PerformanceType.THEATER;
             default -> PerformanceType.THEATER;
         };
-        
-        if (data.getStartDate() != null &&
-            theaterEventService.existsByTitleDateAndType(
-                    data.getTitle(), data.getStartDate(), performanceType)) {
-            return false;
+
+        if (data.getStartDate() != null) {
+            // title + date kontrolü (kaynak bağımsız)
+            if (theaterEventService.existsByTitleAndDate(data.getTitle(), data.getStartDate())) {
+                LOGGER.debug("Duplicate performing art skipped (title+date): {} on {}", data.getTitle(), data.getStartDate());
+                return false;
+            }
+            // Normalize edilmiş başlıkla kontrol
+            String normalized = normalizeTitle(data.getTitle());
+            if (normalized != null && theaterEventService.existsByTitleAndDate(normalized, data.getStartDate())) {
+                LOGGER.debug("Duplicate performing art skipped (normalized title+date): {} on {}", data.getTitle(), data.getStartDate());
+                return false;
+            }
         }
         
         PerformingArt event = new PerformingArt();
@@ -169,7 +192,7 @@ public class EventSaveService {
     }
     
     private void setCommonFields(Event event, ScrapedEventData data, Venue venue, String imageUrl) {
-        event.setTitle(data.getTitle());
+        event.setTitle(data.getTitle() != null ? data.getTitle().trim() : null);
         event.setDescription(data.getDescription());
         event.setStartDate(data.getStartDate());
         event.setEndDate(data.getEndDate());

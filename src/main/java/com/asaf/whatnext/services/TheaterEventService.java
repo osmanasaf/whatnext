@@ -48,4 +48,8 @@ public class TheaterEventService extends BaseService<PerformingArt, Long> {
     public boolean existsByTitleDateAndType(String title, LocalDate startDate, PerformanceType performanceType) {
         return ((TheaterEventRepository) repository).existsByTitleAndStartDateAndPerformanceType(title, startDate, performanceType);
     }
+
+    public boolean existsByTitleAndDate(String title, LocalDate startDate) {
+        return ((TheaterEventRepository) repository).existsByTitleAndStartDate(title, startDate);
+    }
 }

@@ -30,4 +30,6 @@ public interface TheaterEventRepository extends BaseRepository<PerformingArt, Lo
      * @return true if an event exists, false otherwise
      */
     boolean existsByTitleAndStartDateAndPerformanceType(String title, LocalDate startDate, PerformanceType performanceType);
+
+    boolean existsByTitleAndStartDate(String title, LocalDate startDate);
 }

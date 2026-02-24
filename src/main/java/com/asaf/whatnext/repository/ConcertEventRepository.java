@@ -102,6 +102,8 @@ public interface ConcertEventRepository extends BaseRepository<ConcertEvent, Lon
      */
     boolean existsByTitleAndStartDateAndVenue_NameAndType(String title, LocalDate startDate, String venueName, EventType type);
 
+    boolean existsByTitleAndStartDate(String title, LocalDate startDate);
+
     /**
      * Find a concert event by title containing, start date, venue name and type
      * Used for duplicate checking when saving events
