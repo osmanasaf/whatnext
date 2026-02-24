@@ -9,6 +9,7 @@ import com.asaf.whatnext.models.PerformingArt;
 import com.asaf.whatnext.repository.EventRepository;
 import com.asaf.whatnext.services.scoring.EventScoringStrategy;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -27,6 +28,7 @@ public class PopularEventService {
         this.scoringStrategy = scoringStrategy;
     }
 
+    @Transactional(readOnly = true)
     public WeeklyPopularEventsDTO getWeeklyPopularEvents() {
         LocalDate today = LocalDate.now();
         int daysFromMonday = today.getDayOfWeek().getValue() - 1;

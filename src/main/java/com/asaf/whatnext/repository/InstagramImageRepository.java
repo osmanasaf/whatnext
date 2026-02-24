@@ -13,4 +13,5 @@ public interface InstagramImageRepository extends BaseRepository<InstagramImage,
     List<InstagramImage> findByCreationDateAndPostedToInstagramFalse(LocalDate date);
 
     boolean existsByCreationDateAndPostTypeAndPostedToInstagramIsTrue(LocalDate date, String postType);
+
 } 

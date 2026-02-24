@@ -173,6 +173,33 @@ public class InstagramController {
         }
     }
 
+    @PostMapping("/scheduler/share-daily-story")
+    public ResponseEntity<?> shareDailyStoryManually(@RequestParam(required = false) String date) {
+        try {
+            LocalDate targetDate = (date != null && !date.isEmpty()) ? LocalDate.parse(date) : LocalDate.now();
+
+            if (instagramImageRepository.existsByCreationDateAndPostTypeAndPostedToInstagramIsTrue(targetDate, "story")) {
+                return ResponseEntity.ok(Map.of("success", false, "message", targetDate + " için zaten bir story paylaşılmış."));
+            }
+
+            InstagramImage story = instagramImageRepository
+                .findByPostTypeAndEventTypeAndCreationDate("story", "smart_story", targetDate)
+                .orElse(null);
+
+            if (story == null) {
+                story = instagramService.createImage("smart_story", "story", null, targetDate);
+                if (story == null) {
+                    return ResponseEntity.ok(Map.of("success", false, "message", targetDate + " için etkinlik bulunamadı, story görseli üretilemedi."));
+                }
+            }
+
+            instagramService.shareStory(story);
+            return ResponseEntity.ok(Map.of("success", true, "message", "Story paylaşım isteği kuyruğa eklendi.", "imageId", story.getId()));
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body(Map.of("success", false, "message", "Hata: " + e.getMessage()));
+        }
+    }
+
     @PostMapping("/scheduler/create-weekly-posts")
     public ResponseEntity<?> createWeeklyPostsManually() {
         try {

@@ -36,7 +36,7 @@ public class InstagramSchedulerService {
 
 
 
-    @Scheduled(cron = "0 0 12 ? * TUE", zone = "Europe/Istanbul")
+    @Scheduled(cron = "0 0 13 ? * TUE", zone = "Europe/Istanbul")
     public void generateAndShareWeeklyReel() {
         System.out.println("[Scheduler] Haftalık Reel video oluşturma ve paylaşım görevi başlatıldı.");
         try {
@@ -48,7 +48,7 @@ public class InstagramSchedulerService {
         }
     }
 
-    @Scheduled(cron = "0 0 1 * * ?", zone = "Europe/Istanbul")
+    @Scheduled(cron = "0 50 11 * * ?", zone = "Europe/Istanbul")
     @Transactional
     public void createDailyStory() {
         System.out.println("[Scheduler] Günlük story görseli oluşturma ve kaydetme görevi başlatıldı.");
@@ -81,12 +81,25 @@ public class InstagramSchedulerService {
                 return;
             }
 
-            Optional<InstagramImage> storyToShare = instagramImageRepository.findByPostTypeAndEventTypeAndCreationDate("story", "smart_story", today);
-            if (storyToShare.isPresent() && !storyToShare.get().isPostedToInstagram()) {
+            Optional<InstagramImage> storyToShare = instagramImageRepository
+                .findByPostTypeAndEventTypeAndCreationDate("story", "smart_story", today);
+
+            // Görsel henüz oluşturulmamışsa burada oluştur
+            if (storyToShare.isEmpty()) {
+                System.out.println("[Scheduler] Bugün için story görseli bulunamadı, şimdi oluşturuluyor...");
+                InstagramImage created = instagramService.createImage("smart_story", "story", null, today);
+                if (created != null) {
+                    storyToShare = Optional.of(created);
+                    System.out.println("[Scheduler] Story görseli oluşturuldu, paylaşılacak.");
+                } else {
+                    System.out.println("[Scheduler] Bugün için etkinlik bulunamadı, story görseli üretilemedi.");
+                    return;
+                }
+            }
+
+            if (!storyToShare.get().isPostedToInstagram()) {
                 instagramService.shareStory(storyToShare.get());
                 System.out.println("[Scheduler] Instagram story paylaşım isteği gönderildi.");
-            } else {
-                System.out.println("[Scheduler] Paylaşılacak story bulunamadı. Etkinlik olmadığı için story görseli üretilmemiş olabilir.");
             }
         } catch (Exception e) {
             System.err.println("[Scheduler] Instagram story paylaşımı sırasında hata: " + e.getMessage());
