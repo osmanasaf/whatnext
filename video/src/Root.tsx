@@ -5,7 +5,7 @@ import { WeeklyReel, WeeklyReelProps } from './WeeklyReel';
 const FPS = 30;
 const WIDTH = 1080;
 const HEIGHT = 1920;
-const INTRO = 60;
+const INTRO = 75;
 const OUTRO = 60;
 const PER_CARD = 90;
 
