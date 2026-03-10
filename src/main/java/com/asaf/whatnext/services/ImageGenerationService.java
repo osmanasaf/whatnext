@@ -117,6 +117,7 @@ public class ImageGenerationService {
         try (InputStream input = Files.newInputStream(coordinatesFile.toPath())) {
             coordinates.load(input);
         }
+
         List<String> command = new ArrayList<>();
         command.add("magick");
         command.add(templateFile.getAbsolutePath());

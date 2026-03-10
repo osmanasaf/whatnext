@@ -65,9 +65,28 @@ public class PopularEventService {
     private List<Event> filterAndSortEvents(List<Event> allEvents, EventType type, int limit) {
         return allEvents.stream()
                 .filter(e -> matchesEventType(e, type))
+                .filter(e -> !isChildrensEvent(e))
                 .sorted(Comparator.comparingInt(scoringStrategy::calculateScore).reversed())
                 .limit(limit)
                 .toList();
+    }
+
+    private boolean isChildrensEvent(Event event) {
+        if (event == null) return false;
+        
+        String title = event.getTitle() != null ? event.getTitle().toLowerCase(Locale.forLanguageTag("tr")) : "";
+        if (title.contains("çocuk") || title.contains("cocuk")) {
+            return true;
+        }
+        
+        if (event.getVenue() != null && event.getVenue().getName() != null) {
+            String venueName = event.getVenue().getName().toLowerCase(Locale.forLanguageTag("tr"));
+            if (venueName.contains("çocuk") || venueName.contains("cocuk")) {
+                return true;
+            }
+        }
+        
+        return false;
     }
 
     private boolean matchesEventType(Event event, EventType type) {

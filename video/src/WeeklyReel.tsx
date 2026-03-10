@@ -1,5 +1,5 @@
 import React from 'react';
-import { AbsoluteFill, Sequence, interpolate, useCurrentFrame } from 'remotion';
+import { AbsoluteFill, Sequence, interpolate, useCurrentFrame, useVideoConfig, spring, Audio, staticFile } from 'remotion';
 import { EventCard, EventData } from './EventCard';
 import { ReelBackground } from './ReelBackground';
 
@@ -15,20 +15,26 @@ const OUTRO_FRAMES = 60;
 
 const LogoIcon = () => (
   <svg width="36" height="36" viewBox="0 0 24 24" fill="none">
-    <polygon points="12,2 22,8.5 22,15.5 12,22 2,15.5 2,8.5" stroke="#a78bfa" strokeWidth="1.5" fill="rgba(139,92,246,0.15)"/>
-    <path d="M12 7v5l3 3" stroke="#a78bfa" strokeWidth="1.8" strokeLinecap="round"/>
+    <polygon points="12,2 22,8.5 22,15.5 12,22 2,15.5 2,8.5" stroke="#a78bfa" strokeWidth="1.5" fill="rgba(139,92,246,0.15)" />
+    <path d="M12 7v5l3 3" stroke="#a78bfa" strokeWidth="1.8" strokeLinecap="round" />
   </svg>
 );
 
 const IntroScreen: React.FC<{ weekRange: string }> = ({ weekRange }) => {
   const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
 
-  const titleY = interpolate(frame, [0, 30], [50, 0], { extrapolateRight: 'clamp' });
-  const titleOpacity = interpolate(frame, [0, 25], [0, 1], { extrapolateRight: 'clamp' });
-  const subOpacity = interpolate(frame, [15, 40], [0, 1], { extrapolateRight: 'clamp' });
-  const subY = interpolate(frame, [15, 40], [30, 0], { extrapolateRight: 'clamp' });
-  const lineScale = interpolate(frame, [25, 55], [0, 1], { extrapolateRight: 'clamp' });
-  const badgeOpacity = interpolate(frame, [35, 55], [0, 1], { extrapolateRight: 'clamp' });
+  // Better entrance physics
+  const titleDrop = spring({ frame, fps, config: { damping: 14, stiffness: 120 } });
+  const titleY = interpolate(titleDrop, [0, 1], [50, 0]);
+  const titleOpacity = interpolate(titleDrop, [0, 1], [0, 1]);
+
+  const subDrop = spring({ frame: Math.max(0, frame - 10), fps, config: { damping: 14, stiffness: 100 } });
+  const subOpacity = interpolate(subDrop, [0, 1], [0, 1]);
+  const subY = interpolate(subDrop, [0, 1], [30, 0]);
+
+  const lineScale = spring({ frame: Math.max(0, frame - 20), fps, config: { damping: 15 } });
+  const badgeOpacity = interpolate(frame, [30, 50], [0, 1], { extrapolateRight: 'clamp' });
 
   return (
     <AbsoluteFill style={{
@@ -118,10 +124,10 @@ const IntroScreen: React.FC<{ weekRange: string }> = ({ weekRange }) => {
         <div style={{ width: 32, height: 1, background: 'rgba(167,139,250,0.4)' }} />
       </div>
 
-      {/* Alt etiketler */}
+      {/* Alt etiketler - reduced gap and padding to fit safe zone */}
       <div style={{
         position: 'absolute', bottom: 52,
-        display: 'flex', gap: 20,
+        display: 'flex', gap: 12,
         opacity: badgeOpacity,
       }}>
         {[
@@ -130,7 +136,7 @@ const IntroScreen: React.FC<{ weekRange: string }> = ({ weekRange }) => {
           { label: 'STAND-UP', color: '#6ee7b7', border: 'rgba(52,211,153,0.35)' },
         ].map(t => (
           <div key={t.label} style={{
-            padding: '8px 18px',
+            padding: '8px 14px',
             borderRadius: 100,
             border: `1.5px solid ${t.border}`,
             background: `${t.border}`,
@@ -153,8 +159,11 @@ const IntroScreen: React.FC<{ weekRange: string }> = ({ weekRange }) => {
 
 const OutroScreen: React.FC = () => {
   const frame = useCurrentFrame();
-  const opacity = interpolate(frame, [0, 20], [0, 1], { extrapolateRight: 'clamp' });
-  const scale = interpolate(frame, [0, 20], [0.92, 1], { extrapolateRight: 'clamp' });
+  const { fps } = useVideoConfig();
+
+  const pop = spring({ frame, fps, config: { damping: 12, stiffness: 100 } });
+  const opacity = interpolate(pop, [0, 1], [0, 1]);
+  const scale = interpolate(pop, [0, 1], [0.92, 1]);
 
   return (
     <AbsoluteFill style={{
@@ -192,20 +201,37 @@ const OutroScreen: React.FC = () => {
       }} />
       <div style={{
         marginTop: 20,
+        fontSize: 24,
+        fontWeight: 700,
+        color: '#f8fafc',
+        fontFamily: 'system-ui, sans-serif',
+      }}>
+        Hemen Biletini Al!
+      </div>
+
+      <div style={{
+        marginTop: 20,
         fontSize: 18,
         color: '#64748b',
         fontFamily: 'system-ui, sans-serif',
         letterSpacing: 1,
+        background: 'rgba(139,92,246,0.15)',
+        padding: '12px 24px',
+        borderRadius: 100,
+        border: '1px solid rgba(139,92,246,0.3)'
       }}>
-        Detaylar ve biletler profilde
+        Detaylar profildeki linkte 🔗
       </div>
     </AbsoluteFill>
   );
 };
 
 export const WeeklyReel: React.FC<WeeklyReelProps> = ({ events, weekRange, backgroundVariant = 0 }) => {
+  const { durationInFrames } = useVideoConfig();
   return (
     <AbsoluteFill>
+      <Audio src={staticFile('bg-music.mp3')} loop />
+
       <ReelBackground variant={backgroundVariant} />
 
       {/* Intro */}
@@ -241,7 +267,7 @@ export const WeeklyReel: React.FC<WeeklyReelProps> = ({ events, weekRange, backg
         gap: 8,
       }}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-          <polygon points="12,2 22,8.5 22,15.5 12,22 2,15.5 2,8.5" stroke="rgba(167,139,250,0.5)" strokeWidth="1.5"/>
+          <polygon points="12,2 22,8.5 22,15.5 12,22 2,15.5 2,8.5" stroke="rgba(167,139,250,0.5)" strokeWidth="1.5" />
         </svg>
         <span style={{
           fontSize: 15,

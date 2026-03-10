@@ -1,5 +1,5 @@
 import React from 'react';
-import { AbsoluteFill, Img, interpolate, useCurrentFrame } from 'remotion';
+import { AbsoluteFill, Img, interpolate, useCurrentFrame, useVideoConfig, spring } from 'remotion';
 
 export interface EventData {
   id: number;
@@ -21,9 +21,9 @@ const TYPE_CONFIG: Record<string, { label: string; color: string; bg: string; bo
     border: 'rgba(244,114,182,0.4)',
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-        <path d="M9 18V5l12-2v13" stroke="#f9a8d4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-        <circle cx="6" cy="18" r="3" stroke="#f9a8d4" strokeWidth="2"/>
-        <circle cx="18" cy="16" r="3" stroke="#f9a8d4" strokeWidth="2"/>
+        <path d="M9 18V5l12-2v13" stroke="#f9a8d4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx="6" cy="18" r="3" stroke="#f9a8d4" strokeWidth="2" />
+        <circle cx="18" cy="16" r="3" stroke="#f9a8d4" strokeWidth="2" />
       </svg>
     ),
   },
@@ -34,9 +34,9 @@ const TYPE_CONFIG: Record<string, { label: string; color: string; bg: string; bo
     border: 'rgba(139,92,246,0.4)',
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-        <circle cx="9" cy="12" r="4" stroke="#c4b5fd" strokeWidth="2"/>
-        <circle cx="15" cy="12" r="4" stroke="#c4b5fd" strokeWidth="2"/>
-        <path d="M6 20c0-2.21 1.343-4 3-4h6c1.657 0 3 1.79 3 4" stroke="#c4b5fd" strokeWidth="2" strokeLinecap="round"/>
+        <circle cx="9" cy="12" r="4" stroke="#c4b5fd" strokeWidth="2" />
+        <circle cx="15" cy="12" r="4" stroke="#c4b5fd" strokeWidth="2" />
+        <path d="M6 20c0-2.21 1.343-4 3-4h6c1.657 0 3 1.79 3 4" stroke="#c4b5fd" strokeWidth="2" strokeLinecap="round" />
       </svg>
     ),
   },
@@ -47,9 +47,9 @@ const TYPE_CONFIG: Record<string, { label: string; color: string; bg: string; bo
     border: 'rgba(52,211,153,0.4)',
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-        <circle cx="12" cy="5" r="2.5" stroke="#6ee7b7" strokeWidth="2"/>
-        <path d="M12 8v5M9 11l-2 4M15 11l2 4M10 13h4" stroke="#6ee7b7" strokeWidth="2" strokeLinecap="round"/>
-        <path d="M8 21l2-4h4l2 4" stroke="#6ee7b7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        <circle cx="12" cy="5" r="2.5" stroke="#6ee7b7" strokeWidth="2" />
+        <path d="M12 8v5M9 11l-2 4M15 11l2 4M10 13h4" stroke="#6ee7b7" strokeWidth="2" strokeLinecap="round" />
+        <path d="M8 21l2-4h4l2 4" stroke="#6ee7b7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     ),
   },
@@ -57,28 +57,44 @@ const TYPE_CONFIG: Record<string, { label: string; color: string; bg: string; bo
 
 const CalendarIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-    <rect x="3" y="4" width="18" height="18" rx="3" stroke="#94a3b8" strokeWidth="1.8"/>
-    <path d="M3 9h18" stroke="#94a3b8" strokeWidth="1.8"/>
-    <path d="M8 2v4M16 2v4" stroke="#94a3b8" strokeWidth="1.8" strokeLinecap="round"/>
+    <rect x="3" y="4" width="18" height="18" rx="3" stroke="#94a3b8" strokeWidth="1.8" />
+    <path d="M3 9h18" stroke="#94a3b8" strokeWidth="1.8" />
+    <path d="M8 2v4M16 2v4" stroke="#94a3b8" strokeWidth="1.8" strokeLinecap="round" />
   </svg>
 );
 
 const LocationIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-    <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" stroke="#94a3b8" strokeWidth="1.8"/>
-    <circle cx="12" cy="9" r="2.5" stroke="#94a3b8" strokeWidth="1.8"/>
+    <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" stroke="#94a3b8" strokeWidth="1.8" />
+    <circle cx="12" cy="9" r="2.5" stroke="#94a3b8" strokeWidth="1.8" />
   </svg>
 );
 
 export const EventCard: React.FC<{ event: EventData; index: number }> = ({ event }) => {
   const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
 
   const fadeIn = interpolate(frame, [0, FADE_DURATION], [0, 1], { extrapolateRight: 'clamp' });
   const fadeOut = interpolate(frame, [CARD_DURATION - FADE_DURATION, CARD_DURATION], [1, 0], { extrapolateLeft: 'clamp' });
   const opacity = Math.min(fadeIn, fadeOut);
 
-  const slideY = interpolate(frame, [0, FADE_DURATION], [40, 0], { extrapolateRight: 'clamp' });
-  const scale = interpolate(frame, [0, FADE_DURATION], [0.96, 1], { extrapolateRight: 'clamp' });
+  // Upgrade slide-in to spring physics for a "pop" effect
+  const slideY = spring({
+    frame,
+    fps,
+    config: { damping: 14, stiffness: 120 },
+  });
+  const slideYPixels = interpolate(slideY, [0, 1], [40, 0]);
+
+  const scaleIn = spring({
+    frame,
+    fps,
+    config: { damping: 14, stiffness: 150 },
+  });
+  const scale = interpolate(scaleIn, [0, 1], [0.96, 1]);
+
+  // Subtle image zoom effect (Ken Burns)
+  const imageZoom = interpolate(frame, [0, CARD_DURATION], [1, 1.08], { extrapolateRight: 'clamp' });
 
   const cfg = TYPE_CONFIG[event.type] ?? TYPE_CONFIG.CONCERT;
 
@@ -89,7 +105,7 @@ export const EventCard: React.FC<{ event: EventData; index: number }> = ({ event
   };
 
   return (
-    <AbsoluteFill style={{ opacity, transform: `translateY(${slideY}px) scale(${scale})` }}>
+    <AbsoluteFill style={{ opacity, transform: `translateY(${slideYPixels}px) scale(${scale})` }}>
       <div style={{
         position: 'absolute', inset: 0,
         background: 'linear-gradient(180deg, rgba(15,12,41,0.75) 0%, rgba(15,12,41,0.95) 100%)',
@@ -102,7 +118,7 @@ export const EventCard: React.FC<{ event: EventData; index: number }> = ({ event
         flexDirection: event.imageUrl ? 'row' : 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: event.imageUrl ? '48px 40px' : '60px 56px',
+        padding: event.imageUrl ? '48px 90px' : '60px 100px', // Increased padding
         gap: 40,
       }}>
 
@@ -211,7 +227,7 @@ export const EventCard: React.FC<{ event: EventData; index: number }> = ({ event
           }}>
             <Img
               src={event.imageUrl}
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              style={{ width: '100%', height: '100%', objectFit: 'cover', transform: `scale(${imageZoom})` }}
             />
             {/* Görsel üzerine hafif gradient */}
             <div style={{
