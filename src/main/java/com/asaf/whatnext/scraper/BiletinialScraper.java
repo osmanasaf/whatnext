@@ -73,7 +73,7 @@ public class BiletinialScraper extends BaseScraper {
         List<ScrapedEventData> events = new ArrayList<>();
         LocalDate today = LocalDate.now();
         
-        for (int i = 0; i < 7; i++) {
+        for (int i = 0; i < 14; i++) {
             LocalDate date = today.plusDays(i);
             String dateStr = date.format(DateTimeFormatter.ofPattern("dd-MM-yyyy"));
             

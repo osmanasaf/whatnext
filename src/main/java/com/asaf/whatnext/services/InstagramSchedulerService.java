@@ -6,10 +6,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.Optional;
 import java.util.ArrayList;
 
@@ -24,11 +27,14 @@ public class InstagramSchedulerService {
 
     @Autowired
     private WeeklyVideoService weeklyVideoService;
+    private static final DateTimeFormatter TR_DATE_FORMAT = DateTimeFormatter.ofPattern("d MMMM", new Locale("tr"));
+    private static final DateTimeFormatter TR_DATE_YEAR_FORMAT = DateTimeFormatter.ofPattern("d MMMM yyyy", new Locale("tr"));
+
     private static final String DAILY_CAPTION_TEMPLATE = """
         📅 %s İstanbul Etkinlikleri 🎫
         
         🎭 Tiyatro | 🎶 Konser | 🎤 Stand-up
-        Bugün şehirde ne var? Kaçırma!
+        Bu günlerde şehirde neler var? Kaçırma!
         
         🔗 Detaylar ve biletler profilde
         #istanbul #istanbuletkinlikleri #etkinlik #konser #tiyatro #sanat #istanbullife #istanbuldayasam #igersistanbul #istanbulnightlife #istanbulbosphorus #galatatower
@@ -143,85 +149,128 @@ public class InstagramSchedulerService {
         System.out.println("[Scheduler] Haftalık post görselleri oluşturma işlemi tamamlandı.");
     }
 
-    @Scheduled(cron = "0 30 16 ? * SUN", zone = "Europe/Istanbul")
+    /**
+     * Pazar 17:00 — Pazartesi + Salı etkinlik postlarını paylaş
+     */
+    @Scheduled(cron = "0 0 17 ? * SUN", zone = "Europe/Istanbul")
     @Transactional
-    public List<String> shareWeeklyPostsToInstagram() throws InterruptedException {
-        List<String> results = new ArrayList<>();
-        System.out.println("[Scheduler] Haftalık postları Instagram'a gönderme işlemi başlatılıyor...");
+    public List<String> shareWeeklyPostsGroup1() throws InterruptedException {
         LocalDate today = LocalDate.now();
-        LocalDate nextMonday = today.plusDays((8 - today.getDayOfWeek().getValue()) % 7);
+        LocalDate nextMonday = today.with(DayOfWeek.MONDAY).isAfter(today)
+                ? today.with(DayOfWeek.MONDAY)
+                : today.plusWeeks(1).with(DayOfWeek.MONDAY);
+        List<LocalDate> dates = List.of(nextMonday, nextMonday.plusDays(1));
+        return sharePostsForDates(dates, "Grup 1 (Pzt-Sal)");
+    }
 
-        for (int i = 0; i < 7; i++) {
-            LocalDate targetDate = nextMonday.plusDays(i);
-            try {
-                System.out.println("[Scheduler] İşlenen gün: " + targetDate);
-                
-                boolean coverShared = instagramImageRepository.existsByCreationDateAndPostTypeAndPostedToInstagramIsTrue(targetDate, "cover");
-                if (coverShared) {
-                    String msg = "[Scheduler] " + targetDate + " için zaten bir cover paylaşılmış. Diğer güne geçiliyor.";
-                    System.out.println(msg);
-                    results.add(msg);
-                    continue;
-                }
+    /**
+     * Salı 10:00 — Çarşamba + Perşembe + Cuma etkinlik postlarını paylaş
+     */
+    @Scheduled(cron = "0 0 10 ? * TUE", zone = "Europe/Istanbul")
+    @Transactional
+    public List<String> shareWeeklyPostsGroup2() throws InterruptedException {
+        LocalDate today = LocalDate.now();
+        LocalDate monday = today.with(DayOfWeek.MONDAY);
+        List<LocalDate> dates = List.of(monday.plusDays(2), monday.plusDays(3), monday.plusDays(4));
+        return sharePostsForDates(dates, "Grup 2 (Çar-Per-Cum)");
+    }
 
-                List<InstagramImage> imagesToShare = instagramImageRepository.findByCreationDateAndPostedToInstagramFalse(targetDate);
-                List<InstagramImage> posts = new ArrayList<>();
-                
-                java.util.Map<String, InstagramImage> uniqueImages = new java.util.HashMap<>();
-                for (InstagramImage img : imagesToShare) {
-                    if ("post".equals(img.getPostType()) || "cover".equals(img.getPostType())) {
-                        if (!uniqueImages.containsKey(img.getEventType()) || img.getId() > uniqueImages.get(img.getEventType()).getId()) {
-                             uniqueImages.put(img.getEventType(), img);
-                        }
-                    }
-                }
-                posts.addAll(uniqueImages.values());
+    /**
+     * Çarşamba 10:00 — Cumartesi + Pazar etkinlik postlarını paylaş
+     */
+    @Scheduled(cron = "0 0 10 ? * WED", zone = "Europe/Istanbul")
+    @Transactional
+    public List<String> shareWeeklyPostsGroup3() throws InterruptedException {
+        LocalDate today = LocalDate.now();
+        LocalDate monday = today.with(DayOfWeek.MONDAY);
+        List<LocalDate> dates = List.of(monday.plusDays(5), monday.plusDays(6));
+        return sharePostsForDates(dates, "Grup 3 (Cts-Paz)");
+    }
 
-                if (!posts.isEmpty()) {
-                    posts.sort((img1, img2) -> "cover".equals(img1.getEventType()) ? -1 : 1);
-                    
-                    String date = targetDate.format(DateTimeFormatter.ofPattern("dd MMMM yyyy", new Locale("tr")));
-                    String caption = String.format(DAILY_CAPTION_TEMPLATE, date);
-                    
-                    System.out.println("[Scheduler] " + targetDate + " için paylaşım başlatılıyor. Görsel ID'leri: " + posts.stream().map(InstagramImage::getId).toList());
-                    
-                    instagramService.sharePost(posts, caption);
-                    
-                    int maxAttempts = 30;
-                    boolean isPublished = false;
-                    for (int attempt = 0; attempt < maxAttempts; attempt++) {
-                        Thread.sleep(10000);
-                        boolean checkShared = instagramImageRepository.existsByCreationDateAndPostTypeAndPostedToInstagramIsTrue(targetDate, "cover");
-                        if (checkShared) {
-                            isPublished = true;
-                            break;
-                        }
-                        System.out.println("[Scheduler] " + targetDate + " paylaşımı bekleniyor... Deneme: " + (attempt + 1) + "/" + maxAttempts);
-                    }
+    private List<String> sharePostsForDates(List<LocalDate> dates, String groupName) throws InterruptedException {
+        List<String> results = new ArrayList<>();
+        System.out.println("[Scheduler] " + groupName + " postları Instagram'a gönderiliyor...");
 
-                    if (isPublished) {
-                        String msg = "[Scheduler] ✅ " + targetDate + " paylaşımı başarıyla tamamlandı.";
-                        System.out.println(msg);
-                        results.add(msg);
-                    } else {
-                        String msg = "[Scheduler] ❌ " + targetDate + " paylaşımı zaman aşımına uğradı veya başarısız oldu. Sonraki günler İPTAL edildi.";
-                        System.err.println(msg);
-                        results.add(msg);
-                        break;
-                    }
-                } else {
-                    String msg = "[Scheduler] " + targetDate + " için paylaşılacak görsel bulunamadı.";
-                    System.out.println(msg);
-                    results.add(msg);
-                }
-            } catch (Exception ex) {
-                String err = "[Scheduler] HATA! " + targetDate + " işleminde kritik hata: " + ex.getMessage();
-                System.err.println(err);
-                ex.printStackTrace();
-                results.add(err);
-                break;
+        List<InstagramImage> allPosts = new ArrayList<>();
+        for (LocalDate targetDate : dates) {
+            boolean coverShared = instagramImageRepository
+                    .existsByCreationDateAndPostTypeAndPostedToInstagramIsTrue(targetDate, "cover");
+            if (coverShared) {
+                String msg = "[Scheduler] " + targetDate + " için zaten bir cover paylaşılmış, atlanıyor.";
+                System.out.println(msg);
+                results.add(msg);
+                continue;
             }
+
+            List<InstagramImage> imagesToShare = instagramImageRepository
+                    .findByCreationDateAndPostedToInstagramFalse(targetDate);
+
+            Map<String, InstagramImage> uniqueImages = new HashMap<>();
+            for (InstagramImage img : imagesToShare) {
+                if ("post".equals(img.getPostType()) || "cover".equals(img.getPostType())) {
+                    if (!uniqueImages.containsKey(img.getEventType())
+                            || img.getId() > uniqueImages.get(img.getEventType()).getId()) {
+                        uniqueImages.put(img.getEventType(), img);
+                    }
+                }
+            }
+            allPosts.addAll(uniqueImages.values());
         }
+
+        if (allPosts.isEmpty()) {
+            String msg = "[Scheduler] " + groupName + " için paylaşılacak görsel bulunamadı.";
+            System.out.println(msg);
+            results.add(msg);
+            return results;
+        }
+
+        allPosts.sort((img1, img2) -> {
+            int dateCompare = img1.getCreationDate().compareTo(img2.getCreationDate());
+            if (dateCompare != 0) return dateCompare;
+            return "cover".equals(img1.getEventType()) ? -1 : 1;
+        });
+
+        LocalDate firstDate = dates.getFirst();
+        LocalDate lastDate = dates.getLast();
+        String dateRange = firstDate.format(TR_DATE_FORMAT) + " - " + lastDate.format(TR_DATE_YEAR_FORMAT);
+        String caption = String.format(DAILY_CAPTION_TEMPLATE, dateRange);
+
+        System.out.println("[Scheduler] " + groupName + " paylaşım başlatılıyor. Görsel ID'leri: "
+                + allPosts.stream().map(InstagramImage::getId).toList());
+
+        try {
+            instagramService.sharePost(allPosts, caption);
+
+            int maxAttempts = 30;
+            boolean isPublished = false;
+            for (int attempt = 0; attempt < maxAttempts; attempt++) {
+                Thread.sleep(10000);
+                boolean checkShared = instagramImageRepository
+                        .existsByCreationDateAndPostTypeAndPostedToInstagramIsTrue(firstDate, "cover");
+                if (checkShared) {
+                    isPublished = true;
+                    break;
+                }
+                System.out.println("[Scheduler] " + groupName + " paylaşımı bekleniyor... Deneme: "
+                        + (attempt + 1) + "/" + maxAttempts);
+            }
+
+            if (isPublished) {
+                String msg = "[Scheduler] " + groupName + " paylaşımı başarıyla tamamlandı.";
+                System.out.println(msg);
+                results.add(msg);
+            } else {
+                String msg = "[Scheduler] " + groupName + " paylaşımı zaman aşımına uğradı veya başarısız oldu.";
+                System.err.println(msg);
+                results.add(msg);
+            }
+        } catch (Exception ex) {
+            String err = "[Scheduler] HATA! " + groupName + " paylaşımında kritik hata: " + ex.getMessage();
+            System.err.println(err);
+            ex.printStackTrace();
+            results.add(err);
+        }
+
         return results;
     }
 } 

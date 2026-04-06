@@ -149,16 +149,20 @@ public class EventService {
     }
 
     public List<Event> findTop6EventsForDateAndCity(LocalDate date, EventType eventType, String city) {
+        return findTopNEventsForDateAndCity(date, eventType, city, 6);
+    }
+
+    public List<Event> findTopNEventsForDateAndCity(LocalDate date, EventType eventType, String city, int limit) {
         String dateStr = date.toString();
         List<Event> events = findByDateRangeAndTypeAndCity(
-            dateStr, 
             dateStr,
-            eventType, 
+            dateStr,
+            eventType,
             com.asaf.whatnext.enums.City.valueOf(city.toUpperCase(java.util.Locale.ENGLISH))
         );
         return events.stream()
-            .filter(e -> e.getTitle() != null && e.getTitle().length() <= 40)
-            .limit(6)
+            .filter(e -> e.getTitle() != null && !e.getTitle().isBlank())
+            .limit(limit)
             .collect(Collectors.toList());
     }
 

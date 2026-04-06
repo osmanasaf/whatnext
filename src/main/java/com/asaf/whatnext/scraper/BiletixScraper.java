@@ -38,8 +38,8 @@ public class BiletixScraper extends BaseScraper {
         BiletixCity selectedCity = parseCity(city);
         
         List<CategoryScraper> scrapers = Arrays.asList(
-            (driver, wait) -> scrapeCategory(BiletixCategory.MUSIC, selectedCity),
-            (driver, wait) -> scrapeCategory(BiletixCategory.ART, selectedCity)
+            (driver, wait) -> scrapeCategory(BiletixCategory.MUSIC, selectedCity, null, null),
+            (driver, wait) -> scrapeCategory(BiletixCategory.ART, selectedCity, null, null)
         );
         
         List<ScrapedEventData> allData = scrapeForCategories(scrapers);
@@ -51,11 +51,35 @@ public class BiletixScraper extends BaseScraper {
         return allData;
     }
 
-    private List<ScrapedEventData> scrapeCategory(BiletixCategory category, BiletixCity city) {
+    @Override
+    public List<ScrapedEventData> scrapeEvents(String city, LocalDate startDate, LocalDate endDate) {
+        if (startDate == null || endDate == null) {
+            return super.scrapeEvents(city, startDate, endDate);
+        }
+        logger.info("Scraping events from Biletix for city: " + city + " (" + startDate + " - " + endDate + ")");
+
+        BiletixCity selectedCity = parseCity(city);
+
+        List<CategoryScraper> scrapers = Arrays.asList(
+            (driver, wait) -> scrapeCategory(BiletixCategory.MUSIC, selectedCity, startDate, endDate),
+            (driver, wait) -> scrapeCategory(BiletixCategory.ART, selectedCity, startDate, endDate)
+        );
+
+        List<ScrapedEventData> allData = scrapeForCategories(scrapers);
+        logger.info("Scraped " + allData.size() + " events from Biletix");
+
+        long validCount = allData.stream().filter(ScrapedEventData::isValid).count();
+        logger.info("Valid events: " + validCount + "/" + allData.size());
+
+        return filterByDate(allData, startDate, endDate);
+    }
+
+    private List<ScrapedEventData> scrapeCategory(BiletixCategory category, BiletixCity city,
+            LocalDate startDate, LocalDate endDate) {
         List<ScrapedEventData> events = new ArrayList<>();
         
         try {
-            String searchUrl = config.buildSearchUrl(category, city, null, null);
+            String searchUrl = config.buildSearchUrl(category, city, startDate, endDate);
             WebScraperUtils.navigateToUrl(driver, wait, searchUrl);
             
             WebScraperUtils.clickLoadMoreUntilEnd(

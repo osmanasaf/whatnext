@@ -224,7 +224,10 @@ public class InstagramController {
     @PostMapping("/scheduler/share-weekly-posts")
     public ResponseEntity<?> shareWeeklyPostsManually() {
         try {
-            List<String> results = instagramSchedulerService.shareWeeklyPostsToInstagram();
+            List<String> results = new ArrayList<>();
+            results.addAll(instagramSchedulerService.shareWeeklyPostsGroup1());
+            results.addAll(instagramSchedulerService.shareWeeklyPostsGroup2());
+            results.addAll(instagramSchedulerService.shareWeeklyPostsGroup3());
             return ResponseEntity.ok(results);
         } catch (Exception e) {
             e.printStackTrace();

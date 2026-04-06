@@ -22,15 +22,18 @@ export const RemotionRoot: React.FC = () => {
     <>
       <Composition
         id="WeeklyReel"
-        component={WeeklyReel}
+        component={WeeklyReel as unknown as React.ComponentType<Record<string, unknown>>}
         durationInFrames={duration}
         fps={FPS}
         width={WIDTH}
         height={HEIGHT}
         defaultProps={defaultProps}
-        calculateMetadata={({ props }) => ({
-          durationInFrames: INTRO + Math.max(props.events?.length ?? 9, 1) * PER_CARD + OUTRO,
-        })}
+        calculateMetadata={({ props }) => {
+          const p = props as unknown as WeeklyReelProps;
+          return {
+            durationInFrames: INTRO + Math.max(p.events?.length ?? 9, 1) * PER_CARD + OUTRO,
+          };
+        }}
       />
     </>
   );
