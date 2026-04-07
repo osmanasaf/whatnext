@@ -15,8 +15,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 public class WeeklyVideoService {
@@ -75,17 +78,48 @@ public class WeeklyVideoService {
 
     private List<EventSummaryDTO> collectEventsForVideo(WeeklyPopularEventsDTO weekly) {
         List<EventSummaryDTO> result = new ArrayList<>();
-        addUpTo(result, weekly.getConcerts(), 3);
-        addUpTo(result, weekly.getTheaters(), 3);
-        addUpTo(result, weekly.getStandups(), 3);
+        Set<Long> seenIds = new HashSet<>();
+        Set<String> seenTitleDate = new HashSet<>();
+        addUpTo(result, weekly.getConcerts(), 3, seenIds, seenTitleDate);
+        addUpTo(result, weekly.getTheaters(), 3, seenIds, seenTitleDate);
+        addUpTo(result, weekly.getStandups(), 3, seenIds, seenTitleDate);
         return result;
     }
 
-    private void addUpTo(List<EventSummaryDTO> target, List<EventSummaryDTO> source, int max) {
-        if (source == null) return;
-        for (int i = 0; i < Math.min(max, source.size()); i++) {
-            target.add(source.get(i));
+    /** Aynı etkinlik (farklı kaynak / çift kayıt) Reel'de iki kez çıkmasın. */
+    private void addUpTo(List<EventSummaryDTO> target, List<EventSummaryDTO> source, int max,
+                         Set<Long> seenIds, Set<String> seenTitleDate) {
+        if (source == null) {
+            return;
         }
+        int added = 0;
+        for (EventSummaryDTO e : source) {
+            if (added >= max) {
+                break;
+            }
+            if (e == null) {
+                continue;
+            }
+            if (e.getId() != null && seenIds.contains(e.getId())) {
+                continue;
+            }
+            String sig = titleDateKey(e);
+            if (seenTitleDate.contains(sig)) {
+                continue;
+            }
+            if (e.getId() != null) {
+                seenIds.add(e.getId());
+            }
+            seenTitleDate.add(sig);
+            target.add(e);
+            added++;
+        }
+    }
+
+    private static String titleDateKey(EventSummaryDTO e) {
+        String t = e.getTitle() != null ? e.getTitle().trim().toLowerCase(Locale.forLanguageTag("tr")) : "";
+        String d = e.getStartDate() != null ? e.getStartDate().toString() : "";
+        return t + "|" + d;
     }
 
     private File renderVideo(List<EventSummaryDTO> events, String weekRange) {

@@ -20,6 +20,9 @@ public class BubiletScraperConfig {
     public static final String EVENT_DATE_SELECTOR = "p.text-xs.text-gray-500:not(:has(svg))";
     public static final String EVENT_IMAGE_SELECTOR = "img";
 
+    /** Etkinlik detay — bilet / seans blokları (çok tarihli parse) */
+    public static final String DETAIL_BILETLER_SECTION_ID = "biletler-section";
+
     private final ScraperConfig scraperConfig;
     
     @Value("${bubilet.scroll.attempts:20}")
