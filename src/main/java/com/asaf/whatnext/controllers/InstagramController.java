@@ -200,11 +200,27 @@ public class InstagramController {
         }
     }
 
+    /**
+     * Haftalık görseller: parametresiz = Pazar cron ile aynı hafta (scheduledWeeklyMonday + 7 gün).
+     * startDate + endDate (YYYY-MM-DD) = o aralıktaki her gün (ör. 2026-04-06 … 2026-04-12).
+     */
     @PostMapping("/scheduler/create-weekly-posts")
-    public ResponseEntity<?> createWeeklyPostsManually() {
+    public ResponseEntity<?> createWeeklyPostsManually(
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
         try {
+            if (startDate != null && !startDate.isBlank() && endDate != null && !endDate.isBlank()) {
+                LocalDate start = LocalDate.parse(startDate);
+                LocalDate end = LocalDate.parse(endDate);
+                instagramSchedulerService.createWeeklyPostsForDateRange(start, end);
+                return ResponseEntity.ok(Map.of(
+                        "success", true,
+                        "message", "Görsel üretimi tamamlandı.",
+                        "startDate", start.toString(),
+                        "endDate", end.toString()));
+            }
             instagramSchedulerService.createWeeklyPosts();
-            return ResponseEntity.ok("Haftalık post görselleri manuel olarak oluşturuldu.");
+            return ResponseEntity.ok("Haftalık post görselleri manuel olarak oluşturuldu (bugünün haftası, Pazar cron mantığı).");
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body("Hata: " + e.getMessage());
         }
@@ -221,9 +237,25 @@ public class InstagramController {
         }
     }
 
+    /**
+     * Haftalık paylaşım: parametresiz = içinde bulunulan haftanın Pazartesi–Pazar 7 günü.
+     * startDate + endDate = o aralık sırayla (ör. 2026-04-06 … 2026-04-12).
+     */
     @PostMapping("/scheduler/share-weekly-posts")
-    public ResponseEntity<?> shareWeeklyPostsManually() {
+    public ResponseEntity<?> shareWeeklyPostsManually(
+            @RequestParam(required = false) String startDate,
+            @RequestParam(required = false) String endDate) {
         try {
+            if (startDate != null && !startDate.isBlank() && endDate != null && !endDate.isBlank()) {
+                LocalDate start = LocalDate.parse(startDate);
+                LocalDate end = LocalDate.parse(endDate);
+                List<String> results = instagramSchedulerService.shareFeedPostsForDateRange(start, end);
+                return ResponseEntity.ok(Map.of(
+                        "success", true,
+                        "startDate", start.toString(),
+                        "endDate", end.toString(),
+                        "log", results));
+            }
             List<String> results = instagramSchedulerService.shareFullWeekFeedPosts();
             return ResponseEntity.ok(results);
         } catch (Exception e) {
@@ -231,4 +263,4 @@ public class InstagramController {
             return ResponseEntity.internalServerError().body("Hata: " + e.getMessage());
         }
     }
-} 
+}

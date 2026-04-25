@@ -21,7 +21,18 @@ public class SecurityConfig {
         http
             .csrf(AbstractHttpConfigurer::disable)
             .authorizeHttpRequests(authz -> authz
-                .requestMatchers("/api/events/**", "/api/scrapers/**", "/api/biletix/**", "/api/biletino/**", "/api/biletinial/**", "/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html").permitAll()
+                .requestMatchers(
+                        "/api/events/**",
+                        "/api/scrapers/**",
+                        "/api/bubilet/**",
+                        "/api/biletix/**",
+                        "/api/biletino/**",
+                        "/api/biletinial/**",
+                        "/api/scheduler/**",
+                        "/api/instagram/**",
+                        "/swagger-ui/**",
+                        "/v3/api-docs/**",
+                        "/swagger-ui.html").permitAll()
                 .anyRequest().authenticated()
             )
             .httpBasic(Customizer.withDefaults());

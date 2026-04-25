@@ -5,11 +5,19 @@ import com.asaf.whatnext.enums.Bubilet.BubiletCategory;
 import com.asaf.whatnext.enums.Bubilet.BubiletCity;
 import com.asaf.whatnext.enums.EventSourceType;
 import com.asaf.whatnext.enums.EventType;
+import com.asaf.whatnext.scraper.bubilet.BubiletCardDraft;
+import com.asaf.whatnext.scraper.bubilet.BubiletDateRules;
+import com.asaf.whatnext.scraper.bubilet.BubiletDetailParser;
+import com.asaf.whatnext.scraper.bubilet.BubiletEventMapper;
+import com.asaf.whatnext.scraper.bubilet.BubiletListCardParser;
+import com.asaf.whatnext.scraper.common.DateScrapeStrategy;
+import com.asaf.whatnext.utils.Texts;
 import com.asaf.whatnext.utils.WebScraperUtils;
 import org.openqa.selenium.By;
 import org.openqa.selenium.WebElement;
-import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -19,23 +27,30 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.TreeSet;
-import java.util.logging.Level;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
 @Service
+@Order(10)
 public class BubiletScraper extends BaseScraper {
 
-    private static final Pattern TR_DATE_IN_TEXT = Pattern.compile(
-            "(\\d{1,2})\\s+(Ocak|Şubat|Mart|Nisan|Mayıs|Haziran|Temmuz|Ağustos|Eylül|Ekim|Kasım|Aralık)");
-
     private final BubiletScraperConfig config;
+    private final BubiletListCardParser cardParser = new BubiletListCardParser();
+    private final boolean enrichMissingVenueFromDetail;
+    private final int listDateRolloverDays;
+    private final int biletlerSectionRolloverDays;
+    private final int draftProgressLogEvery;
 
     @Autowired
-    public BubiletScraper(BubiletScraperConfig config) {
+    public BubiletScraper(
+            BubiletScraperConfig config,
+            @Value("${bubilet.enrich-missing-venue-from-detail:false}") boolean enrichMissingVenueFromDetail,
+            @Value("${bubilet.list-date.rollover-days:30}") int listDateRolloverDays,
+            @Value("${bubilet.biletler-date.rollover-days:60}") int biletlerSectionRolloverDays,
+            @Value("${bubilet.draft.progress-log-every:25}") int draftProgressLogEvery) {
         super(config.getChromePath(), config.getWaitTimeoutSeconds(), BubiletScraper.class);
         this.config = config;
+        this.enrichMissingVenueFromDetail = enrichMissingVenueFromDetail;
+        this.listDateRolloverDays = listDateRolloverDays;
+        this.biletlerSectionRolloverDays = biletlerSectionRolloverDays;
+        this.draftProgressLogEvery = draftProgressLogEvery;
     }
 
     @Override
@@ -65,41 +80,64 @@ public class BubiletScraper extends BaseScraper {
 
         try {
             String searchUrl = config.buildSearchUrl(category, city);
+            logger.info("Bubilet kategori " + category + ": liste sayfası yükleniyor…");
             WebScraperUtils.navigateToUrl(driver, wait, searchUrl);
             WebScraperUtils.handleCookieConsent(driver);
             WebScraperUtils.handleOverlays(driver);
 
+            long t0 = System.currentTimeMillis();
             WebScraperUtils.scrollToLoadAll(
                 driver,
                 config.getMaxScrollAttempts(),
                 config.getScrollWaitMs(),
                 BubiletScraperConfig.EVENT_CARD_SELECTOR
             );
+            logger.info("Bubilet kategori " + category + ": kaydırma bitti, süre " + (System.currentTimeMillis() - t0) + " ms");
 
             List<WebElement> cards = driver.findElements(By.cssSelector(BubiletScraperConfig.EVENT_CARD_SELECTOR));
+            if (cards.isEmpty()) {
+                logger.warn("Bubilet: kart bulunamadı (selector veya sayfa yapısı değişmiş olabilir): " + searchUrl);
+            } else {
+                logger.info("Bubilet kategori " + category + ": " + cards.size() + " kart; detay/expand aşamasına geçiliyor");
+            }
 
-            List<CardDraft> drafts = new ArrayList<>();
+            List<BubiletCardDraft> drafts = new ArrayList<>();
             for (WebElement card : cards) {
                 try {
-                    CardDraft d = extractCardDraft(card, city.getValue());
+                    BubiletCardDraft d = extractCardDraft(card, city.getValue());
                     if (d != null) {
                         drafts.add(d);
                     }
                 } catch (Exception e) {
-                    logger.log(Level.FINE, "Error reading list card", e);
+                    logger.debug("Error reading list card", e);
                 }
             }
 
-            for (CardDraft d : drafts) {
+            if (!drafts.isEmpty()) {
+                logger.info("Bubilet kategori " + category + ": " + drafts.size()
+                        + " taslak genişletiliyor (çok günlü detay / tek günlü mekân tazeleme uzun sürebilir)");
+            }
+            int draftIndex = 0;
+            for (BubiletCardDraft d : drafts) {
                 try {
-                    events.addAll(expandDraftToEvents(d, category));
+                    draftIndex++;
+                    if (drafts.size() > 10
+                            && (draftIndex == 1
+                            || draftIndex % draftProgressLogEvery == 0
+                            || draftIndex == drafts.size())) {
+                        logger.info("Bubilet kategori " + category + ": taslak " + draftIndex + "/" + drafts.size() + " — " + d.title());
+                    }
+                    events.addAll(expandDraftToEvents(
+                            d,
+                            category,
+                            new BubiletDetailParser(driver, wait, biletlerSectionRolloverDays)));
                 } catch (Exception e) {
-                    logger.log(Level.FINE, "Error expanding card: " + d.title(), e);
+                    logger.debug("Error expanding card: " + d.title(), e);
                 }
             }
 
         } catch (Exception e) {
-            logger.log(Level.SEVERE, "Error scraping category: " + category.name(), e);
+            logger.error("Error scraping category: " + category.name(), e);
         }
 
         return events;
@@ -108,150 +146,72 @@ public class BubiletScraper extends BaseScraper {
     /**
      * Liste kartından ham veri (WebElement stale olmadan önce toplanır).
      */
-    private CardDraft extractCardDraft(WebElement card, String city) {
-        String title = card.findElement(By.cssSelector(BubiletScraperConfig.EVENT_TITLE_SELECTOR)).getText();
-        String ticketUrl = card.getAttribute("href");
-
-        if (title.isEmpty() || ticketUrl == null || ticketUrl.isEmpty()) {
+    private BubiletCardDraft extractCardDraft(WebElement card, String city) {
+        var parsed = cardParser.parse(card.getAttribute("outerHTML"));
+        if (parsed.isEmpty()) {
             return null;
         }
-
-        if (!ticketUrl.startsWith("http")) {
-            ticketUrl = BubiletScraperConfig.BASE_URL + ticketUrl;
+        var p = parsed.get();
+        String title = p.title();
+        String dateText = p.dateText() != null ? p.dateText() : "";
+        String venueName = p.venueName() != null ? p.venueName() : "";
+        if (venueName.isEmpty()) {
+            logger.debug("Venue not found for event: " + title);
+        }
+        if (dateText.isEmpty()) {
+            logger.debug("Date not found for event: " + title);
         }
 
-        String dateText = "";
-        try {
-            dateText = card.findElement(By.cssSelector(BubiletScraperConfig.EVENT_DATE_SELECTOR)).getText();
-        } catch (Exception e) {
-            logger.log(Level.FINE, "Date not found for event: " + title);
-        }
-
-        String imageUrl = null;
-        try {
-            imageUrl = card.findElement(By.cssSelector(BubiletScraperConfig.EVENT_IMAGE_SELECTOR)).getAttribute("src");
-        } catch (Exception ignored) {
-        }
-
-        return new CardDraft(title.trim(), ticketUrl, dateText.trim(), imageUrl, city);
+        return new BubiletCardDraft(title.trim(), p.ticketUrl(), dateText.trim(), p.imageUrl(), city, venueName);
     }
 
     /**
      * Tek tarih: listeden parse. Çok tarih: detay sayfası #biletler-section içinden seans tarihleri.
      */
-    private List<ScrapedEventData> expandDraftToEvents(CardDraft d, BubiletCategory category) {
-        EventType eventType = determineEventType(category);
+    private List<ScrapedEventData> expandDraftToEvents(
+            BubiletCardDraft d,
+            BubiletCategory category,
+            BubiletDetailParser detailParser) {
+        EventType eventType = BubiletEventMapper.toEventType(category);
 
-        if (isSingleDateEvent(d.dateText())) {
-            LocalDate parsed = parseDate(d.dateText());
-            return List.of(buildScraped(d, parsed, d.dateText(), eventType));
+        if (BubiletDateRules.toStrategy(d.dateText()) == DateScrapeStrategy.FROM_LIST_ONLY) {
+            LocalDate parsed = BubiletEventMapper.parseListDateLine(d.dateText(), listDateRolloverDays);
+            BubiletCardDraft dEnriched = withDetailVenueIfListBlank(d, detailParser);
+            return List.of(BubiletEventMapper.toScraped(dEnriched, parsed, d.dateText(), eventType));
         }
 
-        List<LocalDate> dates = fetchDatesFromDetailPage(d.ticketUrl());
-        if (dates.isEmpty()) {
-            logger.fine("Çok tarihli kart, detaydan tarih çıkmadı: " + d.title() + " (" + d.dateText() + ")");
+        BubiletDetailParser.MultiDateDetail detail = detailParser.loadMultiDate(d.ticketUrl());
+        if (detail.dates().isEmpty()) {
+            logger.debug("Çok tarihli kart, detaydan tarih çıkmadı: " + d.title() + " (" + d.dateText() + ")");
             return List.of();
         }
+        String mergedVenue = Texts.firstNonBlank(d.venueName(), detail.venue());
+        BubiletCardDraft dUse = new BubiletCardDraft(
+                d.title(), d.ticketUrl(), d.dateText(), d.imageUrl(), d.city(), mergedVenue);
 
         List<ScrapedEventData> out = new ArrayList<>();
-        for (LocalDate ld : dates) {
-            out.add(buildScraped(d, ld, ld.toString(), eventType));
+        for (LocalDate ld : detail.dates()) {
+            out.add(BubiletEventMapper.toScraped(dUse, ld, ld.toString(), eventType));
         }
         return out;
     }
 
-    private ScrapedEventData buildScraped(CardDraft d, LocalDate startDate, String rawDate, EventType eventType) {
-        return ScrapedEventData.builder()
-                .title(d.title())
-                .rawDateString(rawDate)
-                .startDate(startDate)
-                .ticketUrl(d.ticketUrl())
-                .imageUrl(d.imageUrl())
-                .eventType(eventType)
-                .source(EventSourceType.BUBILET)
-                .city(ScrapedEventData.normalizeCity(d.city()))
-                .build();
-    }
-
-    private List<LocalDate> fetchDatesFromDetailPage(String url) {
-        try {
-            WebScraperUtils.navigateToUrl(driver, wait, url);
-            WebScraperUtils.handleCookieConsent(driver);
-            WebScraperUtils.handleOverlays(driver);
-
-            wait.until(ExpectedConditions.presenceOfElementLocated(By.id(BubiletScraperConfig.DETAIL_BILETLER_SECTION_ID)));
-            WebElement section = driver.findElement(By.id(BubiletScraperConfig.DETAIL_BILETLER_SECTION_ID));
-            return extractDatesFromBiletlerText(section.getText());
-        } catch (Exception e) {
-            logger.log(Level.WARNING, "Bubilet detay sayfası tarihleri okunamadı: " + url + " — " + e.getMessage());
-            return List.of();
-        }
-    }
-
     /**
-     * "Biletler" bölümündeki metinden (28 Nisan Sal, 12 Haziran Cum, …) tarih çıkarır.
+     * Liste satırında mekân yoksa etkinlik detayından doldur (tek günlü kartlarda aynı detay sayfası).
      */
-    private List<LocalDate> extractDatesFromBiletlerText(String text) {
-        if (text == null || text.isBlank()) {
-            return List.of();
+    private BubiletCardDraft withDetailVenueIfListBlank(BubiletCardDraft d, BubiletDetailParser detailParser) {
+        if (d.venueName() != null && !d.venueName().isBlank()) {
+            return d;
         }
-        Matcher m = TR_DATE_IN_TEXT.matcher(text);
-        TreeSet<LocalDate> unique = new TreeSet<>();
-        while (m.find()) {
-            int day = Integer.parseInt(m.group(1));
-            int month = monthNumberOrZero(m.group(2));
-            if (month < 1) {
-                continue;
-            }
-            int year = LocalDate.now().getYear();
-            try {
-                LocalDate date = LocalDate.of(year, month, day);
-                if (date.isBefore(LocalDate.now().minusDays(60))) {
-                    date = date.plusYears(1);
-                }
-                unique.add(date);
-            } catch (Exception ignored) {
-            }
+        if (!enrichMissingVenueFromDetail) {
+            return d;
         }
-        return new ArrayList<>(unique);
-    }
-
-    private int monthNumberOrZero(String monthStr) {
-        return switch (monthStr) {
-            case "Ocak" -> 1;
-            case "Şubat" -> 2;
-            case "Mart" -> 3;
-            case "Nisan" -> 4;
-            case "Mayıs" -> 5;
-            case "Haziran" -> 6;
-            case "Temmuz" -> 7;
-            case "Ağustos" -> 8;
-            case "Eylül" -> 9;
-            case "Ekim" -> 10;
-            case "Kasım" -> 11;
-            case "Aralık" -> 12;
-            default -> 0;
-        };
-    }
-
-    private record CardDraft(String title, String ticketUrl, String dateText, String imageUrl, String city) {}
-
-    /**
-     * Liste kartındaki tek satırlık tarih: çoklu gün ("17 Nisan, 19 Nisan ...") veya "..." ile kesilen seriler → detay.
-     * Aynı gün iki seans ("22 Nisan Çar - 19:00, 21:30") kabul — içinde " - " vardır.
-     */
-    private boolean isSingleDateEvent(String dateText) {
-        if (dateText == null || dateText.isEmpty()) {
-            return false;
+        String v = detailParser.loadVenueForSingleDate(d.ticketUrl());
+        if (v == null || v.isBlank()) {
+            return d;
         }
-        String t = dateText.trim();
-        if (t.contains("...")) {
-            return false;
-        }
-        if (t.contains(",") && !t.contains(" - ")) {
-            return false;
-        }
-        return true;
+        return new BubiletCardDraft(
+                d.title(), d.ticketUrl(), d.dateText(), d.imageUrl(), d.city(), v);
     }
 
     /** Aynı etkinlik slug'ı farklı seans tarihleriyle ayrı kayıt. */
@@ -285,50 +245,6 @@ public class BubiletScraper extends BaseScraper {
             path = path.substring(0, q);
         }
         return path.toLowerCase(Locale.ROOT);
-    }
-
-    private LocalDate parseDate(String dateText) {
-        if (dateText == null || dateText.isEmpty()) {
-            return null;
-        }
-
-        try {
-            String[] parts = dateText.split(" - ");
-            String datePart = parts[0].trim();
-
-            String[] tokens = datePart.split("\\s+");
-
-            if (tokens.length >= 2) {
-                int day = Integer.parseInt(tokens[0]);
-                String monthStr = tokens[1];
-                int year = LocalDate.now().getYear();
-
-                int month = monthNumberOrZero(monthStr);
-                if (month < 1) {
-                    return null;
-                }
-
-                LocalDate date = LocalDate.of(year, month, day);
-
-                if (date.isBefore(LocalDate.now().minusDays(30))) {
-                    date = date.plusYears(1);
-                }
-
-                return date;
-            }
-        } catch (Exception e) {
-            logger.log(Level.FINE, "Error parsing date: " + dateText, e);
-        }
-
-        return null;
-    }
-
-    private EventType determineEventType(BubiletCategory category) {
-        return switch (category) {
-            case THEATRE -> EventType.THEATER;
-            case MUSIC -> EventType.CONCERT;
-            case STANDUP -> EventType.STANDUP;
-        };
     }
 
     private BubiletCity parseCity(String city) {

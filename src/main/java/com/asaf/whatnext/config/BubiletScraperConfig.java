@@ -16,12 +16,31 @@ public class BubiletScraperConfig {
 
     public static final String EVENT_CARD_SELECTOR = "a[href*='/etkinlik/']";
     public static final String EVENT_TITLE_SELECTOR = "h3";
+    /**
+     * Yeni ızgara (2025+): h3, sonra mekân {@code p}, sonra tarih {@code p} — SVG yok.
+     * Eski sayfalarda: svg'li satır = mekân, diğer = tarih.
+     */
+    public static final String EVENT_VENUE_AFTER_H3 = "h3 + p";
+    public static final String EVENT_DATE_AFTER_H3 = "h3 + p + p";
+    public static final String EVENT_TEXT_BLOCK = ".min-h-0.min-w-0";
+    @Deprecated
     public static final String EVENT_LOCATION_SELECTOR = "p.text-xs.text-gray-500:has(svg)";
+    public static final String[] EVENT_VENUE_ALTERNATE_SELECTORS = {
+            "h3 + p",
+            "p.text-xs.text-gray-500:has(svg)",
+            "p.text-xs:has(svg)"
+    };
+    @Deprecated
     public static final String EVENT_DATE_SELECTOR = "p.text-xs.text-gray-500:not(:has(svg))";
     public static final String EVENT_IMAGE_SELECTOR = "img";
 
     /** Etkinlik detay — bilet / seans blokları (çok tarihli parse) */
     public static final String DETAIL_BILETLER_SECTION_ID = "biletler-section";
+    /** Detay sayfasında mekân adı (çok tarihli akışta liste boşsa) */
+    public static final String[] DETAIL_VENUE_LINK_SELECTORS = {
+            "a[href*='/mekan/']",
+            "a[href*='/Mekan/']"
+    };
 
     private final ScraperConfig scraperConfig;
     

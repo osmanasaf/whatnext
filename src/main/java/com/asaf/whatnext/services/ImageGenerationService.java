@@ -30,6 +30,7 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Pattern;
 import java.util.Properties;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -40,6 +41,10 @@ public class ImageGenerationService {
 
     private static final int STORY_EVENT_TARGET = 10;
     private static final int STORY_FETCH_LIMIT = 14;
+    private static final int MAX_TITLE_ANNOTATE_LINES = 3;
+    private static final int MAX_VENUE_ANNOTATE_LINES = 2;
+    private static final String ELLIPSIS = "…";
+    private static final Pattern WHITESPACE = Pattern.compile("\\s+");
 
     @Autowired
     private EventService eventService;
@@ -291,7 +296,7 @@ public class ImageGenerationService {
                     titleFontPath, bodyFontPath, imageWidth, imageHeight);
         }
         return buildImageMagickCommandLegacy(templatePath, outputPath, eventTypeLabel, events, coordinates,
-                titleFontPath, bodyFontPath);
+                titleFontPath, bodyFontPath, imageWidth);
     }
 
     private static boolean isLayoutAuto(Properties p) {
@@ -304,7 +309,9 @@ public class ImageGenerationService {
     }
 
     private static List<String> buildImageMagickCommandLegacy(String templatePath, String outputPath, String eventTypeLabel,
-            List<EventSummaryDTO> events, Properties coordinates, String titleFontPath, String bodyFontPath) {
+            List<EventSummaryDTO> events, Properties coordinates, String titleFontPath, String bodyFontPath,
+            int fullImageWidth) {
+        int legWrapW = Math.max(240, (int) Math.round(fullImageWidth * 0.86));
         List<String> command = new ArrayList<>();
         command.add("magick");
         command.add(templatePath);
@@ -323,9 +330,9 @@ public class ImageGenerationService {
         command.add("north");
         for (int i = 0; i < events.size(); i++) {
             EventSummaryDTO event = events.get(i);
-            addTitleAnnotationLegacy(command, coordinates, "event_" + (i + 1), event.getTitle());
+            addTitleAnnotationLegacy(command, coordinates, "event_" + (i + 1), event.getTitle(), legWrapW);
             String venueText = event.getVenueName() != null ? "@" + event.getVenueName() : "";
-            addVenueAnnotationLegacy(command, coordinates, "venue_" + (i + 1), venueText);
+            addVenueAnnotationLegacy(command, coordinates, "venue_" + (i + 1), venueText, legWrapW);
         }
 
         appendOutputQuality(command);
@@ -421,10 +428,12 @@ public class ImageGenerationService {
             int yTitle = rowTop + 4;
             int yVenue = yTitle + gapTitleVenuePerRow[i];
             String titleText = event.getTitle() != null ? event.getTitle() : "";
-            addTitleAnnotationExplicit(command, coordinates, titleText,
+            String titleWrapped = wrapForAnnotate(titleText, rw, ptTitle, MAX_TITLE_ANNOTATE_LINES);
+            addTitleAnnotationExplicit(command, coordinates, titleWrapped,
                     String.valueOf(ptTitle), annotateNorthOffset(xCenterOffset, yTitle));
             String venueText = event.getVenueName() != null ? "@" + event.getVenueName() : "";
-            addVenueAnnotationExplicit(command, coordinates, venueText,
+            String venueWrapped = venueText.isBlank() ? "" : wrapForAnnotate(venueText, rw, ptVenue, MAX_VENUE_ANNOTATE_LINES);
+            addVenueAnnotationExplicit(command, coordinates, venueWrapped,
                     String.valueOf(ptVenue), annotateNorthOffset(xCenterOffset, yVenue));
         }
 
@@ -437,10 +446,8 @@ public class ImageGenerationService {
         if (title == null || title.isBlank()) {
             return 1;
         }
-        double charW = Math.max(1.0, pointsize * 0.58);
-        int charsPerLine = Math.max(10, (int) (regionWidthPx / charW));
-        int lines = (int) Math.ceil(title.length() / (double) charsPerLine);
-        return clampInt(lines, 1, 3);
+        String w = wrapForAnnotate(title, regionWidthPx, pointsize, MAX_TITLE_ANNOTATE_LINES);
+        return countVisualLines(w, 1);
     }
 
     private static int gapTitleToVenuePx(int ptTitle, int displayLines) {
@@ -460,8 +467,13 @@ public class ImageGenerationService {
             int ptTitle, int ptVenue, int interRow) {
         int[] gaps = computeGapTitleVenuePerRow(events, regionWidthPx, ptTitle);
         int max = 22;
-        for (int gap : gaps) {
-            int row = gap + (int) Math.ceil(ptVenue * 1.3) + interRow;
+        for (int i = 0; i < events.size(); i++) {
+            int gap = i < gaps.length ? gaps[i] : gapTitleToVenuePx(ptTitle, 1);
+            String v = events.get(i).getVenueName() != null ? "@" + events.get(i).getVenueName() : "";
+            int vLines = v.isBlank() ? 0
+                    : countVisualLines(wrapForAnnotate(v, regionWidthPx, ptVenue, MAX_VENUE_ANNOTATE_LINES), 0);
+            int venueH = vLines <= 0 ? 0 : (int) Math.ceil(ptVenue * 1.15 * vLines);
+            int row = gap + venueH + interRow;
             max = Math.max(max, row);
         }
         return max;
@@ -520,7 +532,8 @@ public class ImageGenerationService {
         command.add("none");
     }
 
-    private static void addTitleAnnotationLegacy(List<String> command, Properties coordinates, String key, String text) {
+    private static void addTitleAnnotationLegacy(List<String> command, Properties coordinates, String key, String text,
+            int regionWidthPx) {
         if (text == null || text.isBlank()) {
             return;
         }
@@ -529,7 +542,14 @@ public class ImageGenerationService {
         if (pointsize == null || geometry == null) {
             return;
         }
-        addTitleAnnotationExplicit(command, coordinates, text, pointsize, geometry);
+        int pt;
+        try {
+            pt = Integer.parseInt(pointsize.trim());
+        } catch (NumberFormatException e) {
+            pt = 32;
+        }
+        String wrapped = wrapForAnnotate(text, regionWidthPx, pt, MAX_TITLE_ANNOTATE_LINES);
+        addTitleAnnotationExplicit(command, coordinates, wrapped, pointsize, geometry);
     }
 
     private static void addTitleAnnotationExplicit(List<String> command, Properties coordinates, String text,
@@ -543,12 +563,13 @@ public class ImageGenerationService {
         command.add(pointsize);
         command.add("-annotate");
         command.add(geometry);
-        command.add(sanitizeAnnotateText(text));
+        command.add(sanitizeAnnotateTextMultiline(text));
         command.add("-stroke");
         command.add("none");
     }
 
-    private static void addVenueAnnotationLegacy(List<String> command, Properties coordinates, String key, String text) {
+    private static void addVenueAnnotationLegacy(List<String> command, Properties coordinates, String key, String text,
+            int regionWidthPx) {
         if (text == null || text.isBlank()) {
             return;
         }
@@ -557,7 +578,14 @@ public class ImageGenerationService {
         if (pointsize == null || geometry == null) {
             return;
         }
-        addVenueAnnotationExplicit(command, coordinates, text, pointsize, geometry);
+        int pt;
+        try {
+            pt = Integer.parseInt(pointsize.trim());
+        } catch (NumberFormatException e) {
+            pt = 24;
+        }
+        String wrapped = wrapForAnnotate(text, regionWidthPx, pt, MAX_VENUE_ANNOTATE_LINES);
+        addVenueAnnotationExplicit(command, coordinates, wrapped, pointsize, geometry);
     }
 
     private static void addVenueAnnotationExplicit(List<String> command, Properties coordinates, String text,
@@ -573,7 +601,7 @@ public class ImageGenerationService {
         command.add(pointsize);
         command.add("-annotate");
         command.add(geometry);
-        command.add(sanitizeAnnotateText(text));
+        command.add(sanitizeAnnotateTextMultiline(text));
     }
 
     private static double clamp01(double x) {
@@ -627,6 +655,92 @@ public class ImageGenerationService {
         }
         String s = raw.replace('\r', ' ').replace('\n', ' ').trim();
         return s.replace("%", "\\%");
+    }
+
+    /** ImageMagick -annotate: çok satır; her satırda % kaçışı. */
+    private static String sanitizeAnnotateTextMultiline(String raw) {
+        if (raw == null || raw.isEmpty()) {
+            return "";
+        }
+        return Stream.of(raw.split("\n", -1))
+                .map(line -> line.replace('\r', ' ').trim().replace("%", "\\%"))
+                .collect(Collectors.joining("\n"));
+    }
+
+    private static int countVisualLines(String wrapped, int emptyDefault) {
+        if (wrapped == null || wrapped.isEmpty()) {
+            return emptyDefault;
+        }
+        int n = (int) Stream.of(wrapped.split("\n", -1)).filter(s -> !s.isEmpty()).count();
+        return Math.max(1, n);
+    }
+
+    /**
+     * Metni verilen piksel genişliğine kelime sınırlarında sarar; sığmayan kısım "…" ile kısaltılır.
+     */
+    static String wrapForAnnotate(String text, int regionWidthPx, int pointsize, int maxLines) {
+        if (text == null) {
+            return "";
+        }
+        String t = WHITESPACE.matcher(text.trim()).replaceAll(" ");
+        if (t.isEmpty()) {
+            return "";
+        }
+        double charW = Math.max(1.0, pointsize * 0.58);
+        int cpl = Math.max(4, (int) (regionWidthPx / charW));
+        String[] words = t.split(" ");
+        List<String> lines = new ArrayList<>();
+        int i = 0;
+        while (i < words.length && lines.size() < maxLines) {
+            StringBuilder line = new StringBuilder();
+            while (i < words.length) {
+                String w = words[i];
+                if (w.isEmpty()) {
+                    i++;
+                    continue;
+                }
+                int add = w.length() + (line.length() > 0 ? 1 : 0);
+                if (line.length() + add <= cpl) {
+                    if (line.length() > 0) {
+                        line.append(' ');
+                    }
+                    line.append(w);
+                    i++;
+                } else {
+                    if (line.length() == 0) {
+                        if (w.length() > cpl) {
+                            int cut = Math.max(1, cpl - ELLIPSIS.length());
+                            line.append(w, 0, Math.min(w.length(), cut));
+                            if (i < words.length - 1 || w.length() > cpl) {
+                                line.append(ELLIPSIS);
+                            }
+                        } else {
+                            line.append(w);
+                        }
+                        i++;
+                    }
+                    break;
+                }
+            }
+            if (line.length() > 0) {
+                lines.add(line.toString());
+            } else {
+                break;
+            }
+        }
+        if (i < words.length && !lines.isEmpty()) {
+            String last = lines.get(lines.size() - 1);
+            if (!last.endsWith(ELLIPSIS)) {
+                if (last.length() + ELLIPSIS.length() <= cpl) {
+                    lines.set(lines.size() - 1, last + ELLIPSIS);
+                } else {
+                    int keep = Math.max(0, cpl - ELLIPSIS.length());
+                    lines.set(lines.size() - 1,
+                            (last.length() > keep ? last.substring(0, keep) : last) + ELLIPSIS);
+                }
+            }
+        }
+        return String.join("\n", lines);
     }
 
     private String detectImageMagickCommand() {

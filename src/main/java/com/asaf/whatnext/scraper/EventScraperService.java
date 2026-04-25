@@ -4,10 +4,13 @@ import com.asaf.whatnext.services.EventSaveService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 @Service
 public class EventScraperService {
@@ -19,11 +22,38 @@ public class EventScraperService {
 
     @Autowired
     public EventScraperService(
-            List<EventSource> scrapers,
-            EventSaveService eventSaveService) {
-        this.scrapers = scrapers;
+            List<EventSource> allScrapers,
+            EventSaveService eventSaveService,
+            @Value("${whatnext.scraper.allowed-sources:}") String allowedSources) {
+        this.scrapers = filterScrapersByProperty(allScrapers, allowedSources, LOGGER);
         this.eventSaveService = eventSaveService;
-        LOGGER.info("EventScraperService initialized with {} scrapers", scrapers.size());
+        LOGGER.info("EventScraperService initialized with {} scrapers: {}",
+                this.scrapers.size(),
+                this.scrapers.stream().map(EventSource::getSourceName).toList());
+    }
+
+    private static List<EventSource> filterScrapersByProperty(List<EventSource> all, String allowedSources, Logger log) {
+        if (allowedSources == null || allowedSources.isBlank()) {
+            return all;
+        }
+        List<String> want = new ArrayList<>();
+        for (String s : allowedSources.split(",")) {
+            if (s != null && !s.isBlank()) {
+                want.add(s.trim().toLowerCase(Locale.ROOT));
+            }
+        }
+        if (want.isEmpty()) {
+            return all;
+        }
+        List<EventSource> out = all.stream()
+                .filter(sc -> want.contains(sc.getSourceName().toLowerCase(Locale.ROOT)))
+                .toList();
+        if (out.isEmpty()) {
+            log.warn("whatnext.scraper.allowed-sources={} eşleşmedi; tüm scraper'lar kullanılıyor: {}",
+                    allowedSources, all.stream().map(EventSource::getSourceName).toList());
+            return all;
+        }
+        return out;
     }
 
     public void scrapeAllEvents(String city) {

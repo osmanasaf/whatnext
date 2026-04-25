@@ -58,7 +58,12 @@ public class EventSaveService {
             }
         }
         
-        LOGGER.info("Saved {}/{} events", savedCount, scrapedEvents.size());
+        int skipped = scrapedEvents.size() - savedCount;
+        if (skipped > 0) {
+            LOGGER.info("Saved {}/{} events ({} atlandı: mükerrer veya save false)", savedCount, scrapedEvents.size(), skipped);
+        } else {
+            LOGGER.info("Saved {}/{} events", savedCount, scrapedEvents.size());
+        }
         return savedCount;
     }
     
@@ -68,6 +73,7 @@ public class EventSaveService {
         }
         
         Venue venue = findOrCreateVenue(data);
+        warnIfLocationSetButVenueNameMissing(data, venue);
         String imageUrl = uploadImage(data);
         
         return switch (data.getEventType()) {
@@ -78,20 +84,31 @@ public class EventSaveService {
         };
     }
     
+    private void warnIfLocationSetButVenueNameMissing(ScrapedEventData data, Venue venue) {
+        if (venue != null) {
+            return;
+        }
+        if (data.getLocation() == null || data.getLocation().isBlank()) {
+            return;
+        }
+        LOGGER.warn(
+                "Mekan adı (venueName) yok, location dolu — scraper venueName üretmeli: source={} title='{}' location='{}'",
+                data.getSource(), data.getTitle(), data.getLocation());
+    }
+
     private Venue findOrCreateVenue(ScrapedEventData data) {
-        if (data.getVenueName() == null || data.getVenueName().isEmpty()) {
+        if (data.getVenueName() == null || data.getVenueName().isBlank()) {
             return null;
         }
-        
-        Venue venue = venueService.findByName(data.getVenueName());
+        String name = data.getVenueName().trim();
+        Venue venue = venueService.findByName(name);
         if (venue == null) {
             venue = new Venue();
-            venue.setName(data.getVenueName());
+            venue.setName(name);
             venue.setLocation(data.getLocation());
             venue.setCity(ScrapedEventData.normalizeCity(data.getCity()));
             venue = venueService.save(venue);
         }
-        
         return venue;
     }
     
@@ -197,7 +214,11 @@ public class EventSaveService {
         event.setStartDate(data.getStartDate());
         event.setEndDate(data.getEndDate());
         event.setSource(data.getSource());
-        event.setCity(ScrapedEventData.normalizeCity(data.getCity()));
+        String city = ScrapedEventData.normalizeCity(data.getCity());
+        if (city == null || city.isEmpty()) {
+            city = "istanbul";
+        }
+        event.setCity(city);
         event.addTicketUrl(data.getTicketUrl());
         
         if (venue != null) {

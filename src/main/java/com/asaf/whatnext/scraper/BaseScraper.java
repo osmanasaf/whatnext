@@ -4,13 +4,13 @@ import com.asaf.whatnext.enums.EventSourceType;
 import com.asaf.whatnext.utils.WebScraperUtils;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.support.ui.WebDriverWait;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 public abstract class BaseScraper implements EventSource {
     
@@ -24,7 +24,7 @@ public abstract class BaseScraper implements EventSource {
     protected BaseScraper(String chromePath, int waitTimeoutSeconds, Class<?> loggerClass) {
         this.chromePath = chromePath;
         this.waitTimeoutSeconds = waitTimeoutSeconds;
-        this.logger = Logger.getLogger(loggerClass.getName());
+        this.logger = LoggerFactory.getLogger(loggerClass);
     }
     
     protected void initializeBrowser() {
@@ -57,18 +57,30 @@ public abstract class BaseScraper implements EventSource {
             initializeBrowser();
             return operation.execute(driver, wait);
         } catch (Exception e) {
-            logger.log(Level.SEVERE, "Error during browser operation", e);
+            logger.error("Error during browser operation", e);
             throw new RuntimeException("Browser operation failed", e);
         } finally {
             closeBrowser();
         }
     }
     
+    /**
+     * Tek {@link WebDriver} örnekleri; paralel HTTP isteği aynı bean üzerinde yarışa girer. Tüm
+     * kategori taramasını seri hale getirir.
+     */
     protected List<ScrapedEventData> scrapeForCategories(List<CategoryScraper> categoryScraper) {
+        synchronized (this) {
+            return scrapeForCategoriesUnsynchronized(categoryScraper);
+        }
+    }
+
+    private List<ScrapedEventData> scrapeForCategoriesUnsynchronized(List<CategoryScraper> categoryScraper) {
         List<ScrapedEventData> allData = new ArrayList<>();
         
         try {
+            logger.info("Tarayıcı başlatılıyor (kaynak: " + getSourceName() + ", kategori sayısı: " + categoryScraper.size() + ")");
             initializeBrowser();
+            logger.info("Tarayıcı hazır, tarama başlıyor: " + getSourceName());
             
             for (CategoryScraper scraper : categoryScraper) {
                 try {
@@ -76,7 +88,7 @@ public abstract class BaseScraper implements EventSource {
                     allData.addAll(categoryData);
                     checkAndRestartBrowserIfNeeded();
                 } catch (Exception e) {
-                    logger.log(Level.WARNING, "Error scraping category", e);
+                    logger.warn("Error scraping category", e);
                 }
             }
             

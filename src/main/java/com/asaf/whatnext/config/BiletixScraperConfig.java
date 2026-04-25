@@ -30,6 +30,16 @@ public class BiletixScraperConfig {
     public static final String EVENT_SECONDARY_DATE_SELECTOR = ".fld3 .ln2";
     public static final String EVENT_VENUE_SELECTOR = ".searchResultPlace";
     public static final String EVENT_LOCATION_SELECTOR = ".searchResultCity";
+    /**
+     * Kartta mekan: sırayla dene. Tarih alanındaki .ln2 ile karışmaması için
+     * genel ".searchResult .ln2" kullanılmaz (tarih {@link #EVENT_SECONDARY_DATE_SELECTOR}).
+     */
+    public static final String[] EVENT_VENUE_ALTERNATE_SELECTORS = {
+            EVENT_VENUE_SELECTOR,
+            ".searchResultEventPlace",
+            "div.searchResultEvent .searchResultPlace",
+            "a[href*='/mekan/']"
+    };
     public static final String LOAD_MORE_BUTTON_SELECTOR = ".search_load_more";
 
     private final ScraperConfig scraperConfig;

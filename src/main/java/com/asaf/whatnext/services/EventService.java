@@ -153,17 +153,44 @@ public class EventService {
     }
 
     public List<Event> findTopNEventsForDateAndCity(LocalDate date, EventType eventType, String city, int limit) {
-        String dateStr = date.toString();
-        List<Event> events = findByDateRangeAndTypeAndCity(
-            dateStr,
-            dateStr,
-            eventType,
-            com.asaf.whatnext.enums.City.valueOf(city.toUpperCase(java.util.Locale.ENGLISH))
-        );
+        String cityStr = city.toLowerCase(Locale.ROOT);
+        boolean isPerformanceType = false;
+        for (PerformanceType pt : PerformanceType.values()) {
+            if (pt.name().equals(eventType.name())) {
+                isPerformanceType = true;
+                break;
+            }
+        }
+        List<Event> events;
+        if ("istanbul".equals(cityStr)) {
+            if (isPerformanceType) {
+                events = eventRepository.findByTypeAndIstanbulActiveOnDate(EventType.PERFORMING_ART, date);
+                return events.stream()
+                        .filter(event -> event instanceof com.asaf.whatnext.models.PerformingArt performingArt
+                                && performingArt.getPerformanceType() != null
+                                && performingArt.getPerformanceType().name().equals(eventType.name()))
+                        .filter(e -> e.getTitle() != null && !e.getTitle().isBlank())
+                        .limit(limit)
+                        .collect(Collectors.toList());
+            }
+            events = eventRepository.findByTypeAndIstanbulActiveOnDate(eventType, date);
+        } else {
+            if (isPerformanceType) {
+                events = eventRepository.findByTypeAndCityActiveOnDate(EventType.PERFORMING_ART, cityStr, date);
+                return events.stream()
+                        .filter(event -> event instanceof com.asaf.whatnext.models.PerformingArt performingArt
+                                && performingArt.getPerformanceType() != null
+                                && performingArt.getPerformanceType().name().equals(eventType.name()))
+                        .filter(e -> e.getTitle() != null && !e.getTitle().isBlank())
+                        .limit(limit)
+                        .collect(Collectors.toList());
+            }
+            events = eventRepository.findByTypeAndCityActiveOnDate(eventType, cityStr, date);
+        }
         return events.stream()
-            .filter(e -> e.getTitle() != null && !e.getTitle().isBlank())
-            .limit(limit)
-            .collect(Collectors.toList());
+                .filter(e -> e.getTitle() != null && !e.getTitle().isBlank())
+                .limit(limit)
+                .collect(Collectors.toList());
     }
 
     @Transactional

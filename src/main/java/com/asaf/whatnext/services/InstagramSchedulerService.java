@@ -114,41 +114,63 @@ public class InstagramSchedulerService {
         }
     }
 
+    /**
+     * Pazar cron ile aynı mantık: o haftanın Pazartesi + 7 gün (bugüne göre hesaplanan hafta).
+     */
     @Scheduled(cron = "0 0 16 ? * SUN", zone = "Europe/Istanbul")
     public void createWeeklyPosts() {
-        System.out.println("[Scheduler] Haftalık post görselleri oluşturuluyor...");
-        LocalDate today = LocalDate.now();
-        LocalDate nextMonday = today.plusDays((8 - today.getDayOfWeek().getValue()) % 7);
-        for (int i = 0; i < 7; i++) {
-            LocalDate targetDate = nextMonday.plusDays(i);
-            try {
-                System.out.println("[Scheduler] " + targetDate + " için görseller oluşturuluyor...");
-                
-                InstagramImage coverImage = instagramService.createImage("cover", "cover", null, targetDate);
-                if (coverImage != null) {
-                    System.out.println("[Scheduler] " + targetDate + " için cover görseli oluşturuldu.");
-                }
-                
-                InstagramImage concertImage = instagramService.createImage("concert", "post", "istanbul", targetDate);
-                if (concertImage != null) {
-                    System.out.println("[Scheduler] " + targetDate + " için konser görseli oluşturuldu.");
-                }
-                
-                InstagramImage theaterImage = instagramService.createImage("theater", "post", "istanbul", targetDate);
-                if (theaterImage != null) {
-                    System.out.println("[Scheduler] " + targetDate + " için tiyatro görseli oluşturuldu.");
-                }
-                
-                InstagramImage standupImage = instagramService.createImage("standup", "post", "istanbul", targetDate);
-                if (standupImage != null) {
-                    System.out.println("[Scheduler] " + targetDate + " için stand-up görseli oluşturuldu.");
-                }
-            } catch (Exception e) {
-                System.err.println("[Scheduler] " + targetDate + " için görsel oluşturma hatası: " + e.getMessage());
-                e.printStackTrace();
-            }
+        LocalDate monday = scheduledWeeklyMonday(LocalDate.now());
+        createWeeklyPostsForDateRange(monday, monday.plusDays(6));
+    }
+
+    /**
+     * Pazar job'undaki hafta Pazartesi (mevcut formül).
+     */
+    static LocalDate scheduledWeeklyMonday(LocalDate today) {
+        return today.plusDays((8 - today.getDayOfWeek().getValue()) % 7);
+    }
+
+    /**
+     * Verilen aralıkta (her iki uç dahil) her gün için cover + konser + tiyatro + stand-up görselleri üretir.
+     */
+    public void createWeeklyPostsForDateRange(LocalDate startInclusive, LocalDate endInclusive) {
+        if (endInclusive.isBefore(startInclusive)) {
+            throw new IllegalArgumentException("endDate startDate'den önce olamaz");
         }
-        System.out.println("[Scheduler] Haftalık post görselleri oluşturma işlemi tamamlandı.");
+        System.out.println("[Scheduler] Post görselleri oluşturuluyor: " + startInclusive + " … " + endInclusive);
+        for (LocalDate targetDate = startInclusive; !targetDate.isAfter(endInclusive); targetDate = targetDate.plusDays(1)) {
+            createDailyFeedImages(targetDate);
+        }
+        System.out.println("[Scheduler] Görsel oluşturma aralığı tamamlandı.");
+    }
+
+    private void createDailyFeedImages(LocalDate targetDate) {
+        try {
+            System.out.println("[Scheduler] " + targetDate + " için görseller oluşturuluyor...");
+
+            InstagramImage coverImage = instagramService.createImage("cover", "cover", null, targetDate);
+            if (coverImage != null) {
+                System.out.println("[Scheduler] " + targetDate + " için cover görseli oluşturuldu.");
+            }
+
+            InstagramImage concertImage = instagramService.createImage("concert", "post", "istanbul", targetDate);
+            if (concertImage != null) {
+                System.out.println("[Scheduler] " + targetDate + " için konser görseli oluşturuldu.");
+            }
+
+            InstagramImage theaterImage = instagramService.createImage("theater", "post", "istanbul", targetDate);
+            if (theaterImage != null) {
+                System.out.println("[Scheduler] " + targetDate + " için tiyatro görseli oluşturuldu.");
+            }
+
+            InstagramImage standupImage = instagramService.createImage("standup", "post", "istanbul", targetDate);
+            if (standupImage != null) {
+                System.out.println("[Scheduler] " + targetDate + " için stand-up görseli oluşturuldu.");
+            }
+        } catch (Exception e) {
+            System.err.println("[Scheduler] " + targetDate + " için görsel oluşturma hatası: " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
     /**
@@ -201,6 +223,21 @@ public class InstagramSchedulerService {
             week.add(monday.plusDays(i));
         }
         return sharePostsForDatesSequential(week, "Manuel (7 gün)");
+    }
+
+    /**
+     * Belirli tarih aralığı (Pazartesi–Pazar veya kısmi) için sırayla günlük feed paylaşımı.
+     */
+    public List<String> shareFeedPostsForDateRange(LocalDate startInclusive, LocalDate endInclusive)
+            throws InterruptedException {
+        if (endInclusive.isBefore(startInclusive)) {
+            throw new IllegalArgumentException("endDate startDate'den önce olamaz");
+        }
+        List<LocalDate> dates = new ArrayList<>();
+        for (LocalDate d = startInclusive; !d.isAfter(endInclusive); d = d.plusDays(1)) {
+            dates.add(d);
+        }
+        return sharePostsForDatesSequential(dates, "Manuel (tarih aralığı)");
     }
 
     private List<String> sharePostsForDatesSequential(List<LocalDate> dates, String batchName) throws InterruptedException {

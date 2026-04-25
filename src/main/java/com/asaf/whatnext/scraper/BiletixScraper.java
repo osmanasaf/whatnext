@@ -4,26 +4,25 @@ import com.asaf.whatnext.config.BiletixScraperConfig;
 import com.asaf.whatnext.enums.Biletix.BiletixCategory;
 import com.asaf.whatnext.enums.Biletix.BiletixCity;
 import com.asaf.whatnext.enums.EventSourceType;
-import com.asaf.whatnext.enums.EventType;
-import com.asaf.whatnext.enums.PerformanceType;
+import com.asaf.whatnext.scraper.biletix.BiletixCardParser;
 import com.asaf.whatnext.utils.WebScraperUtils;
 import org.openqa.selenium.By;
 import org.openqa.selenium.WebElement;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
-import java.util.logging.Level;
 
 @Service
+@Order(40)
 public class BiletixScraper extends BaseScraper {
 
     private final BiletixScraperConfig config;
+    private final BiletixCardParser cardParser = new BiletixCardParser();
 
     @Autowired
     public BiletixScraper(BiletixScraperConfig config) {
@@ -94,132 +93,20 @@ public class BiletixScraper extends BaseScraper {
             
             for (WebElement card : cards) {
                 try {
-                    ScrapedEventData data = extractFromCard(card, category);
+                    ScrapedEventData data = cardParser.parseCard(card, category);
                     if (data != null && data.isValid()) {
                         events.add(data);
                     }
                 } catch (Exception e) {
-                    logger.log(Level.FINE, "Error extracting card", e);
+                    logger.debug("Error extracting card", e);
                 }
             }
             
         } catch (Exception e) {
-            logger.log(Level.SEVERE, "Error scraping category: " + category.name(), e);
+            logger.error("Error scraping category: " + category.name(), e);
         }
         
         return events;
-    }
-
-    private ScrapedEventData extractFromCard(WebElement card, BiletixCategory category) {
-        String title = extractText(card, BiletixScraperConfig.EVENT_TITLE_SELECTOR);
-        if (title.isEmpty()) {
-            title = extractText(card, BiletixScraperConfig.EVENT_TITLE_MOBILE_SELECTOR);
-        }
-        
-        if (title.isEmpty()) {
-            return null;
-        }
-        
-        String dateStr = extractDate(card);
-        if (dateStr.isEmpty()) {
-            return null;
-        }
-        
-        String venueName = extractText(card, BiletixScraperConfig.EVENT_VENUE_SELECTOR);
-        String location = extractText(card, BiletixScraperConfig.EVENT_LOCATION_SELECTOR);
-        String ticketUrl = extractUrl(card);
-        
-        EventType eventType = determineEventType(title, category);
-        LocalDate parsedDate = parseDate(dateStr);
-        
-        if (parsedDate == null) {
-            logger.fine("Failed to parse date: " + dateStr + " for event: " + title);
-        }
-        
-        return ScrapedEventData.builder()
-            .title(title)
-            .rawDateString(dateStr)
-            .startDate(parsedDate)
-            .venueName(venueName)
-            .location(location)
-            .city(ScrapedEventData.normalizeCity(location))
-            .ticketUrl(ticketUrl)
-            .eventType(eventType)
-            .source(EventSourceType.BILETIX)
-            .build();
-    }
-
-    private String extractText(WebElement card, String selector) {
-        try {
-            return card.findElement(By.cssSelector(selector)).getText();
-        } catch (Exception e) {
-            return "";
-        }
-    }
-
-    private String extractDate(WebElement card) {
-        try {
-            String secondDate = card.findElement(By.cssSelector(BiletixScraperConfig.EVENT_SECONDARY_DATE_SELECTOR)).getText();
-            String firstDate = card.findElement(By.cssSelector(BiletixScraperConfig.EVENT_DATE_SELECTOR)).getText();
-            return !secondDate.isEmpty() ? secondDate : firstDate;
-        } catch (Exception e) {
-            try {
-                String day = card.findElement(By.cssSelector(".searchMobileDateDayNumber")).getText();
-                String month = card.findElement(By.cssSelector(".searchMobileDateMonth")).getText();
-                String year = card.findElement(By.cssSelector(".searchMobileDateYear")).getText();
-                return day + "/" + month + "/" + year;
-            } catch (Exception ex) {
-                return "";
-            }
-        }
-    }
-
-    private String extractUrl(WebElement card) {
-        try {
-            return card.findElement(By.cssSelector(BiletixScraperConfig.EVENT_TITLE_SELECTOR)).getAttribute("href");
-        } catch (Exception e) {
-            try {
-                return card.findElement(By.cssSelector(BiletixScraperConfig.EVENT_LINK_SELECTOR)).getAttribute("href");
-            } catch (Exception ex) {
-                return "";
-            }
-        }
-    }
-
-    private LocalDate parseDate(String dateStr) {
-        if (dateStr == null || dateStr.isEmpty()) {
-            return null;
-        }
-
-        String normalized = dateStr.trim();
-        int commaIndex = normalized.indexOf(',');
-        if (commaIndex >= 0) {
-            normalized = normalized.substring(commaIndex + 1).trim();
-        }
-        normalized = normalized.replaceAll("\\s+", "");
-
-        List<String> patterns = Arrays.asList("dd/MM/yy", "dd/MM/yyyy");
-        for (String pattern : patterns) {
-            try {
-                DateTimeFormatter formatter = DateTimeFormatter.ofPattern(pattern);
-                return LocalDate.parse(normalized, formatter);
-            } catch (Exception ignored) {
-            }
-        }
-        return null;
-    }
-
-    private EventType determineEventType(String title, BiletixCategory category) {
-        if (category == BiletixCategory.MUSIC) {
-            return EventType.CONCERT;
-        }
-        
-        String lowerTitle = title.toLowerCase(Locale.forLanguageTag("tr"));
-        if (lowerTitle.contains("stand") || lowerTitle.contains("komedi")) {
-            return EventType.STANDUP;
-        }
-        
-        return EventType.THEATER;
     }
 
     private BiletixCity parseCity(String city) {
