@@ -1,15 +1,18 @@
 # WhatNext İyileştirme Planı 2 — Tüm Scraper'ların Doğrulanması, Saat Verisi, Görsel/Reel Yenileme
 
 > Bu plan 2026-07-11'de, Plan 1'in (IMPROVEMENT_PLAN.md, 4 faz tamamlandı) üzerine hazırlandı.
-> Uygulamak için yeni bir Claude Code oturumunda: "IMPROVEMENT_PLAN_2.md dosyasını oku ve Faz 4'ü uygula" demeniz yeterli.
+> Uygulamak için yeni bir Claude Code oturumunda: "IMPROVEMENT_PLAN_2.md dosyasını oku ve Faz 5'i uygula" demeniz yeterli.
 > Sıra kasıtlı: önce veri doğruluğu (parse), sonra veri zenginliği (saat), sonra sunum (görsel + Reel).
 >
-> **Durum (2026-07-11):** Faz 1 ✅, Faz 2 ✅ ve Faz 3 ✅ tamamlandı, `mvn test` yeşil (79/80; tek istisna
-> `WhatnextApplicationTests.contextLoads` — bu ortamdan Postgres'e erişim yok, kod dışı bilinen kısıt).
-> Faz 4 (Reel) sırada. Faz 3.1'de post/cover 4:5'e geçirilmedi — kullanıcı 1:1'de kalmayı seçti (kırpma
-> köşe illüstrasyonlarını kesiyordu). Canlı scrape/health/DB doğrulaması, secrets rotate ve story'nin
-> telefonda gözle onaylanması kullanıcının kendi ortamında yapılmalı (bkz. ilgili fazların "Doğrulama"
-> bölümleri).
+> **Durum (2026-07-11):** Faz 1 ✅, Faz 2 ✅, Faz 3 ✅ ve Faz 4 ✅ tamamlandı, `mvn test` yeşil (83/84; tek
+> istisna `WhatnextApplicationTests.contextLoads` — bu ortamdan Postgres'e erişim yok, kod dışı bilinen
+> kısıt). Reel `npx remotion render` ile gerçekten render edilip kareler gözle doğrulandı. Faz 5
+> (haftalık karusel + ölçüm) sırada. Faz 3.1'de post/cover 4:5'e geçirilmedi — kullanıcı 1:1'de kalmayı
+> seçti (kırpma köşe illüstrasyonlarını kesiyordu). Faz 4.4'te gerçek müzik beat-senkronu YOK — ses
+> dinleme/analiz imkanı yoktu, sahte veri uydurulmadı (bkz. Faz 4.4 notu). Canlı scrape/health/DB
+> doğrulaması, secrets rotate, story'nin telefonda gözle onaylanması ve Reel'in gerçek prod verisiyle
+> render edilip telefonda izlenmesi kullanıcının kendi ortamında yapılmalı (bkz. ilgili fazların
+> "Doğrulama" bölümleri).
 
 ## Bağlam (Context)
 
@@ -257,45 +260,63 @@ gerekmedi. Bulunan tek gerçek kalite kusuru düzeltildi:
 
 ---
 
-## Faz 4 — Reel yenileme (video/src + WeeklyVideoService)
+## Faz 4 — Reel yenileme (video/src + WeeklyVideoService) — TAMAMLANDI
 
-### 4.1 Veri: WeeklyVideoService
-- Event map'ine `startTime` (Faz 2) ve `dayName` (tr gün adı) eklenir.
-- Kartlar **kategoriye göre değil `startDate`'e göre** sıralanır (Pzt→Paz); tür etiketi kartta rozet
-  olarak kalır.
-- Reel içi dedup `titleDateKey` yerine `EventIdentity.isSameEvent` ile (Plan 1 Faz 3 aracı).
-- `LocalDate.now()` → `TrClock`.
-- Kart sayısı/sıra yapısı props'a taşınır: `featured` (ilk 3) + `quick` (kalan) listeleri — tempo
-  Java'dan değil kompozisyondan yönetilir.
+### 4.1 Veri: WeeklyVideoService — UYGULANDI
+- Event map'ine `startTime`, `dayName` (tr gün adı) ve `dayIndex` (0=Pzt…6=Paz, TSX'te tarih parse
+  etmeden hafta çubuğu için) eklendi.
+- Kartlar **kategoriye göre değil `startDate`+`startTime`'a göre** sıralanır. Seçim hâlâ kategori
+  başına en iyi 3 (`PopularEventService` zaten skora göre veriyor); her kategorinin **ilk** (en
+  yüksek skorlu) etkinliği `featured=true` işaretlenir — DTO katmanında ham skor olmadığı için
+  global yeniden sıralama yerine bu pratik/savunulabilir kritere gidildi.
+- Reel içi dedup `titleDateKey` yerine `EventIdentity.isSameEvent` ile — yeni bir
+  `EventIdentity.isSameEvent(EventSummaryDTO, EventSummaryDTO, ...)` overload'ı eklendi (DTO'da
+  venueSlug/artistNames yok, bu yüzden yalnızca kademe 1-3 çalışır, kademe 4 uygulanamaz — dokümante
+  edildi).
+- `LocalDate.now()` → `TrClock.today()` (arka plan varyantı + Cloudinary klasör tarihi).
+- `WeeklyVideoServiceTest` (yeni, 4 test): gün sıralama, `EventIdentity` ile siteler arası dedup,
+  kategori-lideri `featured` işaretleme, `buildReelCaption`.
 
-### 4.2 Hook: intro'nun değiştirilmesi
-- `IntroScreen` (2,5 sn logo/marka) kaldırılır. Açılış: haftanın en yüksek skorlu **görselli**
-  etkinliğinin afişi tam ekran + tek satır: `"İstanbul'da bu hafta N etkinlik 👇"` (~1,2 sn).
-- Marka zaten sabit footer'da (`whatnext.tr`); ayrıca intro'ya gerek yok.
+### 4.2 Hook — UYGULANDI
+- `IntroScreen` kaldırıldı. `HookScreen` (36 kare, ~1,2 sn): `featured` + görselli ilk etkinliğin
+  afişi tam ekran + `"İstanbul'da bu hafta {N} etkinlik 👇"`. Gerçek render'da (bkz. 4.5) doğrulandı.
 
-### 4.3 Kart tasarımı
-- **Tam ekran görsel**: afiş `AbsoluteFill`'e blur'lu dolgu + net ön kopya (mevcut Ken Burns korunur);
-  metin alt üçte-birlik gradient üzerine. Görselsiz etkinlikte bugünkü metin kartı fallback kalır.
-- **Gün rozeti**: sol üstte büyük `"CUMA"` + altında `"17 Temmuz • 21:00"` (saat varsa).
-- **Hafta ilerleme çubuğu**: üstte 7 nokta, aktif gün dolu — "haftanı planla" hissinin görsel karşılığı.
-- **Tempo**: `featured` kartlar 75 kare (2,5 sn), `quick` kartlar 35 kare (~1,2 sn, tek satır
-  başlık+gün+saat). Hedef toplam ≤ 22 sn.
-- **Font**: `system-ui` yerine `staticFile` + `@font-face` ile `AlfaSlabOne` (başlık) ve `NotoSans`
-  (gövde) — statik görsellerle aynı dil. Font dosyaları `video/public/`'e kopyalanır.
+### 4.3 Kart tasarımı — UYGULANDI
+- `EventCard.tsx` tamamen yeniden yazıldı: tam ekran görsel + gradient overlay (Ken Burns korunur,
+  1.05→1.16 zoom), görselsiz etkinlikte tür renginde gradyan fallback.
+- Sol üst: büyük gün kısaltması (`"SAL"`, `"CUM"` — `dayIndex`'ten) + tarih + saat (varsa, saat ikonu).
+- Sağ üst: tür rozeti (KONSER/TİYATRO/STAND-UP).
+- Üstte sabit **hafta ilerleme çubuğu** (7 nokta, aktif gün `dayIndex`'e göre parlak) + hafta aralığı.
+- Tempo: `featured` 75 kare (2,5sn) / `quick` 35 kare (~1,2sn) — `video/src/timing.ts`'te paylaşılan
+  sabitler (`Root.tsx` ve `WeeklyReel.tsx` aynı hesaplamayı kullanır, tutarsızlık riski yok).
+- Fontlar `src/main/resources/*.ttf`'ten `video/public/fonts/`'a kopyalandı; `video/src/fonts.ts`
+  `FontFace` API + `delayRender`/`continueRender` ile yükler (Remotion'da `@remotion/fonts` paketi
+  kurulu değildi, manuel yol kullanıldı).
 
-### 4.4 Müzik senkronu + outro
-- `bg-music.mp3` sabit olduğu için vuruş kareleri elle bir diziye yazılır
-  (`const BEATS = [12, 41, ...]`); kart geçişleri en yakın vuruşa hizalanır (analiz kütüphanesi gerekmez).
-- Outro CTA: `"Hemen Biletini Al!"` → `"Kaydet 🔖 — hafta içinde lazım olacak"` + `whatnext.tr`.
-- Caption: gün-gün metin listesi (başlık • gün • saat), mevcut hashtag seti korunur.
+### 4.4 Müzik senkronu + outro — KISMEN UYGULANDI (dürüst not)
+- Outro CTA: `"Hemen Biletini Al!"` → `"🔖 Kaydet — hafta içinde lazım olacak"`.
+- `WeeklyVideoService.buildReelCaption`: gün-gün metin listesi (başlık • gün adı • saat) + Kaydet
+  çağrısı + mevcut hashtag seti.
+- **Gerçek beat-senkronu uygulanmadı.** Plan "vuruş karelerini elle bir diziye yazın" diyordu ama bu,
+  `bg-music.mp3`'ü (142 sn) gerçekten dinleyip vuruş zamanlarını not almayı gerektirir — bu ortamda
+  ses dinleme/analiz imkanı yok, aubio/essentia gibi bir BPM tespit aracı da kurulu değil. Sahte bir
+  "BEATS" dizisi uydurmak (doğrulanamayan veriyi doğruymuş gibi sunmak) yerine mevcut düzenli
+  (featured/quick) tempo korundu — bu da savunulabilir bir düzenleme kararı, ama gerçek vuruş
+  eşleşmesi değil. **Kullanıcı isterse**: `bg-music.mp3`'ü dinleyip gerçek vuruş kare numaralarını
+  verirse, `timing.ts`'e kart geçişlerini o karelere yapıştıran bir "snap" fonksiyonu eklemek küçük
+  bir iş.
 
-### 4.5 Doğrulama
-1. `npx remotion render` örnek props'la (3 görselli + 1 görselsiz + saatli/saatsiz karışık) —
-   çıktı gözle: hook ilk saniyede etkinlik gösteriyor, gün sırası doğru, toplam süre ≤ 22 sn.
-2. `npx remotion studio` ile kare kare vuruş hizası kontrolü.
-3. Java tarafı: `WeeklyVideoServiceTest` (varsa) + dedup'ın EventIdentity ile çalıştığı birim testi.
-4. İlk gerçek paylaşım öncesi video dosyası telefonda izlenir (safe zone: sağ ikon sütunu + alt caption
-   alanı metinle çakışmıyor).
+### 4.5 Doğrulama — YAPILDI
+1. `npx tsc --noEmit`: temiz, tip hatası yok.
+2. **Gerçek `npx remotion render`** (test props: 3 featured + 2 quick, karışık saatli/saatsiz,
+   picsum.photos placeholder görselleri) — 391 kare (hesaplananla birebir: 36+3×75+2×35+60=391),
+   ~13 sn. Hook, gün rozetli kart (Salı+Cuma), outro kareleri ffmpeg ile çıkarılıp gözle incelendi:
+   AlfaSlabOne/NotoSans doğru render oluyor, hafta ilerleme çubuğu doğru günü yakıyor, saat/tarih/
+   mekân/tür rozeti doğru, "🔖 Kaydet" CTA'sı görünür (tarayıcı render'ı emoji'yi destekliyor —
+   ImageMagick'teki emoji sorunuyla karışmasın, farklı motor).
+3. Java: `mvn test` 83/84 yeşil (tek istisna hep aynı bilinen DB kısıtı).
+4. **Yapılmadı (kullanıcının kendi ortamında):** gerçek prod verisiyle (9 etkinlik, gerçek Cloudinary
+   görselleri) render + telefonda izleme + Instagram'a ilk paylaşımdan önce safe-zone kontrolü.
 
 ---
 

@@ -1,13 +1,18 @@
 import React from 'react';
 import { Composition } from 'remotion';
 import { WeeklyReel, WeeklyReelProps } from './WeeklyReel';
+import { EventData } from './EventCard';
+import { FPS, computeTotalDuration } from './timing';
 
-const FPS = 30;
 const WIDTH = 1080;
 const HEIGHT = 1920;
-const INTRO = 75;
-const OUTRO = 60;
-const PER_CARD = 90;
+
+// Stüdyo önizlemesinde calculateMetadata henüz gerçek props'u görmeden önceki tahmini süre
+// (tipik kullanım: 3 featured + 6 quick). Gerçek render'da her zaman calculateMetadata geçerli olur.
+const PREVIEW_EVENTS: Pick<EventData, 'featured'>[] = [
+  ...Array(3).fill({ featured: true }),
+  ...Array(6).fill({ featured: false }),
+];
 
 export const RemotionRoot: React.FC = () => {
   const defaultProps: WeeklyReelProps = {
@@ -16,14 +21,12 @@ export const RemotionRoot: React.FC = () => {
     backgroundVariant: 0,
   };
 
-  const duration = INTRO + 9 * PER_CARD + OUTRO;
-
   return (
     <>
       <Composition
         id="WeeklyReel"
         component={WeeklyReel as unknown as React.ComponentType<Record<string, unknown>>}
-        durationInFrames={duration}
+        durationInFrames={computeTotalDuration(PREVIEW_EVENTS as EventData[])}
         fps={FPS}
         width={WIDTH}
         height={HEIGHT}
@@ -31,7 +34,7 @@ export const RemotionRoot: React.FC = () => {
         calculateMetadata={({ props }) => {
           const p = props as unknown as WeeklyReelProps;
           return {
-            durationInFrames: INTRO + Math.max(p.events?.length ?? 9, 1) * PER_CARD + OUTRO,
+            durationInFrames: computeTotalDuration(p.events ?? []),
           };
         }}
       />

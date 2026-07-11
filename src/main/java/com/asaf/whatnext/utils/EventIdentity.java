@@ -1,5 +1,6 @@
 package com.asaf.whatnext.utils;
 
+import com.asaf.whatnext.dto.EventSummaryDTO;
 import com.asaf.whatnext.models.ConcertEvent;
 import com.asaf.whatnext.models.Event;
 import com.asaf.whatnext.models.Venue;
@@ -48,6 +49,21 @@ public final class EventIdentity {
         return isSameEventCore(
                 a.getTitle(), va != null ? va.getSlug() : null, va != null ? va.getName() : null,
                 b.getTitle(), vb != null ? vb.getSlug() : null, vb != null ? vb.getName() : null, artistNames,
+                jaccardThreshold, jaccardStrongThreshold);
+    }
+
+    /**
+     * {@link EventSummaryDTO} karşılaştırması (ör. haftalık Reel'de birden çok kategori listesinden
+     * gelen aynı etkinliği eşlemek için). DTO'da venueSlug/artistNames yok — 4. kademe (sanatçı token
+     * içerme) burada uygulanamaz, sadece başlık/mekân-adı kademeleri (1-3) çalışır.
+     */
+    public static boolean isSameEvent(EventSummaryDTO a, EventSummaryDTO b, double jaccardThreshold, double jaccardStrongThreshold) {
+        if (a == null || b == null) {
+            return false;
+        }
+        return isSameEventCore(
+                a.getTitle(), null, a.getVenueName(),
+                b.getTitle(), null, b.getVenueName(), null,
                 jaccardThreshold, jaccardStrongThreshold);
     }
 

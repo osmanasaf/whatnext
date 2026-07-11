@@ -1,8 +1,9 @@
 package com.asaf.whatnext.services;
 
 import com.asaf.whatnext.dto.EventSummaryDTO;
-import com.asaf.whatnext.utils.EventDuplicateKeys;
 import com.asaf.whatnext.dto.WeeklyPopularEventsDTO;
+import com.asaf.whatnext.utils.EventIdentity;
+import com.asaf.whatnext.utils.TrClock;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,12 +15,15 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.TextStyle;
+import java.time.temporal.IsoFields;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
 @Service
 public class WeeklyVideoService {
@@ -44,12 +48,22 @@ public class WeeklyVideoService {
     @Value("${whatnext.video.chrome-path:}")
     private String chromePath;
 
+    @Value("${whatnext.dedup.title-jaccard:0.5}")
+    private double jaccardThreshold;
+
+    @Value("${whatnext.dedup.title-jaccard-strong:0.85}")
+    private double jaccardStrongThreshold;
+
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    /** Kategorinin ilk (en yüksek skorlu) etkinliği {@code featured=true} — Reel'de daha uzun süre gösterilir. */
+    record SelectedEvent(EventSummaryDTO event, boolean featured) {
+    }
 
     public void generateAndShareWeeklyReel() {
         try {
             WeeklyPopularEventsDTO weekly = popularEventService.getWeeklyPopularEvents();
-            List<EventSummaryDTO> events = collectEventsForVideo(weekly);
+            List<SelectedEvent> events = collectEventsForVideo(weekly);
             if (events.size() < 3) {
                 LOGGER.warn("Yeterli etkinlik yok, video oluşturulmayacak. Etkinlik sayısı: {}", events.size());
                 return;
@@ -63,7 +77,7 @@ public class WeeklyVideoService {
 
             String videoUrl = uploadVideo(videoFile);
             if (videoUrl != null) {
-                shareReelToInstagram(videoUrl, weekly.getWeekRange());
+                shareReelToInstagram(videoUrl, weekly.getWeekRange(), events);
             }
 
             try {
@@ -76,19 +90,28 @@ public class WeeklyVideoService {
         }
     }
 
-    private List<EventSummaryDTO> collectEventsForVideo(WeeklyPopularEventsDTO weekly) {
-        List<EventSummaryDTO> result = new ArrayList<>();
-        Set<Long> seenIds = new HashSet<>();
-        Set<String> seenTitleDate = new HashSet<>();
-        addUpTo(result, weekly.getConcerts(), 3, seenIds, seenTitleDate);
-        addUpTo(result, weekly.getTheaters(), 3, seenIds, seenTitleDate);
-        addUpTo(result, weekly.getStandups(), 3, seenIds, seenTitleDate);
+    /**
+     * Kategori başına en iyi 3 (PopularEventService zaten skora göre sıralı veriyor), sonra
+     * {@code startDate}+{@code startTime}'a göre gün sıralı — Reel kategoriye değil haftanın
+     * akışına göre ilerlesin diye ("Cuma akşamı ne var?").
+     */
+    List<SelectedEvent> collectEventsForVideo(WeeklyPopularEventsDTO weekly) {
+        List<SelectedEvent> result = new ArrayList<>();
+        List<EventSummaryDTO> seen = new ArrayList<>();
+        addUpTo(result, weekly.getConcerts(), 3, seen);
+        addUpTo(result, weekly.getTheaters(), 3, seen);
+        addUpTo(result, weekly.getStandups(), 3, seen);
+        result.sort(Comparator
+                .comparing((SelectedEvent s) -> s.event().getStartDate(), Comparator.nullsLast(Comparator.naturalOrder()))
+                .thenComparing(s -> s.event().getStartTime(), Comparator.nullsLast(Comparator.naturalOrder())));
         return result;
     }
 
-    /** Aynı etkinlik (farklı kaynak / çift kayıt) Reel'de iki kez çıkmasın. */
-    private void addUpTo(List<EventSummaryDTO> target, List<EventSummaryDTO> source, int max,
-                         Set<Long> seenIds, Set<String> seenTitleDate) {
+    /**
+     * Aynı etkinlik (farklı kaynak / çift kayıt) Reel'de iki kez çıkmasın — birebir id eşleşmesinin
+     * yanında {@link EventIdentity} ile siteler arası (farklı isimli) aynı etkinlik de eşlenir.
+     */
+    private void addUpTo(List<SelectedEvent> target, List<EventSummaryDTO> source, int max, List<EventSummaryDTO> seen) {
         if (source == null) {
             return;
         }
@@ -97,33 +120,32 @@ public class WeeklyVideoService {
             if (added >= max) {
                 break;
             }
-            if (e == null) {
+            if (e == null || isDuplicate(seen, e)) {
                 continue;
             }
-            if (e.getId() != null && seenIds.contains(e.getId())) {
-                continue;
-            }
-            String sig = titleDateKey(e);
-            if (seenTitleDate.contains(sig)) {
-                continue;
-            }
-            if (e.getId() != null) {
-                seenIds.add(e.getId());
-            }
-            seenTitleDate.add(sig);
-            target.add(e);
+            seen.add(e);
+            target.add(new SelectedEvent(e, added == 0));
             added++;
         }
     }
 
-    private static String titleDateKey(EventSummaryDTO e) {
-        return EventDuplicateKeys.titleAndDateKey(e.getTitle(), e.getStartDate());
+    private boolean isDuplicate(List<EventSummaryDTO> seen, EventSummaryDTO candidate) {
+        for (EventSummaryDTO s : seen) {
+            if (candidate.getId() != null && candidate.getId().equals(s.getId())) {
+                return true;
+            }
+            if (EventIdentity.isSameEvent(s, candidate, jaccardThreshold, jaccardStrongThreshold)) {
+                return true;
+            }
+        }
+        return false;
     }
 
-    private File renderVideo(List<EventSummaryDTO> events, String weekRange) {
+    private File renderVideo(List<SelectedEvent> selected, String weekRange) {
         try {
             List<Map<String, Object>> eventMaps = new ArrayList<>();
-            for (EventSummaryDTO e : events) {
+            for (SelectedEvent se : selected) {
+                EventSummaryDTO e = se.event();
                 String type = "CONCERT";
                 if (e.getPerformanceType() != null) {
                     type = e.getPerformanceType().name();
@@ -132,18 +154,26 @@ public class WeeklyVideoService {
                 } else if (e.getType() != null) {
                     type = e.getType().name();
                 }
-                eventMaps.add(Map.of(
-                        "id", e.getId() != null ? e.getId() : 0,
-                        "title", e.getTitle() != null ? e.getTitle() : "",
-                        "startDate", e.getStartDate() != null ? e.getStartDate().toString() : "",
-                        "type", type,
-                        "venueName", e.getVenueName() != null ? e.getVenueName() : "",
-                        "imageUrl", e.getImageUrl() != null ? e.getImageUrl() : ""
-                ));
+                String dayName = e.getStartDate() != null
+                        ? e.getStartDate().getDayOfWeek().getDisplayName(TextStyle.FULL, new Locale("tr"))
+                        : "";
+                Map<String, Object> eventMap = new HashMap<>();
+                eventMap.put("id", e.getId() != null ? e.getId() : 0);
+                eventMap.put("title", e.getTitle() != null ? e.getTitle() : "");
+                eventMap.put("startDate", e.getStartDate() != null ? e.getStartDate().toString() : "");
+                eventMap.put("dayName", dayName);
+                // Pazartesi=0 ... Pazar=6 — hafta ilerleme çubuğunda tarih parse etmeden doğrudan kullanılır.
+                eventMap.put("dayIndex", e.getStartDate() != null ? e.getStartDate().getDayOfWeek().getValue() - 1 : -1);
+                eventMap.put("startTime", e.getStartTime() != null ? e.getStartTime().toString() : "");
+                eventMap.put("type", type);
+                eventMap.put("venueName", e.getVenueName() != null ? e.getVenueName() : "");
+                eventMap.put("imageUrl", e.getImageUrl() != null ? e.getImageUrl() : "");
+                eventMap.put("featured", se.featured());
+                eventMaps.add(eventMap);
             }
 
-            int backgroundVariant = LocalDate.now().get(java.time.temporal.IsoFields.WEEK_OF_WEEK_BASED_YEAR) % 5;
-            Map<String, Object> props = new java.util.HashMap<>();
+            int backgroundVariant = TrClock.today().get(IsoFields.WEEK_OF_WEEK_BASED_YEAR) % 5;
+            Map<String, Object> props = new HashMap<>();
             props.put("events", eventMaps);
             props.put("weekRange", weekRange);
             props.put("backgroundVariant", backgroundVariant);
@@ -234,7 +264,7 @@ public class WeeklyVideoService {
 
     private String uploadVideo(File videoFile) {
         try {
-            String folder = "whatnext/reels/" + LocalDate.now();
+            String folder = "whatnext/reels/" + TrClock.today();
             Map<String, Object> result = cloudinaryService.uploadVideo(videoFile, folder);
             return (String) result.get("secure_url");
         } catch (Exception e) {
@@ -245,12 +275,34 @@ public class WeeklyVideoService {
 
     private static final String REELS_HASHTAGS = " #istanbul #istanbuletkinlik #etkinlik #konser #tiyatro #müzik #music #concert #festival #istanbulnight #istanbulnights #istanbullife #istanbuldayasam #igersistanbul #sanat #eğlence #eglence #standupistanbul #taksim #kadikoy";
 
-    private void shareReelToInstagram(String videoUrl, String weekRange) {
+    private static final DateTimeFormatter HHMM = DateTimeFormatter.ofPattern("HH:mm");
+
+    private void shareReelToInstagram(String videoUrl, String weekRange, List<SelectedEvent> events) {
         try {
-            String caption = "🎭 Bu hafta İstanbul'da " + weekRange + " arası kaçırılmayacak etkinlikler!\n\n🔗 Detaylar profilde" + REELS_HASHTAGS;
+            String caption = buildReelCaption(weekRange, events);
             instagramService.shareReel(videoUrl, caption);
         } catch (Exception e) {
             LOGGER.error("Instagram Reel paylaşım hatası", e);
         }
+    }
+
+    /** Gün-gün kısa etkinlik listesi (başlık • gün • saat) — Reel'in görsel akışıyla aynı bilgiyi metinde de verir. */
+    String buildReelCaption(String weekRange, List<SelectedEvent> events) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("🎭 Bu hafta İstanbul'da ").append(weekRange).append(" arası kaçırılmayacak etkinlikler!\n\n");
+        for (SelectedEvent se : events) {
+            EventSummaryDTO e = se.event();
+            sb.append("• ").append(e.getTitle());
+            if (e.getStartDate() != null) {
+                String dayName = e.getStartDate().getDayOfWeek().getDisplayName(TextStyle.FULL, new Locale("tr"));
+                sb.append(" · ").append(dayName);
+            }
+            if (e.getStartTime() != null) {
+                sb.append(" ").append(e.getStartTime().format(HHMM));
+            }
+            sb.append('\n');
+        }
+        sb.append("\n🔖 Kaydet, hafta içinde lazım olacak!\n\n🔗 Detaylar profilde").append(REELS_HASHTAGS);
+        return sb.toString();
     }
 }
