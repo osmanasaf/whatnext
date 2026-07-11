@@ -6,6 +6,8 @@ import com.asaf.whatnext.enums.PerformanceType;
 import com.asaf.whatnext.mapper.EventMapper;
 import com.asaf.whatnext.models.Event;
 import com.asaf.whatnext.models.PerformingArt;
+import com.asaf.whatnext.services.templates.TemplateAssets;
+import com.asaf.whatnext.services.templates.TemplateProvider;
 import com.asaf.whatnext.utils.EventAudience;
 import com.asaf.whatnext.utils.EventDuplicateKeys;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,7 +21,6 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
-import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -54,20 +55,20 @@ public class ImageGenerationService {
     @Autowired
     private EventMapper eventMapper;
 
+    @Autowired
+    private TemplateProvider templateProvider;
+
     private static final String OUTPUT_DIR = System.getProperty("java.io.tmpdir");
 
     @Transactional
     public File createPost(String eventType, String postType, String city, LocalDate date) throws IOException, InterruptedException {
         String monthName = date.getMonth().getDisplayName(TextStyle.FULL, Locale.ENGLISH).toLowerCase();
-        String templateResource = "instagram-posts/" + monthName + "/" + postType + "-template.png";
-        String coordinatesResource = resolveCoordinatesResource(monthName, postType);
+        TemplateAssets templateAssets = templateProvider.resolve(monthName, postType);
+        File templateFile = templateAssets.templatePng();
+        Properties coordinates = templateAssets.coordinates();
 
-        File templateFile = copyResourceToTempFile(templateResource, ".png");
         File fontFile = copyResourceToTempFile("NotoSans-Regular.ttf", ".ttf");
         File titleFontFile = copyResourceToTempFile("AlfaSlabOne-Regular.ttf", ".ttf");
-        File coordinatesFile = copyResourceToTempFile(coordinatesResource, ".properties");
-
-        Properties coordinates = loadPropertiesUtf8(coordinatesFile);
 
         EventType eventTypeEnum;
         final PerformanceType targetPerformanceType;
@@ -131,14 +132,11 @@ public class ImageGenerationService {
 
     public File createCover(LocalDate date) throws IOException, InterruptedException {
         String monthName = date.getMonth().getDisplayName(TextStyle.FULL, Locale.ENGLISH).toLowerCase();
-        String templateResource = "instagram-posts/" + monthName + "/cover-template.png";
-        String coordinatesResource = "instagram-posts/" + monthName + "/cover-coordinates.properties";
+        TemplateAssets templateAssets = templateProvider.resolve(monthName, "cover");
+        File templateFile = templateAssets.templatePng();
+        Properties coordinates = templateAssets.coordinates();
 
-        File templateFile = copyResourceToTempFile(templateResource, ".png");
         File fontFile = copyResourceToTempFile("Audiowide-Regular.ttf", ".ttf");
-        File coordinatesFile = copyResourceToTempFile(coordinatesResource, ".properties");
-
-        Properties coordinates = loadPropertiesUtf8(coordinatesFile);
 
         String outputFilename = "instagram-cover-" + System.currentTimeMillis() + ".png";
         Path outputPath = Paths.get(OUTPUT_DIR, "whatnext", outputFilename);
@@ -173,15 +171,12 @@ public class ImageGenerationService {
     @Transactional
     public File createSmartStory(LocalDate date) throws IOException, InterruptedException {
         String monthName = date.getMonth().getDisplayName(TextStyle.FULL, Locale.ENGLISH).toLowerCase();
-        String templateResource = "instagram-posts/" + monthName + "/story-template.png";
-        String coordinatesResource = "instagram-posts/" + monthName + "/story-coordinates.properties";
+        TemplateAssets templateAssets = templateProvider.resolve(monthName, "story");
+        File templateFile = templateAssets.templatePng();
+        Properties coordinates = templateAssets.coordinates();
 
-        File templateFile = copyResourceToTempFile(templateResource, ".png");
         File fontFile = copyResourceToTempFile("NotoSans-Regular.ttf", ".ttf");
         File titleFontFile = copyResourceToTempFile("AlfaSlabOne-Regular.ttf", ".ttf");
-        File coordinatesFile = copyResourceToTempFile(coordinatesResource, ".properties");
-
-        Properties coordinates = loadPropertiesUtf8(coordinatesFile);
 
         List<Event> allPerformingArts = eventService.findTopNEventsForDateAndCity(date, EventType.PERFORMING_ART, "istanbul",
                 STORY_FETCH_LIMIT);
@@ -247,24 +242,6 @@ public class ImageGenerationService {
                 wh[0],
                 wh[1]);
         return executeCommand(command, outputPath.toString());
-    }
-
-    private static String resolveCoordinatesResource(String monthName, String postType) {
-        String specific = "instagram-posts/" + monthName + "/" + postType + "-coordinates.properties";
-        if (ImageGenerationService.class.getClassLoader().getResource(specific) != null) {
-            return specific;
-        }
-        return "instagram-posts/" + monthName + "/post-coordinates.properties";
-    }
-
-    private static Properties loadPropertiesUtf8(File file) throws IOException {
-        String content = Files.readString(file.toPath(), StandardCharsets.UTF_8);
-        if (!content.isEmpty() && content.charAt(0) == '\uFEFF') {
-            content = content.substring(1);
-        }
-        Properties p = new Properties();
-        p.load(new StringReader(content));
-        return p;
     }
 
     private void addUpTo(Set<Event> targetSet, List<Event> sourceList, int maxCount) {
