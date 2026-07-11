@@ -1,5 +1,6 @@
 package com.asaf.whatnext.scraper;
 
+import com.asaf.whatnext.enums.AudienceType;
 import com.asaf.whatnext.enums.EventSourceType;
 import com.asaf.whatnext.enums.EventType;
 import lombok.Builder;
@@ -28,6 +29,7 @@ public class ScrapedEventData {
     private String artistNames;
     private Integer minPriceTl;
     private String venueSlug;
+    private AudienceType audience;
 
     public boolean isValid() {
         return title != null && !title.isEmpty() 

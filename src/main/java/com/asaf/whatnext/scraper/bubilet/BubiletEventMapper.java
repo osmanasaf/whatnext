@@ -41,7 +41,7 @@ public final class BubiletEventMapper {
 
     public static EventType toEventType(BubiletCategory category) {
         return switch (category) {
-            case THEATRE -> EventType.THEATER;
+            case THEATRE, KIDS -> EventType.THEATER;
             case MUSIC -> EventType.CONCERT;
             case STANDUP -> EventType.STANDUP;
         };

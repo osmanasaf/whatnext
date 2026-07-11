@@ -223,6 +223,9 @@ public class EventSaveService {
         if (data.getMinPriceTl() != null) {
             event.setMinPriceTl(data.getMinPriceTl());
         }
+        if (data.getAudience() != null) {
+            event.setAudience(data.getAudience());
+        }
         
         if (venue != null) {
             event.setVenue(venue);

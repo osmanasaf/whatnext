@@ -9,6 +9,7 @@ import com.asaf.whatnext.models.Event;
 import com.asaf.whatnext.models.EventImage;
 import com.asaf.whatnext.models.Venue;
 import com.asaf.whatnext.repository.EventImageRepository;
+import com.asaf.whatnext.services.AudienceBackfillService;
 import com.asaf.whatnext.services.EventService;
 import com.asaf.whatnext.mapper.EventMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/events")
@@ -26,12 +28,28 @@ public class EventController {
     private final EventService eventService;
     private final EventImageRepository eventImageRepository;
     private final EventMapper eventMapper;
+    private final AudienceBackfillService audienceBackfillService;
 
     @Autowired
-    public EventController(EventService eventService, EventImageRepository eventImageRepository, EventMapper eventMapper) {
+    public EventController(
+            EventService eventService,
+            EventImageRepository eventImageRepository,
+            EventMapper eventMapper,
+            AudienceBackfillService audienceBackfillService) {
         this.eventService = eventService;
         this.eventImageRepository = eventImageRepository;
         this.eventMapper = eventMapper;
+        this.audienceBackfillService = audienceBackfillService;
+    }
+
+    /**
+     * {@code audience} NULL/UNKNOWN satırları sezgiselle (bkz. {@code EventAudience.classify}) geri doldurur.
+     * Varsayılan {@code dryRun=true} — parametresiz çağrıda kalıcı yazma olmaz.
+     */
+    @PostMapping("/audience/backfill")
+    public ResponseEntity<Map<String, Object>> backfillAudience(
+            @RequestParam(defaultValue = "true") boolean dryRun) {
+        return ResponseEntity.ok(audienceBackfillService.backfill(dryRun));
     }
 
     @GetMapping

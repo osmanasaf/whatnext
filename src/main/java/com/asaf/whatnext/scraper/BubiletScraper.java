@@ -1,6 +1,7 @@
 package com.asaf.whatnext.scraper;
 
 import com.asaf.whatnext.config.BubiletScraperConfig;
+import com.asaf.whatnext.enums.AudienceType;
 import com.asaf.whatnext.enums.Bubilet.BubiletCategory;
 import com.asaf.whatnext.enums.Bubilet.BubiletCity;
 import com.asaf.whatnext.enums.EventSourceType;
@@ -24,11 +25,14 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 @Service
 @Order(10)
 public class BubiletScraper extends BaseScraper {
@@ -69,13 +73,16 @@ public class BubiletScraper extends BaseScraper {
         ScrapeRunStats stats = new ScrapeRunStats("Bubilet");
         BubiletCity selectedCity = parseCity(city, stats);
 
+        Map<BubiletCategory, List<ScrapedEventData>> byCategory = new EnumMap<>(BubiletCategory.class);
         List<CategoryScraper> scrapers = Arrays.asList(
-            (driver, wait) -> scrapeCategory(BubiletCategory.THEATRE, selectedCity, stats),
-            (driver, wait) -> scrapeCategory(BubiletCategory.MUSIC, selectedCity, stats),
-            (driver, wait) -> scrapeCategory(BubiletCategory.STANDUP, selectedCity, stats)
+            (driver, wait) -> capture(byCategory, BubiletCategory.KIDS, scrapeCategory(BubiletCategory.KIDS, selectedCity, stats)),
+            (driver, wait) -> capture(byCategory, BubiletCategory.THEATRE, scrapeCategory(BubiletCategory.THEATRE, selectedCity, stats)),
+            (driver, wait) -> capture(byCategory, BubiletCategory.MUSIC, scrapeCategory(BubiletCategory.MUSIC, selectedCity, stats)),
+            (driver, wait) -> capture(byCategory, BubiletCategory.STANDUP, scrapeCategory(BubiletCategory.STANDUP, selectedCity, stats))
         );
 
         List<ScrapedEventData> allData = scrapeForCategories(scrapers);
+        markChildrenAudience(byCategory, allData);
         allData = dedupeByPathAndDate(allData);
         logger.info("Scraped " + allData.size() + " events from Bubilet (yol+tarih tekilleştirilmiş)");
 
@@ -176,6 +183,35 @@ public class BubiletScraper extends BaseScraper {
         }
 
         return events;
+    }
+
+    /** {@link CategoryScraper} imzasını bozmadan kategori sonucunu yan etki olarak yakalar (KIDS çapraz-işaretleme için). */
+    private static List<ScrapedEventData> capture(
+            Map<BubiletCategory, List<ScrapedEventData>> byCategory, BubiletCategory category, List<ScrapedEventData> data) {
+        byCategory.put(category, data);
+        return data;
+    }
+
+    /**
+     * KIDS etiketinden gelenler doğrudan CHILDREN; diğer kategorilerde aynı (city+path) etkinlik varsa
+     * ("aynı oyun iki etikette de listeleniyor") o da CHILDREN işaretlenir.
+     */
+    private void markChildrenAudience(Map<BubiletCategory, List<ScrapedEventData>> byCategory, List<ScrapedEventData> allData) {
+        List<ScrapedEventData> kidsEvents = byCategory.getOrDefault(BubiletCategory.KIDS, List.of());
+        kidsEvents.forEach(d -> d.setAudience(AudienceType.CHILDREN));
+
+        Set<String> kidsKeys = kidsEvents.stream()
+                .map(BubiletScraper::cityPathKey)
+                .collect(Collectors.toSet());
+        for (ScrapedEventData d : allData) {
+            if (d.getAudience() == null && kidsKeys.contains(cityPathKey(d))) {
+                d.setAudience(AudienceType.CHILDREN);
+            }
+        }
+    }
+
+    private static String cityPathKey(ScrapedEventData d) {
+        return (d.getCity() != null ? d.getCity() : "") + "|" + canonicalEtkinlikPath(d.getTicketUrl());
     }
 
     private static String safeSnippet(WebElement card) {

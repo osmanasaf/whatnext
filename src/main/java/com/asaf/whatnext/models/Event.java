@@ -13,6 +13,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.ElementCollection;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.JoinColumn;
+import com.asaf.whatnext.enums.AudienceType;
 import com.asaf.whatnext.enums.EventSourceType;
 import com.asaf.whatnext.enums.EventType;
 import jakarta.persistence.*;
@@ -67,6 +68,10 @@ public class Event extends BaseEntity {
 
     @Column(name = "min_price_tl")
     private Integer minPriceTl;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "audience")
+    private AudienceType audience;
 
     public void setVenue(Venue venue) {
         this.venue = venue;
