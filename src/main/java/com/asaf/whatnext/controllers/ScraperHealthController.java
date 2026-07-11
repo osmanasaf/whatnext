@@ -3,6 +3,7 @@ package com.asaf.whatnext.controllers;
 import com.asaf.whatnext.scraper.ScrapeRunStats;
 import com.asaf.whatnext.services.ScrapeHealthService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -13,17 +14,22 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Son scrape koşusu sağlığı — site DOM'u değişince ({@code parsed/cardsSeen} düşerse) tek istekle anlaşılır.
+ * Tüm kaynakların son scrape koşusu sağlığı — site DOM'u değişince ({@code parsed/cardsSeen} düşerse)
+ * tek istekle anlaşılır. Kaynak başına ayrı satır ({@code Map<sourceName, ...>}).
  */
 @RestController
 @RequestMapping("/api/scraper")
 public class ScraperHealthController {
 
     private final ScrapeHealthService scrapeHealthService;
+    private final double minParseRatio;
 
     @Autowired
-    public ScraperHealthController(ScrapeHealthService scrapeHealthService) {
+    public ScraperHealthController(
+            ScrapeHealthService scrapeHealthService,
+            @Value("${whatnext.scrape-health.min-parse-ratio:0.8}") double minParseRatio) {
         this.scrapeHealthService = scrapeHealthService;
+        this.minParseRatio = minParseRatio;
     }
 
     @GetMapping("/health")
@@ -47,7 +53,7 @@ public class ScraperHealthController {
         m.put("priceExtracted", s.getPriceExtracted());
         m.put("unknownCity", s.getUnknownCity());
         m.put("durationMs", s.durationMs());
-        m.put("healthy", s.isHealthy(0.8));
+        m.put("healthy", s.isHealthy(minParseRatio));
         Map<String, List<String>> samples = new LinkedHashMap<>(s.getSamples());
         m.put("samples", samples);
         return m;

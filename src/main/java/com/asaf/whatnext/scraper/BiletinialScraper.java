@@ -8,6 +8,7 @@ import com.asaf.whatnext.scraper.biletinial.BiletinialAddressVenueParser;
 import com.asaf.whatnext.scraper.biletinial.BiletinialCardDraft;
 import com.asaf.whatnext.scraper.biletinial.BiletinialDetailParser;
 import com.asaf.whatnext.scraper.biletinial.BiletinialEventMapper;
+import com.asaf.whatnext.services.ScrapeHealthService;
 import com.asaf.whatnext.utils.Texts;
 import com.asaf.whatnext.utils.WebScraperUtils;
 import org.openqa.selenium.By;
@@ -35,13 +36,19 @@ public class BiletinialScraper extends BaseScraper {
     private static final String IMAGE_SELECTOR = "img[src*='merlincdn.net']";
 
     private final int scrapeDateRangeDays;
+    private final ScrapeHealthService scrapeHealthService;
+    private final double minParseRatio;
 
     @Autowired
     public BiletinialScraper(
             BiletinialScraperConfig config,
-            @Value("${biletinial.scrape.date-range-days:14}") int scrapeDateRangeDays) {
+            ScrapeHealthService scrapeHealthService,
+            @Value("${biletinial.scrape.date-range-days:14}") int scrapeDateRangeDays,
+            @Value("${whatnext.scrape-health.min-parse-ratio:0.8}") double minParseRatio) {
         super(config.getChromePath(), config.getWaitTimeoutSeconds(), BiletinialScraper.class);
         this.scrapeDateRangeDays = scrapeDateRangeDays;
+        this.scrapeHealthService = scrapeHealthService;
+        this.minParseRatio = minParseRatio;
     }
 
     @Override
@@ -49,23 +56,24 @@ public class BiletinialScraper extends BaseScraper {
         logger.info("Scraping events from Biletinial for city: " + city);
 
         BiletinialCity selectedCity = parseCity(city);
+        ScrapeRunStats stats = new ScrapeRunStats(getSourceName());
 
         List<CategoryScraper> scrapers = new ArrayList<>();
 
         if (selectedCity == BiletinialCity.ISTANBUL) {
             scrapers.addAll(Arrays.asList(
-                (driver, wait) -> scrapeCategory(BiletinialCategory.THEATRE, "istanbul-anadolu"),
-                (driver, wait) -> scrapeCategory(BiletinialCategory.MUSIC, "istanbul-anadolu"),
-                (driver, wait) -> scrapeCategory(BiletinialCategory.STANDUP, "istanbul-anadolu"),
-                (driver, wait) -> scrapeCategory(BiletinialCategory.THEATRE, "istanbul-avrupa"),
-                (driver, wait) -> scrapeCategory(BiletinialCategory.MUSIC, "istanbul-avrupa"),
-                (driver, wait) -> scrapeCategory(BiletinialCategory.STANDUP, "istanbul-avrupa")
+                (driver, wait) -> scrapeCategory(BiletinialCategory.THEATRE, "istanbul-anadolu", stats),
+                (driver, wait) -> scrapeCategory(BiletinialCategory.MUSIC, "istanbul-anadolu", stats),
+                (driver, wait) -> scrapeCategory(BiletinialCategory.STANDUP, "istanbul-anadolu", stats),
+                (driver, wait) -> scrapeCategory(BiletinialCategory.THEATRE, "istanbul-avrupa", stats),
+                (driver, wait) -> scrapeCategory(BiletinialCategory.MUSIC, "istanbul-avrupa", stats),
+                (driver, wait) -> scrapeCategory(BiletinialCategory.STANDUP, "istanbul-avrupa", stats)
             ));
         } else {
             scrapers.addAll(Arrays.asList(
-                (driver, wait) -> scrapeCategory(BiletinialCategory.THEATRE, selectedCity.getValue()),
-                (driver, wait) -> scrapeCategory(BiletinialCategory.MUSIC, selectedCity.getValue()),
-                (driver, wait) -> scrapeCategory(BiletinialCategory.STANDUP, selectedCity.getValue())
+                (driver, wait) -> scrapeCategory(BiletinialCategory.THEATRE, selectedCity.getValue(), stats),
+                (driver, wait) -> scrapeCategory(BiletinialCategory.MUSIC, selectedCity.getValue(), stats),
+                (driver, wait) -> scrapeCategory(BiletinialCategory.STANDUP, selectedCity.getValue(), stats)
             ));
         }
 
@@ -75,10 +83,12 @@ public class BiletinialScraper extends BaseScraper {
         long validCount = allData.stream().filter(ScrapedEventData::isValid).count();
         logger.info("Valid events: " + validCount + "/" + allData.size());
 
+        finishAndRecordStats(stats, scrapeHealthService, minParseRatio);
+
         return allData;
     }
 
-    private List<ScrapedEventData> scrapeCategory(BiletinialCategory category, String cityValue) {
+    private List<ScrapedEventData> scrapeCategory(BiletinialCategory category, String cityValue, ScrapeRunStats stats) {
         List<ScrapedEventData> events = new ArrayList<>();
         LocalDate today = com.asaf.whatnext.utils.TrClock.today();
 
@@ -97,24 +107,34 @@ public class BiletinialScraper extends BaseScraper {
 
                 BiletinialDetailParser detailParser = new BiletinialDetailParser();
                 for (WebElement card : cards) {
+                    stats.recordCardSeen();
                     try {
                         BiletinialCardDraft draft = extractCardDraft(card, category, cityValue, date);
                         if (draft == null) {
+                            stats.recordParseFailed(safeSnippet(card));
                             continue;
+                        }
+                        if (draft.venueName() == null || draft.venueName().isBlank()) {
+                            stats.recordMissingVenue(draft.title());
                         }
                         BiletinialDetailParser.ParseResult detailResult =
                                 detailParser.loadSessionsAndVenue(driver, wait, draft);
                         if (!detailResult.events().isEmpty()) {
                             events.addAll(detailResult.events());
+                            stats.recordParsed(draft.title());
                         } else {
                             BiletinialCardDraft merged = mergeWithVenueHint(
                                     draft, detailResult.venueTextFromPage());
                             ScrapedEventData fallback = BiletinialEventMapper.fromListOnly(merged);
                             if (fallback != null && fallback.isValid()) {
                                 events.add(fallback);
+                                stats.recordParsed(draft.title());
+                            } else {
+                                stats.recordMissingDate(draft.title());
                             }
                         }
                     } catch (Exception e) {
+                        stats.recordParseFailed(safeSnippet(card));
                         logger.debug("Error extracting card", e);
                     }
                 }
@@ -127,6 +147,15 @@ public class BiletinialScraper extends BaseScraper {
         }
 
         return events;
+    }
+
+    private static String safeSnippet(WebElement card) {
+        try {
+            String html = card.getAttribute("outerHTML");
+            return html == null ? "" : html.substring(0, Math.min(120, html.length()));
+        } catch (Exception e) {
+            return "";
+        }
     }
 
     private BiletinialCardDraft extractCardDraft(

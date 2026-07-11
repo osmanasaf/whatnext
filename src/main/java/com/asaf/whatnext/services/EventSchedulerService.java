@@ -1,6 +1,7 @@
 package com.asaf.whatnext.services;
 
 import com.asaf.whatnext.scraper.EventScraperService;
+import com.asaf.whatnext.utils.TrClock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,12 +27,12 @@ public class EventSchedulerService {
     private final List<String> ACTIVE_CITIES = new ArrayList<>(Arrays.asList("istanbul"));
     private final List<String> FUTURE_CITIES = Arrays.asList("ankara", "izmir", "antalya");
     
-    @Scheduled(cron = "0 0 2 30 * ?")
+    @Scheduled(cron = "0 0 2 L * ?", zone = "Europe/Istanbul")
     @Transactional
     public void scrapeMonthlyEvents() {
         LOGGER.info("=== AYLIK ETKİNLİK SCRAPING İŞLEMİ BAŞLATILDI ===");
-        
-        LocalDate today = LocalDate.now();
+
+        LocalDate today = TrClock.today();
         LocalDate nextMonth = today.plusMonths(1);
         LocalDate nextMonthStart = nextMonth.withDayOfMonth(1);
         LocalDate nextMonthEnd = nextMonth.withDayOfMonth(nextMonth.lengthOfMonth());
@@ -53,12 +54,12 @@ public class EventSchedulerService {
         LOGGER.info("=== AYLIK ETKİNLİK SCRAPING İŞLEMİ TAMAMLANDI ===");
     }
     
-    @Scheduled(cron = "0 0 3 ? * SUN")
+    @Scheduled(cron = "0 0 3 ? * SUN", zone = "Europe/Istanbul")
     @Transactional
     public void scrapeWeeklyEvents() {
         LOGGER.info("=== HAFTALIK ETKİNLİK SCRAPING İŞLEMİ BAŞLATILDI ===");
-        
-        LocalDate today = LocalDate.now();
+
+        LocalDate today = TrClock.today();
         LocalDate nextWeekStart = today.plusDays(1);
         LocalDate nextWeekEnd = today.plusDays(14);
         

@@ -1,6 +1,7 @@
 package com.asaf.whatnext.scraper;
 
 import com.asaf.whatnext.enums.EventSourceType;
+import com.asaf.whatnext.services.ScrapeHealthService;
 import com.asaf.whatnext.utils.WebScraperUtils;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.support.ui.WebDriverWait;
@@ -130,7 +131,22 @@ public abstract class BaseScraper implements EventSource {
     public boolean isAvailable() {
         return true;
     }
-    
+
+    /**
+     * Koşuyu bitirir, {@link ScrapeHealthService}'e kaydeder ve özet satırını loglar; eşik altında
+     * WARN basar. Tüm kaynaklarda ({@code GET /api/scraper/health}) aynı davranış için ortak yol.
+     */
+    protected void finishAndRecordStats(ScrapeRunStats stats, ScrapeHealthService scrapeHealthService,
+            double minParseRatio) {
+        stats.finish();
+        scrapeHealthService.recordRun(stats);
+        logger.info(stats.toSummaryLine());
+        if (!stats.isHealthy(minParseRatio)) {
+            logger.warn(getSourceName() + " scrape sağlığı eşiğin altında (parseRatio<" + minParseRatio
+                    + ") — site DOM'u değişmiş olabilir. " + stats.toSummaryLine());
+        }
+    }
+
     public abstract EventSourceType getEventSourceType();
     
     protected abstract String getDefaultCity();

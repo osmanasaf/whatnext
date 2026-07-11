@@ -55,7 +55,7 @@ public class BubiletScraper extends BaseScraper {
             @Value("${bubilet.list-date.rollover-days:30}") int listDateRolloverDays,
             @Value("${bubilet.biletler-date.rollover-days:60}") int biletlerSectionRolloverDays,
             @Value("${bubilet.draft.progress-log-every:25}") int draftProgressLogEvery,
-            @Value("${bubilet.scrape-health.min-parse-ratio:0.8}") double minParseRatio) {
+            @Value("${bubilet.scrape-health.min-parse-ratio:${whatnext.scrape-health.min-parse-ratio:0.8}}") double minParseRatio) {
         super(config.getChromePath(), config.getWaitTimeoutSeconds(), BubiletScraper.class);
         this.config = config;
         this.scrapeHealthService = scrapeHealthService;
@@ -89,13 +89,7 @@ public class BubiletScraper extends BaseScraper {
         long validCount = allData.stream().filter(ScrapedEventData::isValid).count();
         logger.info("Valid events: " + validCount + "/" + allData.size());
 
-        stats.finish();
-        scrapeHealthService.recordRun(stats);
-        logger.info(stats.toSummaryLine());
-        if (!stats.isHealthy(minParseRatio)) {
-            logger.warn("Bubilet scrape sağlığı eşiğin altında (parseRatio<" + minParseRatio
-                    + ") — site DOM'u değişmiş olabilir. " + stats.toSummaryLine());
-        }
+        finishAndRecordStats(stats, scrapeHealthService, minParseRatio);
 
         return allData;
     }
