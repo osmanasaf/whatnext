@@ -8,6 +8,8 @@ import com.asaf.whatnext.models.Event;
 import com.asaf.whatnext.models.PerformingArt;
 import com.asaf.whatnext.repository.EventRepository;
 import com.asaf.whatnext.services.scoring.EventScoringStrategy;
+import com.asaf.whatnext.utils.EventAudience;
+import com.asaf.whatnext.utils.EventDuplicateKeys;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -63,30 +65,13 @@ public class PopularEventService {
     }
     
     private List<Event> filterAndSortEvents(List<Event> allEvents, EventType type, int limit) {
-        return allEvents.stream()
+        List<Event> sorted = allEvents.stream()
                 .filter(e -> matchesEventType(e, type))
-                .filter(e -> !isChildrensEvent(e))
+                .filter(e -> !EventAudience.isChildrensEvent(e))
                 .sorted(Comparator.comparingInt(scoringStrategy::calculateScore).reversed())
-                .limit(limit)
                 .toList();
-    }
-
-    private boolean isChildrensEvent(Event event) {
-        if (event == null) return false;
-        
-        String title = event.getTitle() != null ? event.getTitle().toLowerCase(Locale.forLanguageTag("tr")) : "";
-        if (title.contains("çocuk") || title.contains("cocuk")) {
-            return true;
-        }
-        
-        if (event.getVenue() != null && event.getVenue().getName() != null) {
-            String venueName = event.getVenue().getName().toLowerCase(Locale.forLanguageTag("tr"));
-            if (venueName.contains("çocuk") || venueName.contains("cocuk")) {
-                return true;
-            }
-        }
-        
-        return false;
+        List<Event> deduped = EventDuplicateKeys.dedupeByTitleAndDateKeepOrder(sorted);
+        return deduped.stream().limit(limit).toList();
     }
 
     private boolean matchesEventType(Event event, EventType type) {

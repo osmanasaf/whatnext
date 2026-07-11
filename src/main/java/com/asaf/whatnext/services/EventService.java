@@ -6,6 +6,7 @@ import com.asaf.whatnext.enums.City;
 import com.asaf.whatnext.enums.PerformanceType;
 import com.asaf.whatnext.models.*;
 import com.asaf.whatnext.repository.EventRepository;
+import com.asaf.whatnext.utils.EventDuplicateKeys;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -165,32 +166,35 @@ public class EventService {
         if ("istanbul".equals(cityStr)) {
             if (isPerformanceType) {
                 events = eventRepository.findByTypeAndIstanbulActiveOnDate(EventType.PERFORMING_ART, date);
-                return events.stream()
+                List<Event> out = events.stream()
                         .filter(event -> event instanceof com.asaf.whatnext.models.PerformingArt performingArt
                                 && performingArt.getPerformanceType() != null
                                 && performingArt.getPerformanceType().name().equals(eventType.name()))
                         .filter(e -> e.getTitle() != null && !e.getTitle().isBlank())
-                        .limit(limit)
                         .collect(Collectors.toList());
+                out = EventDuplicateKeys.dedupeByTitleAndDateKeepOrder(out);
+                return out.stream().limit(limit).collect(Collectors.toList());
             }
             events = eventRepository.findByTypeAndIstanbulActiveOnDate(eventType, date);
         } else {
             if (isPerformanceType) {
                 events = eventRepository.findByTypeAndCityActiveOnDate(EventType.PERFORMING_ART, cityStr, date);
-                return events.stream()
+                List<Event> out = events.stream()
                         .filter(event -> event instanceof com.asaf.whatnext.models.PerformingArt performingArt
                                 && performingArt.getPerformanceType() != null
                                 && performingArt.getPerformanceType().name().equals(eventType.name()))
                         .filter(e -> e.getTitle() != null && !e.getTitle().isBlank())
-                        .limit(limit)
                         .collect(Collectors.toList());
+                out = EventDuplicateKeys.dedupeByTitleAndDateKeepOrder(out);
+                return out.stream().limit(limit).collect(Collectors.toList());
             }
             events = eventRepository.findByTypeAndCityActiveOnDate(eventType, cityStr, date);
         }
-        return events.stream()
+        List<Event> out = events.stream()
                 .filter(e -> e.getTitle() != null && !e.getTitle().isBlank())
-                .limit(limit)
                 .collect(Collectors.toList());
+        out = EventDuplicateKeys.dedupeByTitleAndDateKeepOrder(out);
+        return out.stream().limit(limit).collect(Collectors.toList());
     }
 
     @Transactional

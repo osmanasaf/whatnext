@@ -5,7 +5,9 @@ import com.asaf.whatnext.enums.EventType;
 import lombok.Builder;
 import lombok.Data;
 
+import java.text.Normalizer;
 import java.time.LocalDate;
+import java.util.Locale;
 
 @Data
 @Builder
@@ -24,7 +26,9 @@ public class ScrapedEventData {
     private EventType eventType;
     private EventSourceType source;
     private String artistNames;
-    
+    private Integer minPriceTl;
+    private String venueSlug;
+
     public boolean isValid() {
         return title != null && !title.isEmpty() 
             && ticketUrl != null && !ticketUrl.isEmpty();
@@ -34,8 +38,12 @@ public class ScrapedEventData {
         if (city == null || city.isEmpty()) {
             return null;
         }
-        
-        return city.trim().toLowerCase()
+        // Biletix NFD + bazı JVM'lerde İ→i dönüşümünde çıkan U+0307 — tek "istanbul" anahtarı için temizlenir
+        String s = Normalizer.normalize(city.trim(), Normalizer.Form.NFC);
+        s = s.replace("\u0307", "");
+        s = s.toLowerCase(Locale.ROOT);
+        s = s.replace("\u0307", "");
+        s = s
             .replace('ı', 'i')
             .replace('ğ', 'g')
             .replace('ü', 'u')
@@ -48,5 +56,6 @@ public class ScrapedEventData {
             .replace('Ş', 's')
             .replace('Ö', 'o')
             .replace('Ç', 'c');
+        return s;
     }
 }

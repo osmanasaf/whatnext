@@ -25,4 +25,19 @@ class TurkishDateParserTest {
                 text, LocalDate.of(2025, 4, 1), 60);
         assertThat(dates).hasSize(2);
     }
+
+    /** 28 Aralık'ta "5 Ocak" scrape'i: geçen yıla değil, gelecek yıla düşmeli (yıl devri). */
+    @Test
+    void parseBubiletListDate_rollsOverToNextYearAtYearBoundary() {
+        LocalDate now = LocalDate.of(2025, 12, 28);
+        LocalDate d = TurkishDateParser.parseBubiletListDate("05 Ocak Pzt 20:00", now, 30);
+        assertThat(d).isEqualTo(LocalDate.of(2026, 1, 5));
+    }
+
+    @Test
+    void extractDayMonthFromTurkishText_rollsOverToNextYearAtYearBoundary() {
+        LocalDate now = LocalDate.of(2025, 12, 28);
+        List<LocalDate> dates = TurkishDateParser.extractDayMonthFromTurkishText("5 Ocak", now, 30);
+        assertThat(dates).containsExactly(LocalDate.of(2026, 1, 5));
+    }
 }

@@ -145,7 +145,7 @@ public class EventScraperService {
     }
 
     private void validateDateRange(LocalDate startDate, LocalDate endDate) {
-        LocalDate today = LocalDate.now();
+        LocalDate today = com.asaf.whatnext.utils.TrClock.today();
         
         if (startDate.isBefore(today)) {
             throw new IllegalArgumentException("Start date cannot be before today");

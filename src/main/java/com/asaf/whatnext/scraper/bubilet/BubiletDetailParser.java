@@ -46,7 +46,7 @@ public class BubiletDetailParser {
             String detailVenue = readVenueFromOpenPage();
             WebElement section = driver.findElement(By.id(BubiletScraperConfig.DETAIL_BILETLER_SECTION_ID));
             List<LocalDate> dates = TurkishDateParser.extractDayMonthFromTurkishText(
-                    section.getText(), LocalDate.now(), biletlerSectionRolloverDays);
+                    section.getText(), com.asaf.whatnext.utils.TrClock.today(), biletlerSectionRolloverDays);
             return new MultiDateDetail(dates, detailVenue);
         } catch (Exception e) {
             LOG.warn("Bubilet detay sayfası okunamadı: {} — {}", url, e.getMessage());

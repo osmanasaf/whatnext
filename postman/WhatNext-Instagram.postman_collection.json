@@ -1,0 +1,168 @@
+{
+  "info": {
+    "_postman_id": "whatnext-instagram-v1",
+    "name": "WhatNext — Instagram (ImageMagick görselleri)",
+    "description": "Spring Boot çalışırken kullan. `date` isteğe bağlı (YYYY-MM-DD); boş bırakılırsa bugün. Görsel üretimi ilgili ayın post/story/cover-coordinates.properties + ImageMagick ile yapılır.\n\nÖnce: Uygulamayı ayağa kaldır, ImageMagick (`magick`) PATH'te olsun.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "testDate",
+      "value": "2026-04-02",
+      "description": "Örnek tarih; ay şablonu bu tarihin ayına göre seçilir"
+    }
+  ],
+  "item": [
+    {
+      "name": "1 — Görsel üretimi (koordinat/stil testi)",
+      "item": [
+        {
+          "name": "Post — Konser",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/instagram/create/concert?date={{testDate}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "instagram", "create", "concert"],
+              "query": [{ "key": "date", "value": "{{testDate}}" }]
+            },
+            "description": "post-template.png + post-coordinates.properties (event_type.*, event.*, venue.*)"
+          }
+        },
+        {
+          "name": "Post — Tiyatro",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/instagram/create/theater?date={{testDate}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "instagram", "create", "theater"],
+              "query": [{ "key": "date", "value": "{{testDate}}" }]
+            }
+          }
+        },
+        {
+          "name": "Post — Stand-up",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/instagram/create/standup?date={{testDate}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "instagram", "create", "standup"],
+              "query": [{ "key": "date", "value": "{{testDate}}" }]
+            }
+          }
+        },
+        {
+          "name": "Cover",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/instagram/create/cover?date={{testDate}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "instagram", "create", "cover"],
+              "query": [{ "key": "date", "value": "{{testDate}}" }]
+            },
+            "description": "cover-coordinates.properties (date.fill | date.stroke | date.strokewidth)"
+          }
+        },
+        {
+          "name": "Story (akıllı mix)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/instagram/create/story?date={{testDate}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "instagram", "create", "story"],
+              "query": [{ "key": "date", "value": "{{testDate}}" }]
+            },
+            "description": "story-coordinates.properties"
+          }
+        },
+        {
+          "name": "Tümünü üret (kapak + 3 post + story)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/instagram/generate-all?date={{testDate}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "instagram", "generate-all"],
+              "query": [{ "key": "date", "value": "{{testDate}}" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2 — Zamanlayıcı (manuel tetik)",
+      "item": [
+        {
+          "name": "Haftalık post görselleri oluştur",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/instagram/scheduler/create-weekly-posts"
+          }
+        },
+        {
+          "name": "Haftalık Reel üret + kuyruk",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/instagram/scheduler/generate-weekly-reel"
+          }
+        },
+        {
+          "name": "Haftalık carousel paylaşımı (3 grup)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/instagram/scheduler/share-weekly-posts"
+          }
+        },
+        {
+          "name": "Günlük story paylaş (tarih opsiyonel)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/instagram/scheduler/share-daily-story?date={{testDate}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "instagram", "scheduler", "share-daily-story"],
+              "query": [{ "key": "date", "value": "{{testDate}}" }]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3 — Instagram paylaşımı (dikkat: canlı)",
+      "item": [
+        {
+          "name": "Tarihe göre kuyruğa paylaşım",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/instagram/share-for-date?date={{testDate}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "instagram", "share-for-date"],
+              "query": [{ "key": "date", "value": "{{testDate}}" }]
+            },
+            "description": "Veritabanındaki görselleri Instagram'a gönderir; prod'da dikkatli kullan."
+          }
+        }
+      ]
+    }
+  ]
+}

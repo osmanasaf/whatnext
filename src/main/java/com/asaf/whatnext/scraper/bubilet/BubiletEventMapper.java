@@ -30,7 +30,9 @@ public final class BubiletEventMapper {
                 .ticketUrl(d.ticketUrl())
                 .imageUrl(d.imageUrl())
                 .eventType(eventType)
-                .city(ScrapedEventData.normalizeCity(d.city()));
+                .city(ScrapedEventData.normalizeCity(d.city()))
+                .minPriceTl(d.minPriceTl())
+                .venueSlug(d.venueSlug());
         if (venue != null) {
             b.venueName(venue).location(venue);
         }
@@ -46,6 +48,6 @@ public final class BubiletEventMapper {
     }
 
     public static LocalDate parseListDateLine(String dateText, int rolloverIfOlderThanDays) {
-        return TurkishDateParser.parseBubiletListDate(dateText, LocalDate.now(), rolloverIfOlderThanDays);
+        return TurkishDateParser.parseBubiletListDate(dateText, com.asaf.whatnext.utils.TrClock.today(), rolloverIfOlderThanDays);
     }
 }

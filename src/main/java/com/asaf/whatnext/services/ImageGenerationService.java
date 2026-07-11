@@ -6,6 +6,8 @@ import com.asaf.whatnext.enums.PerformanceType;
 import com.asaf.whatnext.mapper.EventMapper;
 import com.asaf.whatnext.models.Event;
 import com.asaf.whatnext.models.PerformingArt;
+import com.asaf.whatnext.utils.EventAudience;
+import com.asaf.whatnext.utils.EventDuplicateKeys;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -81,15 +83,18 @@ public class ImageGenerationService {
             targetPerformanceType = null;
         }
 
-        List<Event> events = eventService.findTop6EventsForDateAndCity(date, eventTypeEnum, city);
+        List<Event> events = eventService.findTopNEventsForDateAndCity(date, eventTypeEnum, city, 18);
 
         if (targetPerformanceType != null) {
             events = events.stream()
                     .filter(event -> event instanceof PerformingArt performingArt &&
                             performingArt.getPerformanceType() == targetPerformanceType)
-                    .limit(6)
                     .toList();
         }
+        events = events.stream()
+                .filter(event -> !EventAudience.isChildrensEvent(event))
+                .limit(6)
+                .toList();
 
         if (events.isEmpty()) {
             System.out.println("⚠️ " + date + " tarihinde " + eventType + " türünde etkinlik bulunamadı. Görsel üretimi atlanıyor.");
@@ -183,6 +188,9 @@ public class ImageGenerationService {
         List<Event> theaters = new ArrayList<>();
         List<Event> standups = new ArrayList<>();
         for (Event e : allPerformingArts) {
+            if (EventAudience.isChildrensEvent(e)) {
+                continue;
+            }
             if (e instanceof PerformingArt pa) {
                 if (pa.getPerformanceType() == PerformanceType.THEATER) {
                     theaters.add(e);
@@ -193,6 +201,7 @@ public class ImageGenerationService {
         }
         List<Event> concerts = new ArrayList<>(eventService.findTopNEventsForDateAndCity(date, EventType.CONCERT, "istanbul",
                 STORY_FETCH_LIMIT));
+        concerts.removeIf(EventAudience::isChildrensEvent);
         Collections.shuffle(concerts);
         Collections.shuffle(theaters);
         Collections.shuffle(standups);
@@ -209,6 +218,8 @@ public class ImageGenerationService {
             Collections.shuffle(filler);
             addUpTo(selected, filler, STORY_EVENT_TARGET - selected.size());
         }
+
+        EventDuplicateKeys.dedupeSetByTitleAndDate(selected);
 
         if (selected.isEmpty()) {
             System.out.println("⚠️ " + date + " tarihinde hiç etkinlik bulunamadı. Story görseli üretimi atlanıyor.");

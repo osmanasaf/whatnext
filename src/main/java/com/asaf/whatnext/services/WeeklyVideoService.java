@@ -1,6 +1,7 @@
 package com.asaf.whatnext.services;
 
 import com.asaf.whatnext.dto.EventSummaryDTO;
+import com.asaf.whatnext.utils.EventDuplicateKeys;
 import com.asaf.whatnext.dto.WeeklyPopularEventsDTO;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -17,7 +18,6 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -117,9 +117,7 @@ public class WeeklyVideoService {
     }
 
     private static String titleDateKey(EventSummaryDTO e) {
-        String t = e.getTitle() != null ? e.getTitle().trim().toLowerCase(Locale.forLanguageTag("tr")) : "";
-        String d = e.getStartDate() != null ? e.getStartDate().toString() : "";
-        return t + "|" + d;
+        return EventDuplicateKeys.titleAndDateKey(e.getTitle(), e.getStartDate());
     }
 
     private File renderVideo(List<EventSummaryDTO> events, String weekRange) {

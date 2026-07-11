@@ -80,7 +80,7 @@ public class BiletinialScraper extends BaseScraper {
 
     private List<ScrapedEventData> scrapeCategory(BiletinialCategory category, String cityValue) {
         List<ScrapedEventData> events = new ArrayList<>();
-        LocalDate today = LocalDate.now();
+        LocalDate today = com.asaf.whatnext.utils.TrClock.today();
 
         for (int i = 0; i < scrapeDateRangeDays; i++) {
             LocalDate date = today.plusDays(i);

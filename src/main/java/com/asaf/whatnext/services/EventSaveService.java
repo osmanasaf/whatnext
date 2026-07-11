@@ -220,6 +220,9 @@ public class EventSaveService {
         }
         event.setCity(city);
         event.addTicketUrl(data.getTicketUrl());
+        if (data.getMinPriceTl() != null) {
+            event.setMinPriceTl(data.getMinPriceTl());
+        }
         
         if (venue != null) {
             event.setVenue(venue);

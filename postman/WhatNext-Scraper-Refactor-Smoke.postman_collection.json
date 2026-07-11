@@ -1,0 +1,171 @@
+{
+	"info": {
+		"_postman_id": "whatnext-scraper-smoke-001",
+		"name": "WhatNext — Scraper Refactor smoke",
+		"description": "Scraper refactor planı doğrulaması: GET istekleri **veritabanına yazmaz** (sadece JSON ham sonuç).\\n\\n**Ne zaman kullan:**\\n- `mvn test` sonrası hızlı entegrasyon kontrolü\\n- Chrome/Headless sağlam mı, selector’lar kırık mı\\n\\n**Beklenti:** 200, gövde JSON dizi; `validCount` yok, elemanlarda en az `title` + `ticketUrl` (geçerli olmayan satırlar filtre dışı kalabilir).\\n\\n**Dikkat:** Tarama uzun sürebilir; timeout artırılabilir. `{{baseUrl}}` varsayılan `http://localhost:8080`.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8080"
+		},
+		{
+			"key": "city",
+			"value": "istanbul"
+		}
+	],
+	"item": [
+		{
+			"name": "1 — Ham sonuç (plandaki smoke, DB yazmaz)",
+			"item": [
+				{
+					"name": "Bubilet — scrape by city",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/api/bubilet/scrape/{{city}}",
+						"description": "Liste + detay ayrımı, `BubiletDetailParser` / `BubiletEventMapper` yolu."
+					}
+				},
+				{
+					"name": "Biletinial — scrape by city",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/api/biletinial/scrape/{{city}}",
+						"description": "`BiletinialDetailParser` + `ParseResult` (venue + seanslar) akışı."
+					}
+				},
+				{
+					"name": "Biletix — scrape by city",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/api/biletix/scrape/{{city}}",
+						"description": "`BiletixCardParser` + `ElementTextExtractor` (mekân seçicileri)."
+					}
+				},
+				{
+					"name": "Biletino — scrape by city",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/api/biletino/scrape/{{city}}",
+						"description": "`BiletinoCardParser` + `BiletinoLocationParser` (VenueCity)."
+					}
+				}
+			]
+		},
+		{
+			"name": "2 — Default şehir (scrape, path’siz — BaseScraperController)",
+			"item": [
+				{
+					"name": "Bubilet — scrape (default city)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/api/bubilet/scrape"
+					}
+				},
+				{
+					"name": "Biletinial — scrape (default city)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/api/biletinial/scrape"
+					}
+				},
+				{
+					"name": "Biletix — scrape (default city)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/api/biletix/scrape"
+					}
+				},
+				{
+					"name": "Biletino — scrape (default city)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/api/biletino/scrape"
+					}
+				}
+			]
+		},
+		{
+			"name": "3 — Uygunluk (hızlı)",
+			"item": [
+				{
+					"name": "Bubilet — check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/api/bubilet/check"
+					}
+				},
+				{
+					"name": "Biletinial — check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/api/biletinial/check"
+					}
+				},
+				{
+					"name": "Biletix — check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/api/biletix/check"
+					}
+				},
+				{
+					"name": "Biletino — check",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/api/biletino/check"
+					}
+				}
+			]
+		},
+		{
+			"name": "3b — Scrape sağlığı",
+			"item": [
+				{
+					"name": "Scraper health (son koşu istatistikleri)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": "{{baseUrl}}/api/scraper/health"
+					}
+				}
+			]
+		},
+		{
+			"name": "4 — Veritabanına yazan (opsiyonel, dikkatli)",
+			"item": [
+				{
+					"name": "Tüm kaynaklar — POST run-all (şehir)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": "{{baseUrl}}/api/scrapers/run-all?city={{city}}",
+						"description": "Tarih: varsayılan bugün → +6 gün. **DB'ye yazar** (`EventScraperService`)."
+					}
+				},
+				{
+					"name": "Tek kaynak — POST (ör. Bubilet, istanbul)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": "{{baseUrl}}/api/scrapers/run/Bubilet/istanbul",
+						"description": "Kaynak adı: `Bubilet`, `Biletinial`, `Biletix`, `Biletino` (büyük/küçük harf duyarsız). **DB'ye yazar**."
+					}
+				}
+			]
+		}
+	]
+}

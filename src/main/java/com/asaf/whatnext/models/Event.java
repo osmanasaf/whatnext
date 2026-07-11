@@ -65,6 +65,9 @@ public class Event extends BaseEntity {
 
     private String city;
 
+    @Column(name = "min_price_tl")
+    private Integer minPriceTl;
+
     public void setVenue(Venue venue) {
         this.venue = venue;
     }

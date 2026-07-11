@@ -77,7 +77,7 @@ public class BiletinoCardParser {
             if (tokens.length >= 2) {
                 String day = tokens[0];
                 String month = tokens[1];
-                int currentYear = LocalDate.now().getYear();
+                int currentYear = com.asaf.whatnext.utils.TrClock.today().getYear();
 
                 DateTimeFormatter formatter = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.ENGLISH);
                 return LocalDate.parse(String.format("%s %s %d", day, month, currentYear), formatter);

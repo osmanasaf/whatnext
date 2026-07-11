@@ -11,6 +11,7 @@ import com.asaf.whatnext.scraper.bubilet.BubiletDetailParser;
 import com.asaf.whatnext.scraper.bubilet.BubiletEventMapper;
 import com.asaf.whatnext.scraper.bubilet.BubiletListCardParser;
 import com.asaf.whatnext.scraper.common.DateScrapeStrategy;
+import com.asaf.whatnext.services.ScrapeHealthService;
 import com.asaf.whatnext.utils.Texts;
 import com.asaf.whatnext.utils.WebScraperUtils;
 import org.openqa.selenium.By;
@@ -27,6 +28,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 @Service
 @Order(10)
 public class BubiletScraper extends BaseScraper {
@@ -37,32 +39,40 @@ public class BubiletScraper extends BaseScraper {
     private final int listDateRolloverDays;
     private final int biletlerSectionRolloverDays;
     private final int draftProgressLogEvery;
+    private final ScrapeHealthService scrapeHealthService;
+    private final double minParseRatio;
+    private int unknownCityCount = 0;
 
     @Autowired
     public BubiletScraper(
             BubiletScraperConfig config,
-            @Value("${bubilet.enrich-missing-venue-from-detail:false}") boolean enrichMissingVenueFromDetail,
+            ScrapeHealthService scrapeHealthService,
+            @Value("${bubilet.enrich-missing-venue-from-detail:true}") boolean enrichMissingVenueFromDetail,
             @Value("${bubilet.list-date.rollover-days:30}") int listDateRolloverDays,
             @Value("${bubilet.biletler-date.rollover-days:60}") int biletlerSectionRolloverDays,
-            @Value("${bubilet.draft.progress-log-every:25}") int draftProgressLogEvery) {
+            @Value("${bubilet.draft.progress-log-every:25}") int draftProgressLogEvery,
+            @Value("${bubilet.scrape-health.min-parse-ratio:0.8}") double minParseRatio) {
         super(config.getChromePath(), config.getWaitTimeoutSeconds(), BubiletScraper.class);
         this.config = config;
+        this.scrapeHealthService = scrapeHealthService;
         this.enrichMissingVenueFromDetail = enrichMissingVenueFromDetail;
         this.listDateRolloverDays = listDateRolloverDays;
         this.biletlerSectionRolloverDays = biletlerSectionRolloverDays;
         this.draftProgressLogEvery = draftProgressLogEvery;
+        this.minParseRatio = minParseRatio;
     }
 
     @Override
     public List<ScrapedEventData> scrapeEvents(String city) {
         logger.info("Scraping events from Bubilet for city: " + city);
 
-        BubiletCity selectedCity = parseCity(city);
+        ScrapeRunStats stats = new ScrapeRunStats("Bubilet");
+        BubiletCity selectedCity = parseCity(city, stats);
 
         List<CategoryScraper> scrapers = Arrays.asList(
-            (driver, wait) -> scrapeCategory(BubiletCategory.THEATRE, selectedCity),
-            (driver, wait) -> scrapeCategory(BubiletCategory.MUSIC, selectedCity),
-            (driver, wait) -> scrapeCategory(BubiletCategory.STANDUP, selectedCity)
+            (driver, wait) -> scrapeCategory(BubiletCategory.THEATRE, selectedCity, stats),
+            (driver, wait) -> scrapeCategory(BubiletCategory.MUSIC, selectedCity, stats),
+            (driver, wait) -> scrapeCategory(BubiletCategory.STANDUP, selectedCity, stats)
         );
 
         List<ScrapedEventData> allData = scrapeForCategories(scrapers);
@@ -72,10 +82,18 @@ public class BubiletScraper extends BaseScraper {
         long validCount = allData.stream().filter(ScrapedEventData::isValid).count();
         logger.info("Valid events: " + validCount + "/" + allData.size());
 
+        stats.finish();
+        scrapeHealthService.recordRun(stats);
+        logger.info(stats.toSummaryLine());
+        if (!stats.isHealthy(minParseRatio)) {
+            logger.warn("Bubilet scrape sağlığı eşiğin altında (parseRatio<" + minParseRatio
+                    + ") — site DOM'u değişmiş olabilir. " + stats.toSummaryLine());
+        }
+
         return allData;
     }
 
-    private List<ScrapedEventData> scrapeCategory(BubiletCategory category, BubiletCity city) {
+    private List<ScrapedEventData> scrapeCategory(BubiletCategory category, BubiletCity city, ScrapeRunStats stats) {
         List<ScrapedEventData> events = new ArrayList<>();
 
         try {
@@ -103,12 +121,29 @@ public class BubiletScraper extends BaseScraper {
 
             List<BubiletCardDraft> drafts = new ArrayList<>();
             for (WebElement card : cards) {
+                stats.recordCardSeen();
                 try {
                     BubiletCardDraft d = extractCardDraft(card, city.getValue());
                     if (d != null) {
                         drafts.add(d);
+                        stats.recordParsed(d.title());
+                        if (d.venueName() == null || d.venueName().isBlank()) {
+                            stats.recordMissingVenue(d.title());
+                        }
+                        if (d.dateText() == null || d.dateText().isBlank()) {
+                            stats.recordMissingDate(d.title());
+                        }
+                        if (d.multiVenue()) {
+                            stats.recordMultiVenue(d.title());
+                        }
+                        if (d.minPriceTl() != null) {
+                            stats.recordPriceExtracted();
+                        }
+                    } else {
+                        stats.recordParseFailed(safeSnippet(card));
                     }
                 } catch (Exception e) {
+                    stats.recordParseFailed(safeSnippet(card));
                     logger.debug("Error reading list card", e);
                 }
             }
@@ -143,6 +178,15 @@ public class BubiletScraper extends BaseScraper {
         return events;
     }
 
+    private static String safeSnippet(WebElement card) {
+        try {
+            String html = card.getAttribute("outerHTML");
+            return html == null ? "" : html.substring(0, Math.min(120, html.length()));
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
     /**
      * Liste kartından ham veri (WebElement stale olmadan önce toplanır).
      */
@@ -162,7 +206,9 @@ public class BubiletScraper extends BaseScraper {
             logger.debug("Date not found for event: " + title);
         }
 
-        return new BubiletCardDraft(title.trim(), p.ticketUrl(), dateText.trim(), p.imageUrl(), city, venueName);
+        return new BubiletCardDraft(
+                title.trim(), p.ticketUrl(), dateText.trim(), p.imageUrl(), city, venueName,
+                p.venueSlug(), p.minPriceTl(), p.multiVenue(), p.venueNames());
     }
 
     /**
@@ -187,7 +233,8 @@ public class BubiletScraper extends BaseScraper {
         }
         String mergedVenue = Texts.firstNonBlank(d.venueName(), detail.venue());
         BubiletCardDraft dUse = new BubiletCardDraft(
-                d.title(), d.ticketUrl(), d.dateText(), d.imageUrl(), d.city(), mergedVenue);
+                d.title(), d.ticketUrl(), d.dateText(), d.imageUrl(), d.city(), mergedVenue,
+                d.venueSlug(), d.minPriceTl(), d.multiVenue(), d.venueNames());
 
         List<ScrapedEventData> out = new ArrayList<>();
         for (LocalDate ld : detail.dates()) {
@@ -211,10 +258,15 @@ public class BubiletScraper extends BaseScraper {
             return d;
         }
         return new BubiletCardDraft(
-                d.title(), d.ticketUrl(), d.dateText(), d.imageUrl(), d.city(), v);
+                d.title(), d.ticketUrl(), d.dateText(), d.imageUrl(), d.city(), v,
+                d.venueSlug(), d.minPriceTl(), d.multiVenue(), d.venueNames());
     }
 
-    /** Aynı etkinlik slug'ı farklı seans tarihleriyle ayrı kayıt. */
+    /**
+     * Aynı etkinlik slug'ı farklı seans tarihleriyle ayrı kayıt.
+     * Anahtara şehir eklenir: {@code canonicalEtkinlikPath} URL'den {@code /{city}/} önekini atıyor,
+     * bu yüzden şehir olmadan İstanbul+Ankara turnesi aynı slug'a çöküp bir şehri düşürüyordu.
+     */
     private List<ScrapedEventData> dedupeByPathAndDate(List<ScrapedEventData> items) {
         Map<String, ScrapedEventData> m = new LinkedHashMap<>();
         for (ScrapedEventData d : items) {
@@ -225,7 +277,8 @@ public class BubiletScraper extends BaseScraper {
             if (path.isEmpty()) {
                 continue;
             }
-            String key = path + "|" + (d.getStartDate() != null ? d.getStartDate().toString() : "");
+            String city = d.getCity() != null ? d.getCity() : "";
+            String key = city + "|" + path + "|" + (d.getStartDate() != null ? d.getStartDate().toString() : "");
             m.putIfAbsent(key, d);
         }
         return new ArrayList<>(m.values());
@@ -247,11 +300,18 @@ public class BubiletScraper extends BaseScraper {
         return path.toLowerCase(Locale.ROOT);
     }
 
-    private BubiletCity parseCity(String city) {
-        return Arrays.stream(BubiletCity.values())
+    private BubiletCity parseCity(String city, ScrapeRunStats stats) {
+        Optional<BubiletCity> match = Arrays.stream(BubiletCity.values())
                 .filter(c -> c.getValue().equalsIgnoreCase(city))
-                .findFirst()
-                .orElse(BubiletCity.ISTANBUL);
+                .findFirst();
+        if (match.isEmpty()) {
+            unknownCityCount++;
+            stats.recordUnknownCity();
+            logger.warn("Bubilet: bilinmeyen şehir '" + city + "', İstanbul'a düşülüyor (unknownCityCount="
+                    + unknownCityCount + ")");
+            return BubiletCity.ISTANBUL;
+        }
+        return match.get();
     }
 
     @Override
