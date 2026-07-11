@@ -19,13 +19,22 @@ public final class EventDuplicateKeys {
     private EventDuplicateKeys() {
     }
 
-    public static String titleAndDateKey(String title, LocalDate startDate) {
+    /**
+     * NFC, tr-lower, U+0307 temizli\u011fi, alfasay\u0131sal d\u0131\u015f\u0131 \u2192 bo\u015fluk. Tek do\u011fruluk kayna\u011f\u0131 \u2014
+     * {@link EventIdentity} da ayn\u0131 normalizasyonu kullan\u0131r.
+     */
+    public static String normalizeTitle(String title) {
         String t = title == null ? "" : title;
         t = Normalizer.normalize(t.trim(), Normalizer.Form.NFC);
         t = t.toLowerCase(Locale.forLanguageTag("tr-TR"));
         t = t.replace("\u0307", "");
         t = t.replaceAll("[^\\p{L}\\p{N}]+", " ");
         t = t.replaceAll("\\s+", " ").trim();
+        return t;
+    }
+
+    public static String titleAndDateKey(String title, LocalDate startDate) {
+        String t = normalizeTitle(title);
         String d = startDate != null ? startDate.toString() : "";
         return t + "|" + d;
     }

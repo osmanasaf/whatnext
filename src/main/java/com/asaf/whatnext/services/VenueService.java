@@ -21,6 +21,10 @@ public class VenueService {
         return venueRepository.findByName(name);
     }
 
+    public Venue findBySlug(String slug) {
+        return venueRepository.findBySlug(slug);
+    }
+
     public Venue findOrCreateVenue(String name) {
         Venue venue = findByName(name);
         if (venue == null) {

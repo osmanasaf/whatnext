@@ -10,6 +10,7 @@ import com.asaf.whatnext.models.EventImage;
 import com.asaf.whatnext.models.Venue;
 import com.asaf.whatnext.repository.EventImageRepository;
 import com.asaf.whatnext.services.AudienceBackfillService;
+import com.asaf.whatnext.services.EventDedupService;
 import com.asaf.whatnext.services.EventService;
 import com.asaf.whatnext.mapper.EventMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,17 +30,20 @@ public class EventController {
     private final EventImageRepository eventImageRepository;
     private final EventMapper eventMapper;
     private final AudienceBackfillService audienceBackfillService;
+    private final EventDedupService eventDedupService;
 
     @Autowired
     public EventController(
             EventService eventService,
             EventImageRepository eventImageRepository,
             EventMapper eventMapper,
-            AudienceBackfillService audienceBackfillService) {
+            AudienceBackfillService audienceBackfillService,
+            EventDedupService eventDedupService) {
         this.eventService = eventService;
         this.eventImageRepository = eventImageRepository;
         this.eventMapper = eventMapper;
         this.audienceBackfillService = audienceBackfillService;
+        this.eventDedupService = eventDedupService;
     }
 
     /**
@@ -50,6 +54,17 @@ public class EventController {
     public ResponseEntity<Map<String, Object>> backfillAudience(
             @RequestParam(defaultValue = "true") boolean dryRun) {
         return ResponseEntity.ok(audienceBackfillService.backfill(dryRun));
+    }
+
+    /**
+     * Mevcut veri temizliği: gün içi siteler arası aynı-etkinlik kayıtlarını {@link EventIdentity} ile
+     * bulup birleştirir. Varsayılan {@code dryRun=true} — kalıcı modda ({@code dryRun=false}) en düşük id
+     * kalır, diğerleri silinir; bu geri alınamaz, önce dryRun ile grupları gözden geçirin.
+     */
+    @PostMapping("/dedup")
+    public ResponseEntity<Map<String, Object>> dedup(
+            @RequestParam(defaultValue = "true") boolean dryRun) {
+        return ResponseEntity.ok(eventDedupService.dedup(dryRun));
     }
 
     @GetMapping

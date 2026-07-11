@@ -15,6 +15,9 @@ public class Venue extends BaseEntity {
     private String city;
     private String location;
     private int capacity;
+
+    /** Kaynak sitedeki kanonik mekân slug'ı (örn. Bubilet {@code /mekan/<slug>}) — kayıt anında kimlik eşleştirme için. */
+    private String slug;
     
     @jakarta.persistence.Column(name = "popularity_score", columnDefinition = "integer default 0")
     private int popularityScore = 0;

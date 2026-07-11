@@ -1,12 +1,16 @@
 package com.asaf.whatnext.services;
 
+import com.asaf.whatnext.enums.AudienceType;
 import com.asaf.whatnext.enums.EventType;
 import com.asaf.whatnext.enums.PerformanceType;
 import com.asaf.whatnext.models.*;
+import com.asaf.whatnext.repository.EventRepository;
 import com.asaf.whatnext.scraper.ScrapedEventData;
+import com.asaf.whatnext.utils.EventIdentity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -15,16 +19,19 @@ import java.util.UUID;
 
 @Service
 public class EventSaveService {
-    
+
     private static final Logger LOGGER = LoggerFactory.getLogger(EventSaveService.class);
-    
+
     private final ConcertEventService concertEventService;
     private final TheaterEventService theaterEventService;
     private final ExhibitionEventService exhibitionEventService;
     private final ArtistService artistService;
     private final VenueService venueService;
     private final CloudinaryService cloudinaryService;
-    
+    private final EventRepository eventRepository;
+    private final double jaccardThreshold;
+    private final double jaccardStrongThreshold;
+
     @Autowired
     public EventSaveService(
             ConcertEventService concertEventService,
@@ -32,13 +39,19 @@ public class EventSaveService {
             ExhibitionEventService exhibitionEventService,
             ArtistService artistService,
             VenueService venueService,
-            CloudinaryService cloudinaryService) {
+            CloudinaryService cloudinaryService,
+            EventRepository eventRepository,
+            @Value("${whatnext.dedup.title-jaccard:0.5}") double jaccardThreshold,
+            @Value("${whatnext.dedup.title-jaccard-strong:0.85}") double jaccardStrongThreshold) {
         this.concertEventService = concertEventService;
         this.theaterEventService = theaterEventService;
         this.exhibitionEventService = exhibitionEventService;
         this.artistService = artistService;
         this.venueService = venueService;
         this.cloudinaryService = cloudinaryService;
+        this.eventRepository = eventRepository;
+        this.jaccardThreshold = jaccardThreshold;
+        this.jaccardStrongThreshold = jaccardStrongThreshold;
     }
     
     public int saveAll(List<ScrapedEventData> scrapedEvents) {
@@ -71,17 +84,70 @@ public class EventSaveService {
         if (!data.isValid()) {
             return false;
         }
-        
+
         Venue venue = findOrCreateVenue(data);
         warnIfLocationSetButVenueNameMissing(data, venue);
+
+        Event duplicate = findDuplicate(data);
+        if (duplicate != null) {
+            mergeIntoExisting(duplicate, data, venue);
+            eventRepository.save(duplicate);
+            LOGGER.debug("Duplicate merged (EventIdentity): '{}' -> existing #{} on {}",
+                    data.getTitle(), duplicate.getId(), data.getStartDate());
+            return false;
+        }
+
         String imageUrl = uploadImage(data);
-        
         return switch (data.getEventType()) {
             case CONCERT -> saveConcertEvent(data, venue, imageUrl);
             case THEATER, STANDUP, PERFORMING_ART -> savePerformingArtEvent(data, venue, imageUrl);
             case EXHIBITION -> saveExhibitionEvent(data, venue, imageUrl);
             default -> false;
         };
+    }
+
+    /**
+     * Aynı gün + şehir içindeki adaylar arasında {@link EventIdentity} ile eşleşen ilk kayıt.
+     * {@code startDate} yoksa (ör. detaydan tarih çıkmayan kartlar) tekilleştirme yapılmaz.
+     */
+    private Event findDuplicate(ScrapedEventData data) {
+        if (data.getStartDate() == null) {
+            return null;
+        }
+        String city = ScrapedEventData.normalizeCity(data.getCity());
+        if (city == null || city.isEmpty()) {
+            city = "istanbul";
+        }
+        List<Event> candidates = eventRepository.findByStartDateAndCityWithVenue(data.getStartDate(), city);
+        for (Event candidate : candidates) {
+            if (EventIdentity.isSameEvent(candidate, data, jaccardThreshold, jaccardStrongThreshold)) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    /** Atlamak yerine birleştir: ticketUrl ekle, eksik mekân/görsel/fiyat doldur (fiyatta min), CHILDREN'ı yükselt. */
+    private void mergeIntoExisting(Event existing, ScrapedEventData data, Venue venue) {
+        if (data.getTicketUrl() != null) {
+            existing.addTicketUrl(data.getTicketUrl());
+        }
+        if (existing.getVenue() == null && venue != null) {
+            existing.setVenue(venue);
+        }
+        if (existing.getEventImage() == null && data.getImageUrl() != null && !data.getImageUrl().isBlank()) {
+            String imageUrl = uploadImage(data);
+            if (imageUrl != null) {
+                existing.setImage(null, "image/jpeg", imageUrl);
+            }
+        }
+        if (data.getMinPriceTl() != null
+                && (existing.getMinPriceTl() == null || data.getMinPriceTl() < existing.getMinPriceTl())) {
+            existing.setMinPriceTl(data.getMinPriceTl());
+        }
+        if (data.getAudience() == AudienceType.CHILDREN) {
+            existing.setAudience(AudienceType.CHILDREN);
+        }
     }
     
     private void warnIfLocationSetButVenueNameMissing(ScrapedEventData data, Venue venue) {
@@ -96,17 +162,27 @@ public class EventSaveService {
                 data.getSource(), data.getTitle(), data.getLocation());
     }
 
+    /** Önce slug'la (varsa) sonra adla eşler — mekân dublikasyonunu da bitirir. */
     private Venue findOrCreateVenue(ScrapedEventData data) {
         if (data.getVenueName() == null || data.getVenueName().isBlank()) {
             return null;
         }
         String name = data.getVenueName().trim();
-        Venue venue = venueService.findByName(name);
+        String slug = data.getVenueSlug();
+
+        Venue venue = slug != null && !slug.isBlank() ? venueService.findBySlug(slug) : null;
+        if (venue == null) {
+            venue = venueService.findByName(name);
+        }
         if (venue == null) {
             venue = new Venue();
             venue.setName(name);
             venue.setLocation(data.getLocation());
             venue.setCity(ScrapedEventData.normalizeCity(data.getCity()));
+            venue.setSlug(slug);
+            venue = venueService.save(venue);
+        } else if (slug != null && !slug.isBlank() && (venue.getSlug() == null || venue.getSlug().isBlank())) {
+            venue.setSlug(slug);
             venue = venueService.save(venue);
         }
         return venue;
@@ -128,29 +204,7 @@ public class EventSaveService {
         }
     }
     
-    private static String normalizeTitle(String title) {
-        if (title == null) return null;
-        return title.trim()
-            .toLowerCase(java.util.Locale.ROOT)
-            .replaceAll("[\\s\\-–—:]+", " ")
-            .trim();
-    }
-
     private boolean saveConcertEvent(ScrapedEventData data, Venue venue, String imageUrl) {
-        if (data.getStartDate() != null) {
-            // Önce title + date ile kontrol et (kaynak bağımsız, en güvenilir)
-            if (concertEventService.existsByTitleAndDate(data.getTitle(), data.getStartDate())) {
-                LOGGER.debug("Duplicate concert skipped (title+date): {} on {}", data.getTitle(), data.getStartDate());
-                return false;
-            }
-            // Normalize edilmiş başlıkla da kontrol et
-            String normalized = normalizeTitle(data.getTitle());
-            if (normalized != null && concertEventService.existsByTitleAndDate(normalized, data.getStartDate())) {
-                LOGGER.debug("Duplicate concert skipped (normalized title+date): {} on {}", data.getTitle(), data.getStartDate());
-                return false;
-            }
-        }
-        
         ConcertEvent event = new ConcertEvent();
         setCommonFields(event, data, venue, imageUrl);
         event.setType(EventType.CONCERT);
@@ -176,20 +230,6 @@ public class EventSaveService {
             default -> PerformanceType.THEATER;
         };
 
-        if (data.getStartDate() != null) {
-            // title + date kontrolü (kaynak bağımsız)
-            if (theaterEventService.existsByTitleAndDate(data.getTitle(), data.getStartDate())) {
-                LOGGER.debug("Duplicate performing art skipped (title+date): {} on {}", data.getTitle(), data.getStartDate());
-                return false;
-            }
-            // Normalize edilmiş başlıkla kontrol
-            String normalized = normalizeTitle(data.getTitle());
-            if (normalized != null && theaterEventService.existsByTitleAndDate(normalized, data.getStartDate())) {
-                LOGGER.debug("Duplicate performing art skipped (normalized title+date): {} on {}", data.getTitle(), data.getStartDate());
-                return false;
-            }
-        }
-        
         PerformingArt event = new PerformingArt();
         setCommonFields(event, data, venue, imageUrl);
         event.setType(EventType.PERFORMING_ART);

@@ -35,6 +35,11 @@ public interface EventRepository extends BaseRepository<Event, Long> {
             + "ORDER BY e.startDate ASC, e.id ASC")
     List<Event> findByTypeAndCityActiveOnDate(@Param("type") EventType type, @Param("city") String city, @Param("d") LocalDate d);
 
+    /** Kayıt anında akıllı tekilleştirme adayları — bkz. {@code EventSaveService.findDuplicate} + {@code EventIdentity}. */
+    @Query("SELECT DISTINCT e FROM Event e LEFT JOIN FETCH e.venue "
+            + "WHERE e.startDate = :date AND " + EventRepositoryCityMatch.JPQL_EQ_PARAM)
+    List<Event> findByStartDateAndCityWithVenue(@Param("date") LocalDate date, @Param("city") String city);
+
     List<Event> findByType(EventType type);
 
     List<Event> findBySource(EventSourceType source);
