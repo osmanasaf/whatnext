@@ -6,15 +6,21 @@ import com.asaf.whatnext.enums.PerformanceType;
 import com.asaf.whatnext.mapper.EventMapper;
 import com.asaf.whatnext.models.Event;
 import com.asaf.whatnext.models.PerformingArt;
+import com.asaf.whatnext.services.scoring.EventScoringStrategy;
 import com.asaf.whatnext.services.templates.TemplateAssets;
 import com.asaf.whatnext.services.templates.TemplateProvider;
 import com.asaf.whatnext.utils.EventAudience;
 import com.asaf.whatnext.utils.EventDuplicateKeys;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.imageio.ImageIO;
+import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
 import java.io.File;
@@ -27,9 +33,10 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.time.format.TextStyle;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -41,6 +48,8 @@ import java.util.stream.Stream;
 
 @Service
 public class ImageGenerationService {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(ImageGenerationService.class);
 
     private static final int STORY_EVENT_TARGET = 10;
     private static final int STORY_FETCH_LIMIT = 14;
@@ -57,6 +66,9 @@ public class ImageGenerationService {
 
     @Autowired
     private TemplateProvider templateProvider;
+
+    @Autowired
+    private EventScoringStrategy scoringStrategy;
 
     private static final String OUTPUT_DIR = System.getProperty("java.io.tmpdir");
 
@@ -98,7 +110,7 @@ public class ImageGenerationService {
                 .toList();
 
         if (events.isEmpty()) {
-            System.out.println("⚠️ " + date + " tarihinde " + eventType + " türünde etkinlik bulunamadı. Görsel üretimi atlanıyor.");
+            LOGGER.warn("{} tarihinde {} türünde etkinlik bulunamadı. Görsel üretimi atlanıyor.", date, eventType);
             return null;
         }
 
@@ -126,7 +138,9 @@ public class ImageGenerationService {
                 titleFontFile.getAbsolutePath(),
                 fontFile.getAbsolutePath(),
                 wh[0],
-                wh[1]);
+                wh[1],
+                date,
+                false);
         return executeCommand(command, outputPath.toString());
     }
 
@@ -161,11 +175,36 @@ public class ImageGenerationService {
         command.add("-annotate");
         command.add(geometry);
         command.add(sanitizeAnnotateText(dateText));
+
+        int dailyEventCount = countIstanbulEventsForDate(date);
+        if (dailyEventCount > 0) {
+            int datePointsizeNum = parseIntOr(pointsize, 80);
+            int countPointsizeNum = Math.max(24, datePointsizeNum / 2);
+            // Sabit piksel yerine date.pointsize'a orantılı offset — march gibi 2x çözünürlüklü
+            // aylarda da (pointsize=144) satır boşluğu doğru ölçeklenir.
+            String countGeometry = coordinates.getProperty("date.count.geometry",
+                    annotateNorthOffset(0, (int) Math.round(datePointsizeNum * 1.6)));
+            String countPointsize = coordinates.getProperty("date.count.pointsize", String.valueOf(countPointsizeNum));
+            command.add("-pointsize");
+            command.add(countPointsize);
+            command.add("-annotate");
+            command.add(countGeometry);
+            command.add(sanitizeAnnotateText("Bugün " + dailyEventCount + " etkinlik"));
+        }
+
         command.add("-stroke");
         command.add("none");
         appendOutputQuality(command);
         command.add(outputPath.toString());
         return executeCommand(command, outputPath.toString());
+    }
+
+    /** İstanbul'daki, çocuk etkinliği olmayan o günkü toplam etkinlik sayısı (kapak alt satırı için). */
+    private int countIstanbulEventsForDate(LocalDate date) {
+        return (int) eventService.findByDate(date.toString()).stream()
+                .filter(e -> "istanbul".equalsIgnoreCase(e.getCity()))
+                .filter(e -> !EventAudience.isChildrensEvent(e))
+                .count();
     }
 
     @Transactional
@@ -197,9 +236,9 @@ public class ImageGenerationService {
         List<Event> concerts = new ArrayList<>(eventService.findTopNEventsForDateAndCity(date, EventType.CONCERT, "istanbul",
                 STORY_FETCH_LIMIT));
         concerts.removeIf(EventAudience::isChildrensEvent);
-        Collections.shuffle(concerts);
-        Collections.shuffle(theaters);
-        Collections.shuffle(standups);
+        sortByScoreDescending(concerts);
+        sortByScoreDescending(theaters);
+        sortByScoreDescending(standups);
         Set<Event> selected = new LinkedHashSet<>();
         addUpTo(selected, concerts, 4);
         addUpTo(selected, theaters, 4);
@@ -210,14 +249,14 @@ public class ImageGenerationService {
                     .filter(e -> !selected.contains(e))
                     .distinct()
                     .collect(Collectors.toList());
-            Collections.shuffle(filler);
+            sortByScoreDescending(filler);
             addUpTo(selected, filler, STORY_EVENT_TARGET - selected.size());
         }
 
         EventDuplicateKeys.dedupeSetByTitleAndDate(selected);
 
         if (selected.isEmpty()) {
-            System.out.println("⚠️ " + date + " tarihinde hiç etkinlik bulunamadı. Story görseli üretimi atlanıyor.");
+            LOGGER.warn("{} tarihinde hiç etkinlik bulunamadı. Story görseli üretimi atlanıyor.", date);
             return null;
         }
 
@@ -240,8 +279,15 @@ public class ImageGenerationService {
                 titleFontFile.getAbsolutePath(),
                 fontFile.getAbsolutePath(),
                 wh[0],
-                wh[1]);
+                wh[1],
+                date,
+                true);
         return executeCommand(command, outputPath.toString());
+    }
+
+    /** Rastgele değil, {@link EventScoringStrategy} skoruna göre en yüksekten düşüğe (PopularEventService ile tutarlı). */
+    private void sortByScoreDescending(List<Event> events) {
+        events.sort(Comparator.comparingInt(scoringStrategy::calculateScore).reversed());
     }
 
     private void addUpTo(Set<Event> targetSet, List<Event> sourceList, int maxCount) {
@@ -278,10 +324,10 @@ public class ImageGenerationService {
 
     private List<String> buildImageMagickCommand(String templatePath, String outputPath, String eventTypeLabel,
             List<EventSummaryDTO> events, Properties coordinates, String titleFontPath, String bodyFontPath,
-            int imageWidth, int imageHeight) {
+            int imageWidth, int imageHeight, LocalDate date, boolean isStory) {
         if (isLayoutAuto(coordinates)) {
             return buildImageMagickCommandAuto(templatePath, outputPath, eventTypeLabel, events, coordinates,
-                    titleFontPath, bodyFontPath, imageWidth, imageHeight);
+                    titleFontPath, bodyFontPath, imageWidth, imageHeight, date, isStory);
         }
         return buildImageMagickCommandLegacy(templatePath, outputPath, eventTypeLabel, events, coordinates,
                 titleFontPath, bodyFontPath, imageWidth);
@@ -300,6 +346,7 @@ public class ImageGenerationService {
             List<EventSummaryDTO> events, Properties coordinates, String titleFontPath, String bodyFontPath,
             int fullImageWidth) {
         int legWrapW = Math.max(240, (int) Math.round(fullImageWidth * 0.86));
+        Font bodyFont = loadFont(bodyFontPath);
         List<String> command = new ArrayList<>();
         command.add("magick");
         command.add(templatePath);
@@ -318,9 +365,9 @@ public class ImageGenerationService {
         command.add("north");
         for (int i = 0; i < events.size(); i++) {
             EventSummaryDTO event = events.get(i);
-            addTitleAnnotationLegacy(command, coordinates, "event_" + (i + 1), event.getTitle(), legWrapW);
-            String venueText = event.getVenueName() != null ? "@" + event.getVenueName() : "";
-            addVenueAnnotationLegacy(command, coordinates, "venue_" + (i + 1), venueText, legWrapW);
+            addTitleAnnotationLegacy(command, coordinates, "event_" + (i + 1), event.getTitle(), legWrapW, bodyFont);
+            String venueText = buildVenueLineWithTime(event);
+            addVenueAnnotationLegacy(command, coordinates, "venue_" + (i + 1), venueText, legWrapW, bodyFont);
         }
 
         appendOutputQuality(command);
@@ -328,9 +375,13 @@ public class ImageGenerationService {
         return command;
     }
 
-    private static List<String> buildImageMagickCommandAuto(String templatePath, String outputPath, String eventTypeLabel,
+    static List<String> buildImageMagickCommandAuto(String templatePath, String outputPath, String eventTypeLabel,
             List<EventSummaryDTO> events, Properties coordinates, String titleFontPath, String bodyFontPath,
-            int w, int h) {
+            int w, int h, LocalDate date, boolean isStory) {
+        // Başlık/mekân satırları (ve gün+tarih alt satırı) bodyFontPath ile çiziliyor — sarma/gerçek
+        // satır yüksekliği hesapları da aynı fontla ölçülmeli (AlfaSlabOne gibi geniş fontlarda
+        // pointsize×sabit tahmini yanıltıcı).
+        Font bodyFont = loadFont(bodyFontPath);
         double lf = clamp01(readFractionProp(coordinates, "layout.region.left", 0.16));
         double tf = clamp01(readFractionProp(coordinates, "layout.region.top", 0.24));
         double wf = clamp01(readFractionProp(coordinates, "layout.region.width", 0.68));
@@ -367,7 +418,7 @@ public class ImageGenerationService {
             ptTitle = clampInt((int) Math.round(ptTitle0 * scale), 12, 42);
             ptVenue = clampInt((int) Math.round(ptVenue0 * scale), 10, 30);
 
-            reqBlock = computeMaxEventRowHeightPx(events, rw, ptTitle, ptVenue, interRow);
+            reqBlock = computeMaxEventRowHeightPx(events, rw, bodyFont, ptTitle, ptVenue, interRow);
 
             int minTotal = minPadTop + n * reqBlock + bottomPad;
             if (minTotal <= rh || scale <= 0.5) {
@@ -376,8 +427,8 @@ public class ImageGenerationService {
             scale *= 0.9;
         }
 
-        int[] gapTitleVenuePerRow = computeGapTitleVenuePerRow(events, rw, ptTitle);
-        reqBlock = computeMaxEventRowHeightPx(events, rw, ptTitle, ptVenue, interRow);
+        int[] gapTitleVenuePerRow = computeGapTitleVenuePerRow(events, rw, bodyFont, ptTitle);
+        reqBlock = computeMaxEventRowHeightPx(events, rw, bodyFont, ptTitle, ptVenue, interRow);
 
         padTop = minPadTop;
         int bodySpace = rh - bottomPad - padTop;
@@ -387,10 +438,20 @@ public class ImageGenerationService {
             block = Math.max((double) bodySpace / n, 22.0);
         }
 
-        int typeLift = (int) Math.round(ptType * 1.06) + Math.max(14, (int) Math.round(0.02 * h));
+        // Gün+tarih alt satırı ("Cuma • 17 Temmuz") tür rozetinin hemen altında, region'ın (T) ÜSTÜNDEKİ
+        // header bölgesinde çizilir — mevcut per-event satır bütçesini (block/rh) büyütmez.
+        String dayDateLabel = date != null
+                ? date.getDayOfWeek().getDisplayName(TextStyle.FULL, Locale.forLanguageTag("tr"))
+                        + " • " + date.getDayOfMonth() + " " + date.getMonth().getDisplayName(TextStyle.FULL, Locale.forLanguageTag("tr"))
+                : null;
+        int ptSubheader = clampInt((int) Math.round(ptType * 0.42), 14, 26);
+        int subheaderLift = dayDateLabel != null ? (int) Math.round(ptSubheader * 1.3) + Math.max(6, (int) Math.round(0.01 * h)) : 0;
+
+        int typeLift = (int) Math.round(ptType * 1.06) + Math.max(14, (int) Math.round(0.02 * h)) + subheaderLift;
         int yHeader = T - typeLift;
         int minYFromTop = Math.max((int) Math.round(0.016 * h), 6);
         yHeader = Math.max(minYFromTop, yHeader);
+        int ySubheader = yHeader + (int) Math.round(ptType * 1.06) + Math.max(10, (int) Math.round(0.012 * h));
         int bodyStart = T + padTop;
 
         List<String> command = new ArrayList<>();
@@ -406,6 +467,15 @@ public class ImageGenerationService {
         addEventTypeAnnotationExplicit(command, coordinates, eventTypeLabel,
                 String.valueOf(ptType), annotateNorthOffset(xCenterOffset, yHeader));
 
+        if (dayDateLabel != null) {
+            command.add("-font");
+            command.add(bodyFontPath);
+            command.add("-gravity");
+            command.add("north");
+            addDayDateAnnotationExplicit(command, coordinates, dayDateLabel,
+                    String.valueOf(ptSubheader), annotateNorthOffset(xCenterOffset, ySubheader));
+        }
+
         command.add("-font");
         command.add(bodyFontPath);
         command.add("-gravity");
@@ -416,13 +486,28 @@ public class ImageGenerationService {
             int yTitle = rowTop + 4;
             int yVenue = yTitle + gapTitleVenuePerRow[i];
             String titleText = event.getTitle() != null ? event.getTitle() : "";
-            String titleWrapped = wrapForAnnotate(titleText, rw, ptTitle, MAX_TITLE_ANNOTATE_LINES);
+            String titleWrapped = wrapForAnnotate(titleText, rw, bodyFont, ptTitle, MAX_TITLE_ANNOTATE_LINES);
             addTitleAnnotationExplicit(command, coordinates, titleWrapped,
                     String.valueOf(ptTitle), annotateNorthOffset(xCenterOffset, yTitle));
-            String venueText = event.getVenueName() != null ? "@" + event.getVenueName() : "";
-            String venueWrapped = venueText.isBlank() ? "" : wrapForAnnotate(venueText, rw, ptVenue, MAX_VENUE_ANNOTATE_LINES);
+            String venueText = buildVenueLineWithTime(event);
+            String venueWrapped = venueText.isBlank() ? "" : wrapForAnnotate(venueText, rw, bodyFont, ptVenue, MAX_VENUE_ANNOTATE_LINES);
             addVenueAnnotationExplicit(command, coordinates, venueWrapped,
                     String.valueOf(ptVenue), annotateNorthOffset(xCenterOffset, yVenue));
+        }
+
+        if (isStory) {
+            // Instagram story UI'ının yanıt çubuğu alt ~%12'yi kapladığı için üstüne, güvenli bölgeye.
+            int ptCta = clampInt((int) Math.round(w * 0.026), 16, 30);
+            int ctaBottomInset = Math.max((int) Math.round(0.12 * h), 40);
+            command.add("-font");
+            command.add(bodyFontPath);
+            command.add("-gravity");
+            command.add("south");
+            // NotoSans (annotate fontu) emoji glyph'i içermiyor — resme gömülen metinde emoji "tofu"
+            // kutusu olarak çıkar; emoji'ler yalnızca Instagram'ın kendi UI'sinde render olan
+            // caption'larda (bkz. InstagramSchedulerService.buildDailyCaption) güvenli.
+            addCtaAnnotationExplicit(command, coordinates, "KAYDET • whatnext.tr",
+                    String.valueOf(ptCta), annotateNorthOffset(0, ctaBottomInset));
         }
 
         appendOutputQuality(command);
@@ -430,11 +515,24 @@ public class ImageGenerationService {
         return command;
     }
 
-    private static int estimateTitleDisplayLines(String title, int regionWidthPx, int pointsize) {
+    private static final DateTimeFormatter HHMM = DateTimeFormatter.ofPattern("HH:mm");
+
+    /** "21:00 • @Mekân" — saat yoksa yeni satır eklemeden mevcut mekân satırına biner (dikey alan bütçesi büyümez). */
+    static String buildVenueLineWithTime(EventSummaryDTO event) {
+        String venue = event.getVenueName() != null && !event.getVenueName().isBlank()
+                ? "@" + event.getVenueName() : "";
+        if (event.getStartTime() == null) {
+            return venue;
+        }
+        String time = event.getStartTime().format(HHMM);
+        return venue.isBlank() ? time : time + " • " + venue;
+    }
+
+    private static int estimateTitleDisplayLines(String title, int regionWidthPx, Font font, int pointsize) {
         if (title == null || title.isBlank()) {
             return 1;
         }
-        String w = wrapForAnnotate(title, regionWidthPx, pointsize, MAX_TITLE_ANNOTATE_LINES);
+        String w = wrapForAnnotate(title, regionWidthPx, font, pointsize, MAX_TITLE_ANNOTATE_LINES);
         return countVisualLines(w, 1);
     }
 
@@ -442,24 +540,24 @@ public class ImageGenerationService {
         return (int) Math.ceil(ptTitle * 1.12 * displayLines + 5);
     }
 
-    private static int[] computeGapTitleVenuePerRow(List<EventSummaryDTO> events, int regionWidthPx, int ptTitle) {
+    private static int[] computeGapTitleVenuePerRow(List<EventSummaryDTO> events, int regionWidthPx, Font font, int ptTitle) {
         int[] g = new int[events.size()];
         for (int i = 0; i < events.size(); i++) {
-            int lines = estimateTitleDisplayLines(events.get(i).getTitle(), regionWidthPx, ptTitle);
+            int lines = estimateTitleDisplayLines(events.get(i).getTitle(), regionWidthPx, font, ptTitle);
             g[i] = gapTitleToVenuePx(ptTitle, lines);
         }
         return g;
     }
 
     private static int computeMaxEventRowHeightPx(List<EventSummaryDTO> events, int regionWidthPx,
-            int ptTitle, int ptVenue, int interRow) {
-        int[] gaps = computeGapTitleVenuePerRow(events, regionWidthPx, ptTitle);
+            Font font, int ptTitle, int ptVenue, int interRow) {
+        int[] gaps = computeGapTitleVenuePerRow(events, regionWidthPx, font, ptTitle);
         int max = 22;
         for (int i = 0; i < events.size(); i++) {
             int gap = i < gaps.length ? gaps[i] : gapTitleToVenuePx(ptTitle, 1);
-            String v = events.get(i).getVenueName() != null ? "@" + events.get(i).getVenueName() : "";
+            String v = buildVenueLineWithTime(events.get(i));
             int vLines = v.isBlank() ? 0
-                    : countVisualLines(wrapForAnnotate(v, regionWidthPx, ptVenue, MAX_VENUE_ANNOTATE_LINES), 0);
+                    : countVisualLines(wrapForAnnotate(v, regionWidthPx, font, ptVenue, MAX_VENUE_ANNOTATE_LINES), 0);
             int venueH = vLines <= 0 ? 0 : (int) Math.ceil(ptVenue * 1.15 * vLines);
             int row = gap + venueH + interRow;
             max = Math.max(max, row);
@@ -489,6 +587,14 @@ public class ImageGenerationService {
 
     private static int clampInt(int v, int min, int max) {
         return Math.min(max, Math.max(min, v));
+    }
+
+    private static int parseIntOr(String s, int defaultValue) {
+        try {
+            return Integer.parseInt(s.trim());
+        } catch (Exception e) {
+            return defaultValue;
+        }
     }
 
     private static void addEventTypeAnnotationLegacy(List<String> command, Properties coordinates, String text) {
@@ -521,7 +627,7 @@ public class ImageGenerationService {
     }
 
     private static void addTitleAnnotationLegacy(List<String> command, Properties coordinates, String key, String text,
-            int regionWidthPx) {
+            int regionWidthPx, Font font) {
         if (text == null || text.isBlank()) {
             return;
         }
@@ -530,13 +636,8 @@ public class ImageGenerationService {
         if (pointsize == null || geometry == null) {
             return;
         }
-        int pt;
-        try {
-            pt = Integer.parseInt(pointsize.trim());
-        } catch (NumberFormatException e) {
-            pt = 32;
-        }
-        String wrapped = wrapForAnnotate(text, regionWidthPx, pt, MAX_TITLE_ANNOTATE_LINES);
+        int pt = parseIntOr(pointsize, 32);
+        String wrapped = wrapForAnnotate(text, regionWidthPx, font, pt, MAX_TITLE_ANNOTATE_LINES);
         addTitleAnnotationExplicit(command, coordinates, wrapped, pointsize, geometry);
     }
 
@@ -557,7 +658,7 @@ public class ImageGenerationService {
     }
 
     private static void addVenueAnnotationLegacy(List<String> command, Properties coordinates, String key, String text,
-            int regionWidthPx) {
+            int regionWidthPx, Font font) {
         if (text == null || text.isBlank()) {
             return;
         }
@@ -566,13 +667,8 @@ public class ImageGenerationService {
         if (pointsize == null || geometry == null) {
             return;
         }
-        int pt;
-        try {
-            pt = Integer.parseInt(pointsize.trim());
-        } catch (NumberFormatException e) {
-            pt = 24;
-        }
-        String wrapped = wrapForAnnotate(text, regionWidthPx, pt, MAX_VENUE_ANNOTATE_LINES);
+        int pt = parseIntOr(pointsize, 24);
+        String wrapped = wrapForAnnotate(text, regionWidthPx, font, pt, MAX_VENUE_ANNOTATE_LINES);
         addVenueAnnotationExplicit(command, coordinates, wrapped, pointsize, geometry);
     }
 
@@ -590,6 +686,52 @@ public class ImageGenerationService {
         command.add("-annotate");
         command.add(geometry);
         command.add(sanitizeAnnotateTextMultiline(text));
+    }
+
+    /**
+     * Gün+tarih alt satırı — {@code venue.fill} gibi kremrengi kutu-içi renkler değil, tür rozetiyle
+     * aynı koyu header zemini üzerine çizilir; okunabilirlik için varsayılan açık renk + hafif stroke.
+     */
+    private static void addDayDateAnnotationExplicit(List<String> command, Properties coordinates, String text,
+            String pointsize, String geometry) {
+        if (text == null || text.isBlank()) {
+            return;
+        }
+        applyFillAndOptionalStroke(command, coordinates, "daydate",
+                "rgba(0,0,0,0.35)", "1.5", "#ffffff");
+        command.add("-pointsize");
+        command.add(pointsize);
+        command.add("-annotate");
+        command.add(geometry);
+        command.add(sanitizeAnnotateText(text));
+        command.add("-stroke");
+        command.add("none");
+    }
+
+    /**
+     * Story alt güvenli bölgedeki "Kaydet" çağrısı — şablona gömülmez. 12 ayın alt kenarındaki
+     * illüstrasyon yoğunluğu farklı (bazılarında boşluk, bazılarında figürler) olduğu için sabit bir
+     * renk/stroke yerine {@code -undercolor} ile yarı saydam bir "pill" arka plan çizilir — hangi
+     * şablonun altında olursa olsun okunabilir, ay ay ayrı ayarlama gerekmez.
+     */
+    private static void addCtaAnnotationExplicit(List<String> command, Properties coordinates, String text,
+            String pointsize, String geometry) {
+        if (text == null || text.isBlank()) {
+            return;
+        }
+        command.add("-stroke");
+        command.add("none");
+        command.add("-undercolor");
+        command.add(propTrimOr(coordinates, "cta.undercolor", "rgba(20,20,20,0.55)"));
+        command.add("-fill");
+        command.add(propTrimOr(coordinates, "cta.fill", "#ffffff"));
+        command.add("-pointsize");
+        command.add(pointsize);
+        command.add("-annotate");
+        command.add(geometry);
+        command.add(sanitizeAnnotateText(text));
+        command.add("-undercolor");
+        command.add("none");
     }
 
     private static double clamp01(double x) {
@@ -665,8 +807,10 @@ public class ImageGenerationService {
 
     /**
      * Metni verilen piksel genişliğine kelime sınırlarında sarar; sığmayan kısım "…" ile kısaltılır.
+     * Genişlik gerçek {@link FontMetrics} ile ölçülür (AlfaSlabOne gibi geniş fontlarda
+     * {@code pointsize × sabit} tahmininden çok daha isabetli — taşma/erken kesme riskini azaltır).
      */
-    static String wrapForAnnotate(String text, int regionWidthPx, int pointsize, int maxLines) {
+    static String wrapForAnnotate(String text, int regionWidthPx, Font font, int pointsize, int maxLines) {
         if (text == null) {
             return "";
         }
@@ -674,8 +818,7 @@ public class ImageGenerationService {
         if (t.isEmpty()) {
             return "";
         }
-        double charW = Math.max(1.0, pointsize * 0.58);
-        int cpl = Math.max(4, (int) (regionWidthPx / charW));
+        FontMetrics fm = fontMetricsFor(font, pointsize);
         String[] words = t.split(" ");
         List<String> lines = new ArrayList<>();
         int i = 0;
@@ -687,24 +830,13 @@ public class ImageGenerationService {
                     i++;
                     continue;
                 }
-                int add = w.length() + (line.length() > 0 ? 1 : 0);
-                if (line.length() + add <= cpl) {
-                    if (line.length() > 0) {
-                        line.append(' ');
-                    }
-                    line.append(w);
+                String candidate = line.length() > 0 ? line + " " + w : w;
+                if (fm.stringWidth(candidate) <= regionWidthPx) {
+                    line = new StringBuilder(candidate);
                     i++;
                 } else {
                     if (line.length() == 0) {
-                        if (w.length() > cpl) {
-                            int cut = Math.max(1, cpl - ELLIPSIS.length());
-                            line.append(w, 0, Math.min(w.length(), cut));
-                            if (i < words.length - 1 || w.length() > cpl) {
-                                line.append(ELLIPSIS);
-                            }
-                        } else {
-                            line.append(w);
-                        }
+                        line.append(truncateToWidth(fm, w, regionWidthPx));
                         i++;
                     }
                     break;
@@ -719,16 +851,55 @@ public class ImageGenerationService {
         if (i < words.length && !lines.isEmpty()) {
             String last = lines.get(lines.size() - 1);
             if (!last.endsWith(ELLIPSIS)) {
-                if (last.length() + ELLIPSIS.length() <= cpl) {
-                    lines.set(lines.size() - 1, last + ELLIPSIS);
+                String withEllipsis = last + ELLIPSIS;
+                if (fm.stringWidth(withEllipsis) <= regionWidthPx) {
+                    lines.set(lines.size() - 1, withEllipsis);
                 } else {
-                    int keep = Math.max(0, cpl - ELLIPSIS.length());
-                    lines.set(lines.size() - 1,
-                            (last.length() > keep ? last.substring(0, keep) : last) + ELLIPSIS);
+                    lines.set(lines.size() - 1, truncateToWidth(fm, last, regionWidthPx));
                 }
             }
         }
         return String.join("\n", lines);
+    }
+
+    /** Tek kelime/satır bölgeye sığmıyorsa "…" ile birlikte sığan en uzun öneke ikili aramayla keser. */
+    private static String truncateToWidth(FontMetrics fm, String text, int maxWidthPx) {
+        if (fm.stringWidth(text) <= maxWidthPx) {
+            return text;
+        }
+        int lo = 0;
+        int hi = text.length();
+        while (lo < hi) {
+            int mid = (lo + hi + 1) / 2;
+            String candidate = text.substring(0, mid) + ELLIPSIS;
+            if (fm.stringWidth(candidate) <= maxWidthPx) {
+                lo = mid;
+            } else {
+                hi = mid - 1;
+            }
+        }
+        return lo > 0 ? text.substring(0, lo) + ELLIPSIS : ELLIPSIS;
+    }
+
+    private static FontMetrics fontMetricsFor(Font font, int pointsize) {
+        Font sized = font.deriveFont((float) pointsize);
+        BufferedImage img = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = img.createGraphics();
+        try {
+            return g.getFontMetrics(sized);
+        } finally {
+            g.dispose();
+        }
+    }
+
+    /** Font dosyası okunamazsa (beklenmez, classpath fontları) sistem fontuna güvenli düşüş. */
+    private static Font loadFont(String fontPath) {
+        try {
+            return Font.createFont(Font.TRUETYPE_FONT, new File(fontPath));
+        } catch (Exception e) {
+            LOGGER.warn("Font yüklenemedi ({}), sistem fontuna düşülüyor: {}", fontPath, e.getMessage());
+            return new Font(Font.SANS_SERIF, Font.PLAIN, 12);
+        }
     }
 
     private String detectImageMagickCommand() {
@@ -760,7 +931,7 @@ public class ImageGenerationService {
                 return "convert";
             }
         } catch (Exception e) {
-            System.out.println("[DEBUG] magick/convert tespiti: " + e.getMessage());
+            LOGGER.debug("magick/convert tespiti: {}", e.getMessage());
         }
         return "magick";
     }
@@ -776,8 +947,14 @@ public class ImageGenerationService {
         }
     }
 
+    /**
+     * ImageMagick başarısız olursa (site/font/komut hatası) {@code null} yerine exception fırlatır —
+     * çağıranlar (createPost/createCover/createSmartStory) zaten {@code throws IOException} bildiriyor.
+     * Bu, "o gün/tür için etkinlik yok" (bilinçli, erken {@code null} dönüşü) ile "render gerçekten
+     * patladı" durumlarının {@link InstagramService#createImage} tarafında birbirine karışmasını önler.
+     */
     private File executeCommand(List<String> command, String outputPath) throws IOException, InterruptedException {
-        System.out.println("ℹ️ ImageMagick çalıştırılıyor → " + outputPath);
+        LOGGER.info("ImageMagick çalıştırılıyor → {}", outputPath);
         String magickCmd = detectImageMagickCommand();
         if (!command.isEmpty() && ("magick".equals(command.get(0)) || "convert".equals(command.get(0)))) {
             command.set(0, magickCmd);
@@ -785,18 +962,20 @@ public class ImageGenerationService {
         ProcessBuilder processBuilder = new ProcessBuilder(command);
         processBuilder.redirectErrorStream(true);
         Process process = processBuilder.start();
+        StringBuilder output = new StringBuilder();
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
-                System.out.println("[ImageMagick] " + line);
+                LOGGER.debug("[ImageMagick] {}", line);
+                output.append(line).append('\n');
             }
         }
         int exitCode = process.waitFor();
         if (exitCode == 0) {
-            System.out.println("✅ Görsel oluşturuldu: " + outputPath);
+            LOGGER.info("Görsel oluşturuldu: {}", outputPath);
             return new File(outputPath);
         }
-        System.err.println("❌ ImageMagick hata. Çıkış kodu: " + exitCode);
-        return null;
+        LOGGER.error("ImageMagick hata. Çıkış kodu: {}, çıktı:\n{}", exitCode, output);
+        throw new IOException("ImageMagick başarısız (çıkış kodu " + exitCode + "): " + outputPath);
     }
 }

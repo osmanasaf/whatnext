@@ -1,7 +1,12 @@
 package com.asaf.whatnext.services;
 
+import com.asaf.whatnext.models.Event;
 import com.asaf.whatnext.models.InstagramImage;
 import com.asaf.whatnext.repository.InstagramImageRepository;
+import com.asaf.whatnext.services.scoring.EventScoringStrategy;
+import com.asaf.whatnext.utils.EventAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -9,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -19,6 +25,8 @@ import java.util.ArrayList;
 @Service
 public class InstagramSchedulerService {
 
+    private static final Logger LOGGER = LoggerFactory.getLogger(InstagramSchedulerService.class);
+
     @Autowired
     private InstagramService instagramService;
 
@@ -27,17 +35,18 @@ public class InstagramSchedulerService {
 
     @Autowired
     private WeeklyVideoService weeklyVideoService;
-    private static final DateTimeFormatter TR_DATE_YEAR_FORMAT = DateTimeFormatter.ofPattern("d MMMM yyyy", new Locale("tr"));
 
-    private static final String DAILY_CAPTION_TEMPLATE = """
-        📅 %s İstanbul Etkinlikleri 🎫
-        
-        🎭 Tiyatro | 🎶 Konser | 🎤 Stand-up
-        Bu günlerde şehirde neler var? Kaçırma!
-        
-        🔗 Detaylar ve biletler profilde
-        #istanbul #istanbuletkinlikleri #etkinlik #konser #tiyatro #sanat #istanbullife #istanbuldayasam #igersistanbul #istanbulnightlife #istanbulbosphorus #galatatower
-        """;
+    @Autowired
+    private EventService eventService;
+
+    @Autowired
+    private EventScoringStrategy scoringStrategy;
+
+    private static final DateTimeFormatter TR_DATE_YEAR_FORMAT = DateTimeFormatter.ofPattern("d MMMM yyyy", new Locale("tr"));
+    private static final DateTimeFormatter HHMM = DateTimeFormatter.ofPattern("HH:mm");
+    private static final int CAPTION_MAX_EVENTS = 8;
+    private static final String CAPTION_HASHTAGS =
+        "#istanbul #istanbuletkinlikleri #etkinlik #konser #tiyatro #sanat #istanbullife #istanbuldayasam #igersistanbul #istanbulnightlife #istanbulbosphorus #galatatower";
 
     /** Aynı gün içinde arka arkaya postlar arası (Instagram kuyruğu / limit) */
     private static final long DELAY_BETWEEN_DAILY_POSTS_MS = 90_000L;
@@ -46,46 +55,45 @@ public class InstagramSchedulerService {
 
     @Scheduled(cron = "0 0 13 ? * TUE", zone = "Europe/Istanbul")
     public void generateAndShareWeeklyReel() {
-        System.out.println("[Scheduler] Haftalık Reel video oluşturma ve paylaşım görevi başlatıldı.");
+        LOGGER.info("[Scheduler] Haftalık Reel video oluşturma ve paylaşım görevi başlatıldı.");
         try {
             weeklyVideoService.generateAndShareWeeklyReel();
-            System.out.println("[Scheduler] Haftalık Reel görevi tamamlandı.");
+            LOGGER.info("[Scheduler] Haftalık Reel görevi tamamlandı.");
         } catch (Exception e) {
-            System.err.println("[Scheduler] Haftalık Reel hatası: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.error("[Scheduler] Haftalık Reel hatası", e);
         }
     }
 
     @Scheduled(cron = "0 50 11 * * ?", zone = "Europe/Istanbul")
     @Transactional
     public void createDailyStory() {
-        System.out.println("[Scheduler] Günlük story görseli oluşturma ve kaydetme görevi başlatıldı.");
+        LOGGER.info("[Scheduler] Günlük story görseli oluşturma ve kaydetme görevi başlatıldı.");
         try {
             LocalDate today = LocalDate.now();
             boolean exists = instagramImageRepository.findByPostTypeAndEventTypeAndCreationDate("story", "smart_story", today).isPresent();
             if (!exists) {
                 InstagramImage storyImage = instagramService.createImage( "smart_story", "story", null, today);
                 if (storyImage != null) {
-                    System.out.println("[Scheduler] Günlük story görseli başarıyla oluşturuldu ve veritabanına kaydedildi.");
+                    LOGGER.info("[Scheduler] Günlük story görseli başarıyla oluşturuldu ve veritabanına kaydedildi.");
                 } else {
-                    System.out.println("[Scheduler] Bugün için hiç etkinlik bulunamadı. Story görseli oluşturulmadı.");
+                    LOGGER.info("[Scheduler] Bugün için hiç etkinlik bulunamadı. Story görseli oluşturulmadı.");
                 }
             } else {
-                System.out.println("[Scheduler] Bugünün story görseli zaten mevcut, oluşturma işlemi atlandı.");
+                LOGGER.info("[Scheduler] Bugünün story görseli zaten mevcut, oluşturma işlemi atlandı.");
             }
         } catch (Exception e) {
-            System.err.println("[Scheduler] Story oluşturma hatası: " + e.getMessage());
+            LOGGER.error("[Scheduler] Story oluşturma hatası", e);
         }
     }
 
     @Scheduled(cron = "0 0 12 * * ?", zone = "Europe/Istanbul")
     @Transactional
     public void shareDailyStoryToInstagram() {
-        System.out.println("[Scheduler] Günlük story paylaşma görevi başlatıldı.");
+        LOGGER.info("[Scheduler] Günlük story paylaşma görevi başlatıldı.");
         try {
             LocalDate today = LocalDate.now();
             if (instagramImageRepository.existsByCreationDateAndPostTypeAndPostedToInstagramIsTrue(today, "story")) {
-                System.out.println("[Scheduler] Bugün için zaten bir story paylaşılmış. İşlem atlanıyor.");
+                LOGGER.info("[Scheduler] Bugün için zaten bir story paylaşılmış. İşlem atlanıyor.");
                 return;
             }
 
@@ -94,23 +102,23 @@ public class InstagramSchedulerService {
 
             // Görsel henüz oluşturulmamışsa burada oluştur
             if (storyToShare.isEmpty()) {
-                System.out.println("[Scheduler] Bugün için story görseli bulunamadı, şimdi oluşturuluyor...");
+                LOGGER.info("[Scheduler] Bugün için story görseli bulunamadı, şimdi oluşturuluyor...");
                 InstagramImage created = instagramService.createImage("smart_story", "story", null, today);
                 if (created != null) {
                     storyToShare = Optional.of(created);
-                    System.out.println("[Scheduler] Story görseli oluşturuldu, paylaşılacak.");
+                    LOGGER.info("[Scheduler] Story görseli oluşturuldu, paylaşılacak.");
                 } else {
-                    System.out.println("[Scheduler] Bugün için etkinlik bulunamadı, story görseli üretilemedi.");
+                    LOGGER.info("[Scheduler] Bugün için etkinlik bulunamadı, story görseli üretilemedi.");
                     return;
                 }
             }
 
             if (!storyToShare.get().isPostedToInstagram()) {
                 instagramService.shareStory(storyToShare.get());
-                System.out.println("[Scheduler] Instagram story paylaşım isteği gönderildi.");
+                LOGGER.info("[Scheduler] Instagram story paylaşım isteği gönderildi.");
             }
         } catch (Exception e) {
-            System.err.println("[Scheduler] Instagram story paylaşımı sırasında hata: " + e.getMessage());
+            LOGGER.error("[Scheduler] Instagram story paylaşımı sırasında hata", e);
         }
     }
 
@@ -137,39 +145,38 @@ public class InstagramSchedulerService {
         if (endInclusive.isBefore(startInclusive)) {
             throw new IllegalArgumentException("endDate startDate'den önce olamaz");
         }
-        System.out.println("[Scheduler] Post görselleri oluşturuluyor: " + startInclusive + " … " + endInclusive);
+        LOGGER.info("[Scheduler] Post görselleri oluşturuluyor: " + startInclusive + " … " + endInclusive);
         for (LocalDate targetDate = startInclusive; !targetDate.isAfter(endInclusive); targetDate = targetDate.plusDays(1)) {
             createDailyFeedImages(targetDate);
         }
-        System.out.println("[Scheduler] Görsel oluşturma aralığı tamamlandı.");
+        LOGGER.info("[Scheduler] Görsel oluşturma aralığı tamamlandı.");
     }
 
     private void createDailyFeedImages(LocalDate targetDate) {
         try {
-            System.out.println("[Scheduler] " + targetDate + " için görseller oluşturuluyor...");
+            LOGGER.info("[Scheduler] " + targetDate + " için görseller oluşturuluyor...");
 
             InstagramImage coverImage = instagramService.createImage("cover", "cover", null, targetDate);
             if (coverImage != null) {
-                System.out.println("[Scheduler] " + targetDate + " için cover görseli oluşturuldu.");
+                LOGGER.info("[Scheduler] " + targetDate + " için cover görseli oluşturuldu.");
             }
 
             InstagramImage concertImage = instagramService.createImage("concert", "post", "istanbul", targetDate);
             if (concertImage != null) {
-                System.out.println("[Scheduler] " + targetDate + " için konser görseli oluşturuldu.");
+                LOGGER.info("[Scheduler] " + targetDate + " için konser görseli oluşturuldu.");
             }
 
             InstagramImage theaterImage = instagramService.createImage("theater", "post", "istanbul", targetDate);
             if (theaterImage != null) {
-                System.out.println("[Scheduler] " + targetDate + " için tiyatro görseli oluşturuldu.");
+                LOGGER.info("[Scheduler] " + targetDate + " için tiyatro görseli oluşturuldu.");
             }
 
             InstagramImage standupImage = instagramService.createImage("standup", "post", "istanbul", targetDate);
             if (standupImage != null) {
-                System.out.println("[Scheduler] " + targetDate + " için stand-up görseli oluşturuldu.");
+                LOGGER.info("[Scheduler] " + targetDate + " için stand-up görseli oluşturuldu.");
             }
         } catch (Exception e) {
-            System.err.println("[Scheduler] " + targetDate + " için görsel oluşturma hatası: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.error("[Scheduler] " + targetDate + " için görsel oluşturma hatası", e);
         }
     }
 
@@ -240,9 +247,45 @@ public class InstagramSchedulerService {
         return sharePostsForDatesSequential(dates, "Manuel (tarih aralığı)");
     }
 
+    /**
+     * Tek cümle + hashtag yerine o günün gerçek etkinlik listesi (başlık • saat • mekân) + Kaydet
+     * çağrısı — kaydetme, "haftanı planla" içeriğinde beğeniden daha güçlü bir erişim sinyali.
+     * Etkinlik bulunamazsa (nadiren, görsel zaten üretilmişse olur) jenerik satıra düşer.
+     */
+    String buildDailyCaption(LocalDate targetDate) {
+        List<Event> events = eventService.findByDate(targetDate.toString()).stream()
+                .filter(e -> "istanbul".equalsIgnoreCase(e.getCity()))
+                .filter(e -> !EventAudience.isChildrensEvent(e))
+                .sorted(Comparator.comparingInt(scoringStrategy::calculateScore).reversed())
+                .limit(CAPTION_MAX_EVENTS)
+                .toList();
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("📅 ").append(targetDate.format(TR_DATE_YEAR_FORMAT)).append(" İstanbul Etkinlikleri 🎫\n\n");
+
+        if (events.isEmpty()) {
+            sb.append("🎭 Tiyatro | 🎶 Konser | 🎤 Stand-up\nBu günlerde şehirde neler var? Kaçırma!\n\n");
+        } else {
+            for (Event e : events) {
+                sb.append("• ").append(e.getTitle());
+                if (e.getStartTime() != null) {
+                    sb.append(" · ").append(e.getStartTime().format(HHMM));
+                }
+                if (e.getVenue() != null && e.getVenue().getName() != null && !e.getVenue().getName().isBlank()) {
+                    sb.append(" @ ").append(e.getVenue().getName());
+                }
+                sb.append('\n');
+            }
+            sb.append("\n🔖 Kaydet, hafta içinde lazım olacak!\n\n");
+        }
+
+        sb.append("🔗 Detaylar ve biletler profilde\n").append(CAPTION_HASHTAGS);
+        return sb.toString();
+    }
+
     private List<String> sharePostsForDatesSequential(List<LocalDate> dates, String batchName) throws InterruptedException {
         List<String> results = new ArrayList<>();
-        System.out.println("[Scheduler] " + batchName + " — sırayla " + dates.size() + " günlük post...");
+        LOGGER.info("[Scheduler] " + batchName + " — sırayla " + dates.size() + " günlük post...");
         for (int i = 0; i < dates.size(); i++) {
             results.addAll(sharePostsForSingleDate(dates.get(i), batchName + " [" + (i + 1) + "/" + dates.size() + "]"));
             if (i < dates.size() - 1) {
@@ -254,13 +297,13 @@ public class InstagramSchedulerService {
 
     private List<String> sharePostsForSingleDate(LocalDate targetDate, String groupName) throws InterruptedException {
         List<String> results = new ArrayList<>();
-        System.out.println("[Scheduler] " + groupName + " — " + targetDate + " için tek post gönderiliyor...");
+        LOGGER.info("[Scheduler] " + groupName + " — " + targetDate + " için tek post gönderiliyor...");
 
         boolean coverShared = instagramImageRepository
                 .existsByCreationDateAndPostTypeAndPostedToInstagramIsTrue(targetDate, "cover");
         if (coverShared) {
             String msg = "[Scheduler] " + targetDate + " için zaten cover paylaşılmış, atlanıyor.";
-            System.out.println(msg);
+            LOGGER.info(msg);
             results.add(msg);
             return results;
         }
@@ -281,7 +324,7 @@ public class InstagramSchedulerService {
 
         if (allPosts.isEmpty()) {
             String msg = "[Scheduler] " + targetDate + " için paylaşılacak görsel yok.";
-            System.out.println(msg);
+            LOGGER.info(msg);
             results.add(msg);
             return results;
         }
@@ -296,10 +339,9 @@ public class InstagramSchedulerService {
             return Long.compare(img1.getId(), img2.getId());
         });
 
-        String dateRange = targetDate.format(TR_DATE_YEAR_FORMAT);
-        String caption = String.format(DAILY_CAPTION_TEMPLATE, dateRange);
+        String caption = buildDailyCaption(targetDate);
 
-        System.out.println("[Scheduler] " + groupName + " paylaşım başlatılıyor. Görsel ID'leri: "
+        LOGGER.info("[Scheduler] " + groupName + " paylaşım başlatılıyor. Görsel ID'leri: "
                 + allPosts.stream().map(InstagramImage::getId).toList());
 
         try {
@@ -315,23 +357,22 @@ public class InstagramSchedulerService {
                     isPublished = true;
                     break;
                 }
-                System.out.println("[Scheduler] " + targetDate + " paylaşımı bekleniyor... Deneme: "
+                LOGGER.info("[Scheduler] " + targetDate + " paylaşımı bekleniyor... Deneme: "
                         + (attempt + 1) + "/" + maxAttempts);
             }
 
             if (isPublished) {
                 String msg = "[Scheduler] " + targetDate + " paylaşımı tamamlandı.";
-                System.out.println(msg);
+                LOGGER.info(msg);
                 results.add(msg);
             } else {
                 String msg = "[Scheduler] " + targetDate + " paylaşımı zaman aşımına uğradı veya başarısız oldu.";
-                System.err.println(msg);
+                LOGGER.error(msg);
                 results.add(msg);
             }
         } catch (Exception ex) {
             String err = "[Scheduler] HATA! " + targetDate + " paylaşımı: " + ex.getMessage();
-            System.err.println(err);
-            ex.printStackTrace();
+            LOGGER.error(err, ex);
             results.add(err);
         }
 

@@ -1,13 +1,15 @@
 # WhatNext İyileştirme Planı 2 — Tüm Scraper'ların Doğrulanması, Saat Verisi, Görsel/Reel Yenileme
 
 > Bu plan 2026-07-11'de, Plan 1'in (IMPROVEMENT_PLAN.md, 4 faz tamamlandı) üzerine hazırlandı.
-> Uygulamak için yeni bir Claude Code oturumunda: "IMPROVEMENT_PLAN_2.md dosyasını oku ve Faz 3'ü uygula" demeniz yeterli.
+> Uygulamak için yeni bir Claude Code oturumunda: "IMPROVEMENT_PLAN_2.md dosyasını oku ve Faz 4'ü uygula" demeniz yeterli.
 > Sıra kasıtlı: önce veri doğruluğu (parse), sonra veri zenginliği (saat), sonra sunum (görsel + Reel).
 >
-> **Durum (2026-07-11):** Faz 1 ✅ ve Faz 2 ✅ tamamlandı, `mvn test` yeşil (71/72; tek istisna
+> **Durum (2026-07-11):** Faz 1 ✅, Faz 2 ✅ ve Faz 3 ✅ tamamlandı, `mvn test` yeşil (79/80; tek istisna
 > `WhatnextApplicationTests.contextLoads` — bu ortamdan Postgres'e erişim yok, kod dışı bilinen kısıt).
-> Faz 3 (statik görsel) sırada. Canlı scrape/health/DB doğrulaması + secrets rotate kullanıcının
-> kendi ortamında yapılmalı (bkz. ilgili fazların "Doğrulama" bölümleri).
+> Faz 4 (Reel) sırada. Faz 3.1'de post/cover 4:5'e geçirilmedi — kullanıcı 1:1'de kalmayı seçti (kırpma
+> köşe illüstrasyonlarını kesiyordu). Canlı scrape/health/DB doğrulaması, secrets rotate ve story'nin
+> telefonda gözle onaylanması kullanıcının kendi ortamında yapılmalı (bkz. ilgili fazların "Doğrulama"
+> bölümleri).
 
 ## Bağlam (Context)
 
@@ -153,16 +155,27 @@ gerekmedi. Bulunan tek gerçek kalite kusuru düzeltildi:
 
 Şablon estetiği korunur; değişiklik boyutlarda ve annotate (metin) katmanında.
 
-### 3.1 Doğru boyutlar + güvenli alanlar
-- **Story: 1080×1920 (9:16).** Mevcut 12 el yapımı 1024×1536 story şablonu bir defalık dönüştürme
-  adımıyla uyarlanır: şablon 1080×1620'ye ölçeklenir, 1080×1920 tuvale ortalanır, üst/alt bant şablonun
-  kenar renginden doldurulur (ImageMagick script; sonuç 12 ay için gözle onaylanır). Uymayan ay
-  varsa o ay için şablon elden geçirilir.
-- **Post/cover: 1080×1350 (4:5).** Aynı yaklaşım: 1024×1024 → 1080×1080 ölçek + dikey uzatma dolgusu.
-- Koordinat dosyaları: `layout.region.*` yeni tuvale göre güncellenir; story'de üst ~%13 ve alt ~%16
-  (sistem UI) yazı bölgesi dışında bırakılır.
-- `GeneratedTemplateProvider.DIMENSIONS`: `post/cover 1080×1350`, `story 1080×1920`.
-- `readImageDimensions` zaten gerçek boyutu okuyor — motor tarafında başka değişiklik gerekmez.
+### 3.1 Doğru boyutlar + güvenli alanlar — SONUÇ (2026-07-11)
+- **Story: 1080×1920 (9:16) — uygulandı.** 12 şablonun tamamı ImageMagick "cover + merkez kırpma"
+  (`-resize 1080x1920^ -gravity center -extent 1080x1920`) ile dönüştürüldü. Temmuz (marquee-ışık
+  çerçeve, kenara kadar dolu tasarım) ve Şubat (farklı kaynak çözünürlük 832×1248) dahil 4 farklı
+  şablon gözle doğrulandı — hiçbir illüstrasyon/metin öğesi kesilmedi. `June` zaten şablonsuzdu
+  (Faz 4'ten beri bilinen durum, ilgisiz). `GeneratedTemplateProvider.DIMENSIONS.story` → 1080×1920.
+- **Post/cover: 1:1'de kalıyor — kullanıcı kararı.** 4:5'e "cover" kırpma denendi (Temmuz post'ta
+  kenara yakın dansçı illüstrasyonları görünür şekilde kesildi); dolgu (letterbox) alternatifi
+  illüstrasyonları koruyor ama kağıt dokusuyla uyuşmayan düz renkli bar bırakıyor. Kullanıcı her iki
+  görseli de inceleyip **1:1'de kalmayı seçti** — Instagram'da geçerli bir format, story'nin 9:16
+  düzeltmesi zaten en kritik sorunu çözüyor. `GeneratedTemplateProvider.DIMENSIONS.post/cover`
+  1024×1024'te değişmedi.
+- **Önemli bulgu (3.2'yi etkiler):** Story'nin paylaşılan `layout.region` fraksiyonları
+  (`left=0.08 top=0.15 width=0.84 height=0.80`, 12 ayda ortak) tasarıma göre değişken uyum gösteriyor
+  — Temmuz'da metin kutusuna tam oturuyor, Şubat/Aralık'ta alt illüstrasyonlara (yürüyen figürler,
+  müzisyenler) hafif taşıyor. Bu, benim kırpmamdan **önce de vardı** (yükseklik oranı kırpılmadı,
+  sadece genişlik — matematiksel olarak fraksiyon→piksel eşlemesi dikeyde değişmedi), yani bir
+  regresyon değil, mevcut bir tasarım gerilimi. Ortak fraksiyonları değiştirmek Temmuz gibi iyi oturan
+  şablonları bozma riski taşıdığı için dokunulmadı. **Sonuç: 3.2'de etkinlik başına yeni bir satır
+  eklemek yerine mevcut satırlara ekleme yapılmalı** (dikey alan bütçesini büyütmemek için).
+- `readImageDimensions` zaten gerçek boyutu okuyor — motor tarafında başka değişiklik gerekmedi.
 
 ### 3.2 Slayt üst bilgisi: gün + tarih + saat
 - `buildImageMagickCommandAuto`: tür başlığının ("KONSER") hemen altına ikinci satır —
@@ -172,34 +185,71 @@ gerekmedi. Bulunan tek gerçek kalite kusuru düzeltildi:
 - `createCover`: tarihin altına ikinci satır — `"Bugün 14 etkinlik"` (o günün post'a giren toplam
   etkinlik sayısı; servis zaten listeyi biliyor, sayı parametre olarak geçilir).
 
-### 3.3 Story seçimi skor bazlı
-- `createSmartStory`: `Collections.shuffle` kaldırılır; listeler `EventScoringStrategy.calculateScore`
-  ile sıralanır, 4/4/2 kotası korunur (çeşitlilik kotadan, rastgelelikten değil).
-- Aynı etkinliğin her gün story'de tekrar öne çıkmasını yumuşatmak için ikincil kural: skor eşitse
-  daha önce story'ye girmemiş olan öne alınır (basit: `InstagramImage` kayıtlarından son N günün
-  başlıkları çekilip skora küçük ceza uygulanır — tek sorgu, yeni tablo yok).
+### 3.3 Story seçimi skor bazlı — UYGULANDI
+- `createSmartStory`: `Collections.shuffle` kaldırıldı; listeler `EventScoringStrategy.calculateScore`
+  ile sıralanıyor (`sortByScoreDescending`), 4/4/2 kotası korunuyor. `findTopNEventsForDateAndCity`
+  zaten sıralı gelmiyordu (DB sorgu sırası) — önceki davranış tamamen rastgeleydi, artık
+  `PopularEventService` ile tutarlı skor sırası kullanılıyor.
+- **Ertelendi (kapsam dışı):** "skor eşitse daha önce story'ye girmemiş olan öne alınır" ikincil
+  kuralı uygulanmadı — `InstagramImage` kaydı hangi *etkinliklerin* story'ye girdiğini tutmuyor
+  (sadece render edilmiş PNG + `eventType="smart_story"`), bu yüzden "son N günün başlıkları" sorgusu
+  yeni bir şema (etkinlik↔story ilişki tablosu veya alanı) gerektiriyor — tek sorguyla yapılamıyor.
+  Ayrı bir iyileştirme olarak ele alınmalı.
 
-### 3.4 Gerçek font ölçümü ile sarma
-- `wrapForAnnotate`'in `pointsize × 0.58` tahmini yerine Java2D `FontMetrics`: font dosyaları zaten
-  classpath'te (`AlfaSlabOne`, `NotoSans`); `Font.createFont` + `FontRenderContext` ile satır genişliği
-  piksel cinsinden ölçülür. İmza `wrapForAnnotate(text, regionWidthPx, font, pointsize, maxLines)` olur.
-- Mevcut `wrapForAnnotate` testleri güncellenir; uzun başlık ("Cumhuriyet Senfoni Orkestrası...")
-  AlfaSlabOne ile taşmadan sarılıyor mu diye görsel test eklenir.
+### 3.4 Gerçek font ölçümü ile sarma — UYGULANDI
+- `wrapForAnnotate` artık `Font.createFont` + `FontMetrics.stringWidth` ile gerçek piksel genişliği
+  ölçüyor (`pointsize × 0.58` tahmini kaldırıldı). İmza tam olarak plandaki gibi:
+  `wrapForAnnotate(text, regionWidthPx, font, pointsize, maxLines)`. Tek kelime bile sığmıyorsa
+  ikili aramayla "…" ile en uzun sığan önek kesiliyor (`truncateToWidth`).
+  `computeMaxEventRowHeightPx`'teki satır-yüksekliği tahmini artık `buildVenueLineWithTime` kullanıyor
+  (saat eklendiğinde uzayan mekân satırını da hesaba katıyor — önceden sadece "@mekân" ölçülüyordu).
+  Legacy (fixed-pixel) yol da aynı Font'u kullanacak şekilde güncellendi (şu an 12 ayın hiçbiri
+  kullanmıyor ama tutarlılık için).
+- `ImageGenerationServiceTest` (yeni): `buildImageMagickCommandAuto`'yu gerçek Aralık story şablonu +
+  gerçek fontlarla uçtan uca render edip PNG'yi görsel doğrulama için scratchpad'e kopyalıyor. Uzun
+  başlık testi ("Cumhurbaşkanlığı Senfoni Orkestrası: Beethoven'in 9. Senfonisi Özel Gecesi") temiz
+  kelime-sınırlı sarma gösterdi, taşma/erken kesme yok. Windows'ta `Font.createFont`'un dosya kilidini
+  JVM çıkana kadar bırakmaması bilinen bir JDK davranışı — test fontları `@TempDir` yerine
+  `deleteOnExit()` ile ayrı geçici dosyaya kopyalanıyor (üretim kodundaki `copyResourceToTempFile` ile
+  aynı desen).
 
-### 3.5 CTA + caption
-- Story şablon altı güvenli bölgeye küçük sabit satır: `"Kaydet 🔖 • whatnext.tr"` (annotate ile,
-  şablona gömülmez — metin değişebilir kalır).
-- Feed caption'ları: tek cümle + hashtag yerine gün-gün kısa etkinlik listesi
-  (başlık • saat • mekân) + "Kaydet, hafta içinde lazım olacak 🔖". `InstagramSchedulerService`
-  caption üretimi ayrı yardımcı metoda alınır.
+### 3.5 CTA + caption — UYGULANDI
+- Story alt güvenli bölgeye annotate ile (şablona gömülmez) çağrı satırı eklendi. **Emoji'siz**:
+  annotate fontu (NotoSans) emoji glyph'i içermiyor, ilk denemede 🔖 "tofu" kutusu olarak çıktı —
+  metin `"KAYDET • whatnext.tr"`a çevrildi. Konumlandırma da elden geçti: sabit stroke yerine
+  `-undercolor` ile yarı saydam "pill" arka plan — 12 ayın alt kenarındaki illüstrasyon yoğunluğu
+  farklı olduğu için (bazı aylarda boşluk, Aralık'ta müzisyen figürleri) tek bir stroke rengi hepsinde
+  okunaklı olmuyordu, pill hangi zeminde olursa olsun çalışıyor. Konum: alttan `%12` (Instagram story
+  yanıt çubuğu güvenli bölgesi).
+- `InstagramSchedulerService.buildDailyCaption(LocalDate)` (yeni, paket-görünür/test edilebilir):
+  `EventService.findByDate` + `EventScoringStrategy` ile o günün gerçek etkinliklerini (İstanbul,
+  çocuk hariç, skora göre, en çok 8) çeker; her satır `"• Başlık · SS:DD @ Mekân"`, sonda
+  "🔖 Kaydet, hafta içinde lazım olacak!" (caption emoji'leri Instagram'ın kendi UI'sinde render
+  olduğu için sorun değil — sadece görsele annotate ile gömülen metinde emoji sorunu var). Etkinlik
+  yoksa eski jenerik satıra düşer. Eski `DAILY_CAPTION_TEMPLATE` sabiti kaldırıldı.
+  `InstagramSchedulerServiceTest` (yeni, Mockito) ile doğrulandı.
+- **Not:** `InstagramController`'ın `/share-for-date` endpoint'inde de ayrı, kısmen aynı isimli bir
+  `DAILY_CAPTION_TEMPLATE` sabiti var (manuel test endpoint'i, farklı cron akışı) — kapsam dışı
+  bırakıldı, plan yalnızca `InstagramSchedulerService`'i hedefliyordu.
 
-### 3.6 Kod sağlığı (bu dosyaya dokunmuşken)
-- `ImageGenerationService` + `InstagramSchedulerService`: `System.out.println` → SLF4J `LOGGER`.
-- `executeCommand` başarısızlıkta `null` yerine exception veya `Optional<File>` — çağıranlar
-  (`createPost/createCover/createSmartStory` tüketicileri) buna göre düzeltilir.
+### 3.6 Kod sağlığı — UYGULANDI
+- `ImageGenerationService` + `InstagramSchedulerService`: tüm `System.out/err.println` → SLF4J
+  `LOGGER` (30+ çağrı). Exception'lar artık `LOGGER.error(msg, e)` ile stack trace'i birlikte
+  logluyor; ayrık `e.printStackTrace()` çağrıları kaldırıldı.
+- `executeCommand`: ImageMagick başarısız olursa `null` yerine `IOException` fırlatıyor (imza zaten
+  `throws IOException` bildiriyordu, çağıranlarda imza değişikliği gerekmedi). Bu, "o gün/tür için
+  etkinlik yok" (bilinçli erken `null` dönüşü, `createPost`/`createSmartStory`'nin kendi mantığında)
+  ile "render gerçekten patladı" (gerçek hata) durumlarının `InstagramService.createImage`'da aynı
+  şekilde sessizce yutulmasını önlüyor.
+- Küçük not: PowerShell ile toplu `println→LOGGER` metin değişimi dosyaya BOM (`﻿`) ekleyip
+  derlemeyi bozdu — BOM'suz UTF-8 ile yeniden yazılıp düzeltildi.
 
 ### 3.7 Doğrulama
-1. `mvn test` yeşil (yeni wrap + boyut testleri).
+1. `mvn test` yeşil — 79/80 (tek istisna hep aynı bilinen kısıt: `WhatnextApplicationTests.contextLoads`,
+   bu ortamdan Postgres'e erişim yok). Yeni testler: `ImageGenerationServiceTest` (6, gerçek ImageMagick
+   render + görsel doğrulama scratchpad'e kopyalanarak yapıldı), `InstagramSchedulerServiceTest` (2,
+   Mockito), `BiletinialEventMapperTest`, `BiletinoVenueEnricherTest`, genişletilmiş
+   `TurkishDateParserTest`.
 2. Postman'den test tarihine post + story + cover üret; çıktılar gözle: 9:16 story telefonda tam
    ekran (kırpılma yok), gün/saat satırları doğru, NULL saatli etkinlikte satır düzgün.
 3. `mode=generated` ve `mode=static` ikisinde de üretim çalışıyor (TemplateProvider sözleşmesi bozulmadı).

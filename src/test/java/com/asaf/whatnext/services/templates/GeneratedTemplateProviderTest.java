@@ -32,8 +32,8 @@ class GeneratedTemplateProviderTest {
         TemplateAssets assets = provider.resolve("december", "story");
 
         BufferedImage img = ImageIO.read(assets.templatePng());
-        assertThat(img.getWidth()).isEqualTo(1024);
-        assertThat(img.getHeight()).isEqualTo(1536);
+        assertThat(img.getWidth()).isEqualTo(1080);
+        assertThat(img.getHeight()).isEqualTo(1920);
     }
 
     @Test

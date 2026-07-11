@@ -32,7 +32,7 @@ public class GeneratedTemplateProvider implements TemplateProvider {
     private static final Map<String, int[]> DIMENSIONS = Map.of(
             "post", new int[]{1024, 1024},
             "cover", new int[]{1024, 1024},
-            "story", new int[]{1024, 1536});
+            "story", new int[]{1080, 1920});
 
     private final File workdir;
     private final Properties style;
