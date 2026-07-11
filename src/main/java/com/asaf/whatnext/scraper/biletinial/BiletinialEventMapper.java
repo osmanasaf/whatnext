@@ -6,6 +6,7 @@ import com.asaf.whatnext.enums.EventType;
 import com.asaf.whatnext.scraper.ScrapedEventData;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.Locale;
 
 public final class BiletinialEventMapper {
@@ -27,6 +28,7 @@ public final class BiletinialEventMapper {
     public static ScrapedEventData fromDetailSession(
             BiletinialCardDraft d,
             LocalDate startDate,
+            LocalTime startTime,
             String rawDateString,
             String venue) {
         EventType eventType = toEventType(d.title(), d.category());
@@ -34,6 +36,7 @@ public final class BiletinialEventMapper {
                 .title(d.title())
                 .rawDateString(rawDateString)
                 .startDate(startDate)
+                .startTime(startTime)
                 .venueName(venue)
                 .location(venue)
                 .city(ScrapedEventData.normalizeCity(d.cityLabel()))

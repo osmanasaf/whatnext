@@ -27,6 +27,7 @@ public final class BubiletEventMapper {
                 .title(d.title())
                 .rawDateString(rawDate)
                 .startDate(startDate)
+                .startTime(TurkishDateParser.parseBubiletListTime(rawDate))
                 .ticketUrl(d.ticketUrl())
                 .imageUrl(d.imageUrl())
                 .eventType(eventType)

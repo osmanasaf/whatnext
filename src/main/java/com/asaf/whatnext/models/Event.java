@@ -1,6 +1,7 @@
 package com.asaf.whatnext.models;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import lombok.Data;
@@ -39,6 +40,10 @@ public class Event extends BaseEntity {
 
     @Column(nullable = false)
     private LocalDate startDate;
+
+    /** Kaynakta saat bilgisi varsa (ör. Bubilet, Biletinial); yoksa NULL — "varsa göster" mantığı. */
+    @Column(name = "start_time")
+    private LocalTime startTime;
 
     private LocalDate endDate;
 

@@ -8,6 +8,7 @@ import lombok.Data;
 
 import java.text.Normalizer;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.Locale;
 
 @Data
@@ -17,6 +18,8 @@ public class ScrapedEventData {
     private String title;
     private String description;
     private LocalDate startDate;
+    /** Kaynakta varsa (Bubilet, Biletinial); yoksa NULL. */
+    private LocalTime startTime;
     private LocalDate endDate;
     private String rawDateString;
     private String venueName;

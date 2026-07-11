@@ -94,6 +94,7 @@ public class PopularEventService {
         dto.setId(event.getId());
         dto.setTitle(event.getTitle());
         dto.setStartDate(event.getStartDate());
+        dto.setStartTime(event.getStartTime());
         dto.setType(event.getType());
         dto.setCity(event.getCity());
         

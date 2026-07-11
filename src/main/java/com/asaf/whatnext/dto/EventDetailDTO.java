@@ -4,6 +4,7 @@ import com.asaf.whatnext.enums.EventSourceType;
 import com.asaf.whatnext.enums.EventType;
 import lombok.Data;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 
 @Data
@@ -12,6 +13,7 @@ public class EventDetailDTO {
     private String title;
     private String description;
     private LocalDate startDate;
+    private LocalTime startTime;
     private LocalDate endDate;
     private EventType type;
     private EventSourceType source;

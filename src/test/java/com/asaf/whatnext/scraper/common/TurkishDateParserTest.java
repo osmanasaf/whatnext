@@ -3,11 +3,42 @@ package com.asaf.whatnext.scraper.common;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class TurkishDateParserTest {
+
+    @Test
+    void parseBubiletListTime_colonSeparator_extractsTime() {
+        LocalTime t = TurkishDateParser.parseBubiletListTime("17 Temmuz Cum 21:00");
+        assertThat(t).isEqualTo(LocalTime.of(21, 0));
+    }
+
+    @Test
+    void parseBubiletListTime_dotSeparator_extractsTime() {
+        LocalTime t = TurkishDateParser.parseBubiletListTime("17 Temmuz Cum 21.00");
+        assertThat(t).isEqualTo(LocalTime.of(21, 0));
+    }
+
+    @Test
+    void parseBubiletListTime_noTime_returnsNull() {
+        assertThat(TurkishDateParser.parseBubiletListTime("08 Mayıs, 09 Mayıs")).isNull();
+        assertThat(TurkishDateParser.parseBubiletListTime("15 Nisan 2025")).isNull();
+    }
+
+    @Test
+    void parseBubiletListTime_plainIsoDate_returnsNull() {
+        // Bubilet çok tarihli detay akışında rawDate olarak LocalDate.toString() geçilir (saat yok).
+        assertThat(TurkishDateParser.parseBubiletListTime("2026-07-17")).isNull();
+    }
+
+    @Test
+    void parseBubiletListTime_nullOrBlank_returnsNull() {
+        assertThat(TurkishDateParser.parseBubiletListTime(null)).isNull();
+        assertThat(TurkishDateParser.parseBubiletListTime("")).isNull();
+    }
 
     @Test
     void parseBubiletListDate_usesFirstSegment() {

@@ -145,6 +145,9 @@ public class EventSaveService {
                 && (existing.getMinPriceTl() == null || data.getMinPriceTl() < existing.getMinPriceTl())) {
             existing.setMinPriceTl(data.getMinPriceTl());
         }
+        if (existing.getStartTime() == null && data.getStartTime() != null) {
+            existing.setStartTime(data.getStartTime());
+        }
         if (data.getAudience() == AudienceType.CHILDREN) {
             existing.setAudience(AudienceType.CHILDREN);
         }
@@ -252,6 +255,7 @@ public class EventSaveService {
         event.setTitle(data.getTitle() != null ? data.getTitle().trim() : null);
         event.setDescription(data.getDescription());
         event.setStartDate(data.getStartDate());
+        event.setStartTime(data.getStartTime());
         event.setEndDate(data.getEndDate());
         event.setSource(data.getSource());
         String city = ScrapedEventData.normalizeCity(data.getCity());

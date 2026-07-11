@@ -103,7 +103,7 @@ public class BiletinialDetailParser {
                     }
 
                     out.add(BiletinialEventMapper.fromDetailSession(
-                            d, ldt.toLocalDate(), raw, venue));
+                            d, ldt.toLocalDate(), ldt.toLocalTime(), raw, venue));
                 }
             }
         } catch (Exception e) {

@@ -1,6 +1,7 @@
 package com.asaf.whatnext.scraper.common;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.TreeSet;
@@ -14,6 +15,9 @@ public final class TurkishDateParser {
 
     private static final Pattern TURKISH_DATE_IN_TEXT = Pattern.compile(
             "(\\d{1,2})\\s+(Ocak|Şubat|Mart|Nisan|Mayıs|Haziran|Temmuz|Ağustos|Eylül|Ekim|Kasım|Aralık)");
+
+    /** Liste satırı içindeki saat: "17 Temmuz Cum 21:00" → 21:00. Nokta ayraç da kabul edilir. */
+    private static final Pattern TIME_IN_TEXT = Pattern.compile("(\\d{1,2})[:.](\\d{2})");
 
     private TurkishDateParser() {
     }
@@ -72,6 +76,30 @@ public final class TurkishDateParser {
         } catch (Exception ignored) {
             return null;
         }
+    }
+
+    /**
+     * Liste satırı: "17 Temmuz Cum 21:00" → 21:00. Saat yoksa (ör. "08 Mayıs, 09 Mayıs" veya
+     * detaydan gelen düz {@code LocalDate.toString()}) {@code null} — zorlama sezgisel yok.
+     */
+    public static LocalTime parseBubiletListTime(String dateText) {
+        if (dateText == null || dateText.isEmpty()) {
+            return null;
+        }
+        try {
+            String[] parts = dateText.split(" - ");
+            String datePart = parts[0].trim();
+            Matcher m = TIME_IN_TEXT.matcher(datePart);
+            if (m.find()) {
+                int hour = Integer.parseInt(m.group(1));
+                int minute = Integer.parseInt(m.group(2));
+                if (hour >= 0 && hour < 24 && minute >= 0 && minute < 60) {
+                    return LocalTime.of(hour, minute);
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
     }
 
     /**

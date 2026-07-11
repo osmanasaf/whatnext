@@ -16,6 +16,7 @@ public class EventMapper {
         dto.setId(event.getId());
         dto.setTitle(event.getTitle());
         dto.setStartDate(event.getStartDate());
+        dto.setStartTime(event.getStartTime());
         dto.setType(event.getType());
         dto.setCity(event.getCity());
         
@@ -40,6 +41,7 @@ public class EventMapper {
         dto.setTitle(event.getTitle());
         dto.setDescription(event.getDescription());
         dto.setStartDate(event.getStartDate());
+        dto.setStartTime(event.getStartTime());
         dto.setEndDate(event.getEndDate());
         dto.setType(event.getType());
         dto.setSource(event.getSource());
