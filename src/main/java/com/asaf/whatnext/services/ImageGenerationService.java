@@ -82,6 +82,39 @@ public class ImageGenerationService {
         File fontFile = copyResourceToTempFile("NotoSans-Regular.ttf", ".ttf");
         File titleFontFile = copyResourceToTempFile("AlfaSlabOne-Regular.ttf", ".ttf");
 
+        List<EventSummaryDTO> eventSummaries = selectPostEvents(eventType, city, date);
+        if (eventSummaries.isEmpty()) {
+            LOGGER.warn("{} tarihinde {} türünde etkinlik bulunamadı. Görsel üretimi atlanıyor.", date, eventType);
+            return null;
+        }
+
+        String outputFilename = "instagram-" + eventType + "-" + postType + "-" + System.currentTimeMillis() + ".png";
+        Path outputPath = Paths.get(OUTPUT_DIR, "whatnext", outputFilename);
+        Files.createDirectories(outputPath.getParent());
+
+        int[] wh = readImageDimensions(templateFile);
+        List<String> command = buildImageMagickCommand(
+                templateFile.getAbsolutePath(),
+                outputPath.toString(),
+                getTurkishEventType(eventType),
+                eventSummaries,
+                coordinates,
+                titleFontFile.getAbsolutePath(),
+                fontFile.getAbsolutePath(),
+                wh[0],
+                wh[1],
+                date,
+                false);
+        return executeCommand(command, outputPath.toString());
+    }
+
+    /**
+     * Bir tür (concert/theater/standup) için o günün İstanbul'daki en iyi (en çok 6) etkinliği —
+     * render'dan ayrı, çünkü {@code services/images/} altındaki Remotion/AI motorları da aynı seçimi
+     * kullanır (tek doğruluk kaynağı).
+     */
+    @Transactional(readOnly = true)
+    public List<EventSummaryDTO> selectPostEvents(String eventType, String city, LocalDate date) {
         EventType eventTypeEnum;
         final PerformanceType targetPerformanceType;
 
@@ -109,39 +142,13 @@ public class ImageGenerationService {
                 .limit(6)
                 .toList();
 
-        if (events.isEmpty()) {
-            LOGGER.warn("{} tarihinde {} türünde etkinlik bulunamadı. Görsel üretimi atlanıyor.", date, eventType);
-            return null;
-        }
-
         for (Event event : events) {
             if (event.getVenue() != null) {
                 event.getVenue().getName();
             }
         }
 
-        List<EventSummaryDTO> eventSummaries = events.stream()
-                .map(eventMapper::toSummaryDTO)
-                .collect(Collectors.toList());
-
-        String outputFilename = "instagram-" + eventType + "-" + postType + "-" + System.currentTimeMillis() + ".png";
-        Path outputPath = Paths.get(OUTPUT_DIR, "whatnext", outputFilename);
-        Files.createDirectories(outputPath.getParent());
-
-        int[] wh = readImageDimensions(templateFile);
-        List<String> command = buildImageMagickCommand(
-                templateFile.getAbsolutePath(),
-                outputPath.toString(),
-                getTurkishEventType(eventType),
-                eventSummaries,
-                coordinates,
-                titleFontFile.getAbsolutePath(),
-                fontFile.getAbsolutePath(),
-                wh[0],
-                wh[1],
-                date,
-                false);
-        return executeCommand(command, outputPath.toString());
+        return events.stream().map(eventMapper::toSummaryDTO).collect(Collectors.toList());
     }
 
     public File createCover(LocalDate date) throws IOException, InterruptedException {
@@ -199,8 +206,12 @@ public class ImageGenerationService {
         return executeCommand(command, outputPath.toString());
     }
 
-    /** İstanbul'daki, çocuk etkinliği olmayan o günkü toplam etkinlik sayısı (kapak alt satırı için). */
-    private int countIstanbulEventsForDate(LocalDate date) {
+    /**
+     * İstanbul'daki, çocuk etkinliği olmayan o günkü toplam etkinlik sayısı (kapak alt satırı için) —
+     * {@code services/images/} motorları da kullanır.
+     */
+    @Transactional(readOnly = true)
+    public int countIstanbulEventsForDate(LocalDate date) {
         return (int) eventService.findByDate(date.toString()).stream()
                 .filter(e -> "istanbul".equalsIgnoreCase(e.getCity()))
                 .filter(e -> !EventAudience.isChildrensEvent(e))
@@ -217,6 +228,38 @@ public class ImageGenerationService {
         File fontFile = copyResourceToTempFile("NotoSans-Regular.ttf", ".ttf");
         File titleFontFile = copyResourceToTempFile("AlfaSlabOne-Regular.ttf", ".ttf");
 
+        List<EventSummaryDTO> eventSummaries = selectStoryEvents(date);
+        if (eventSummaries.isEmpty()) {
+            LOGGER.warn("{} tarihinde hiç etkinlik bulunamadı. Story görseli üretimi atlanıyor.", date);
+            return null;
+        }
+
+        String outputFilename = "instagram-story-" + System.currentTimeMillis() + ".png";
+        Path outputPath = Paths.get(OUTPUT_DIR, "whatnext", outputFilename);
+        Files.createDirectories(outputPath.getParent());
+
+        int[] wh = readImageDimensions(templateFile);
+        List<String> command = buildImageMagickCommand(
+                templateFile.getAbsolutePath(),
+                outputPath.toString(),
+                "Bugün",
+                eventSummaries,
+                coordinates,
+                titleFontFile.getAbsolutePath(),
+                fontFile.getAbsolutePath(),
+                wh[0],
+                wh[1],
+                date,
+                true);
+        return executeCommand(command, outputPath.toString());
+    }
+
+    /**
+     * Story için karışık türde (4 konser + 4 tiyatro + 2 stand-up, skor sıralı, dolgu ile 10'a
+     * tamamlanır) etkinlik seçimi — render'dan ayrı, {@code services/images/} motorları da kullanır.
+     */
+    @Transactional(readOnly = true)
+    public List<EventSummaryDTO> selectStoryEvents(LocalDate date) {
         List<Event> allPerformingArts = eventService.findTopNEventsForDateAndCity(date, EventType.PERFORMING_ART, "istanbul",
                 STORY_FETCH_LIMIT);
         List<Event> theaters = new ArrayList<>();
@@ -255,34 +298,7 @@ public class ImageGenerationService {
 
         EventDuplicateKeys.dedupeSetByTitleAndDate(selected);
 
-        if (selected.isEmpty()) {
-            LOGGER.warn("{} tarihinde hiç etkinlik bulunamadı. Story görseli üretimi atlanıyor.", date);
-            return null;
-        }
-
-        List<EventSummaryDTO> eventSummaries = selected.stream()
-                .limit(STORY_EVENT_TARGET)
-                .map(eventMapper::toSummaryDTO)
-                .toList();
-
-        String outputFilename = "instagram-story-" + System.currentTimeMillis() + ".png";
-        Path outputPath = Paths.get(OUTPUT_DIR, "whatnext", outputFilename);
-        Files.createDirectories(outputPath.getParent());
-
-        int[] wh = readImageDimensions(templateFile);
-        List<String> command = buildImageMagickCommand(
-                templateFile.getAbsolutePath(),
-                outputPath.toString(),
-                "Bugün",
-                eventSummaries,
-                coordinates,
-                titleFontFile.getAbsolutePath(),
-                fontFile.getAbsolutePath(),
-                wh[0],
-                wh[1],
-                date,
-                true);
-        return executeCommand(command, outputPath.toString());
+        return selected.stream().limit(STORY_EVENT_TARGET).map(eventMapper::toSummaryDTO).toList();
     }
 
     /** Rastgele değil, {@link EventScoringStrategy} skoruna göre en yüksekten düşüğe (PopularEventService ile tutarlı). */

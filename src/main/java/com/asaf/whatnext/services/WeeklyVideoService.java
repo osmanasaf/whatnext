@@ -2,9 +2,9 @@ package com.asaf.whatnext.services;
 
 import com.asaf.whatnext.dto.EventSummaryDTO;
 import com.asaf.whatnext.dto.WeeklyPopularEventsDTO;
+import com.asaf.whatnext.services.images.RemotionRunner;
 import com.asaf.whatnext.utils.EventIdentity;
 import com.asaf.whatnext.utils.TrClock;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,7 +14,6 @@ import org.springframework.stereotype.Service;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.format.DateTimeFormatter;
 import java.time.format.TextStyle;
 import java.time.temporal.IsoFields;
@@ -39,22 +38,14 @@ public class WeeklyVideoService {
     @Autowired
     private InstagramService instagramService;
 
-    @Value("${whatnext.video.project-path:video}")
-    private String videoProjectPath;
-
-    @Value("${whatnext.video.npx-command:}")
-    private String npxCommand;
-
-    @Value("${whatnext.video.chrome-path:}")
-    private String chromePath;
+    @Autowired
+    private RemotionRunner remotionRunner;
 
     @Value("${whatnext.dedup.title-jaccard:0.5}")
     private double jaccardThreshold;
 
     @Value("${whatnext.dedup.title-jaccard-strong:0.85}")
     private double jaccardStrongThreshold;
-
-    private final ObjectMapper objectMapper = new ObjectMapper();
 
     /** Kategorinin ilk (en yüksek skorlu) etkinliği {@code featured=true} — Reel'de daha uzun süre gösterilir. */
     record SelectedEvent(EventSummaryDTO event, boolean featured) {
@@ -178,88 +169,11 @@ public class WeeklyVideoService {
             props.put("weekRange", weekRange);
             props.put("backgroundVariant", backgroundVariant);
 
-            Path outputDir = Files.createTempDirectory("whatnext-video");
-            File outputFile = outputDir.resolve("weekly-reel.mp4").toFile();
-            File propsFile = outputDir.resolve("props.json").toFile();
-            objectMapper.writerWithDefaultPrettyPrinter().writeValue(propsFile, props);
-
-            String npx = resolveNpxCommand();
-            List<String> cmd = new ArrayList<>();
-            cmd.add(npx);
-            cmd.add("remotion");
-            cmd.add("render");
-            cmd.add("src/index.ts");
-            cmd.add("WeeklyReel");
-            cmd.add(outputFile.getAbsolutePath());
-            cmd.add("--props");
-            cmd.add(propsFile.getAbsolutePath());
-            if (chromePath != null && !chromePath.isEmpty()) {
-                cmd.add("--browser-executable");
-                cmd.add(chromePath);
-            }
-            cmd.add("--log");
-            cmd.add("verbose");
-            ProcessBuilder pb = new ProcessBuilder(cmd);
-            pb.directory(new File(videoProjectPath).getAbsoluteFile());
-            pb.redirectErrorStream(true);
-
-            Process process = pb.start();
-            StringBuilder output = new StringBuilder();
-            try (java.io.BufferedReader reader = new java.io.BufferedReader(
-                    new java.io.InputStreamReader(process.getInputStream()))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    LOGGER.info("[Remotion] {}", line);
-                    output.append(line).append("\n");
-                }
-            }
-            int exitCode = process.waitFor();
-
-            try {
-                Files.deleteIfExists(propsFile.toPath());
-            } catch (IOException ignored) {}
-
-            if (exitCode == 0 && outputFile.exists()) {
-                LOGGER.info("Video başarıyla render edildi: {}", outputFile.getAbsolutePath());
-                return outputFile;
-            }
-            LOGGER.error("Remotion render başarısız. Exit code: {}. Output:\n{}", exitCode, output);
-            return null;
+            return remotionRunner.run("render", "WeeklyReel", props, "mp4");
         } catch (Exception e) {
             LOGGER.error("Remotion render hatası", e);
             return null;
         }
-    }
-
-    private String resolveNpxCommand() {
-        if (npxCommand != null && !npxCommand.isEmpty()) {
-            return npxCommand;
-        }
-        if (System.getProperty("os.name", "").toLowerCase().contains("win")) {
-            String programFiles = System.getenv("ProgramFiles");
-            if (programFiles != null) {
-                File npxInNode = new File(programFiles, "nodejs\\npx.cmd");
-                if (npxInNode.exists()) {
-                    return npxInNode.getAbsolutePath();
-                }
-            }
-            String programFilesX86 = System.getenv("ProgramFiles(x86)");
-            if (programFilesX86 != null) {
-                File npxInNode = new File(programFilesX86, "nodejs\\npx.cmd");
-                if (npxInNode.exists()) {
-                    return npxInNode.getAbsolutePath();
-                }
-            }
-            String appData = System.getenv("APPDATA");
-            if (appData != null) {
-                File npxInNpm = new File(appData, "npm\\npx.cmd");
-                if (npxInNpm.exists()) {
-                    return npxInNpm.getAbsolutePath();
-                }
-            }
-            return "npx.cmd";
-        }
-        return "npx";
     }
 
     private String uploadVideo(File videoFile) {

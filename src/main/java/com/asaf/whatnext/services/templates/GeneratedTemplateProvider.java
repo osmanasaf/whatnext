@@ -141,6 +141,20 @@ public class GeneratedTemplateProvider implements TemplateProvider {
                 colorProp(prefix + "text", "#1a1a1a"));
     }
 
+    /**
+     * Ay paletini hex string'lerle döner ({@code bg1/bg2/accent/text}) — {@code services/images/}
+     * altındaki Remotion Still motoru da aynı 12 aylık paleti (tek doğruluk kaynağı) props ile
+     * TSX'e geçirmek için kullanır.
+     */
+    public Map<String, String> paletteHex(String monthName) {
+        Palette p = paletteFor(monthName);
+        return Map.of(
+                "bg1", toHex(p.bg1()),
+                "bg2", toHex(p.bg2()),
+                "accent", toHex(p.accent()),
+                "text", toHex(p.text()));
+    }
+
     private Color colorProp(String key, String defaultHex) {
         String v = style.getProperty(key, defaultHex).trim();
         return Color.decode(v);

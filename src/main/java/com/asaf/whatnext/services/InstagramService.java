@@ -2,6 +2,8 @@ package com.asaf.whatnext.services;
 
 import com.asaf.whatnext.models.InstagramImage;
 import com.asaf.whatnext.repository.InstagramImageRepository;
+import com.asaf.whatnext.services.images.ImageRenderEngine;
+import com.asaf.whatnext.services.images.ImageRenderRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -33,7 +35,7 @@ public class InstagramService {
     @Autowired
     private InstagramImageRepository instagramImageRepository;
     @Autowired
-    private ImageGenerationService imageGenerationService;
+    private ImageRenderEngine imageRenderEngine;
     @Autowired
     private CloudinaryService cloudinaryService;
 
@@ -100,13 +102,7 @@ public class InstagramService {
     public InstagramImage createImage(String eventType, String postType, String city, LocalDate date) throws IOException, InterruptedException {
         File imageFile = null;
         try {
-            if ("cover".equals(postType)) {
-                imageFile = imageGenerationService.createCover(date);
-            } else if ("story".equals(postType)) {
-                imageFile = imageGenerationService.createSmartStory(date);
-            } else {
-                imageFile = imageGenerationService.createPost(eventType, postType, city, date);
-            }
+            imageFile = imageRenderEngine.render(new ImageRenderRequest(eventType, postType, city, date));
 
             if (imageFile == null) {
                 System.out.println("⚠️ Görsel üretilemedi. InstagramImage oluşturulmayacak.");

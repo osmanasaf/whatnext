@@ -1,17 +1,15 @@
 # WhatNext İyileştirme Planı 2 — Tüm Scraper'ların Doğrulanması, Saat Verisi, Görsel/Reel Yenileme
 
 > Bu plan 2026-07-11'de, Plan 1'in (IMPROVEMENT_PLAN.md, 4 faz tamamlandı) üzerine hazırlandı.
-> Uygulamak için yeni bir Claude Code oturumunda: "IMPROVEMENT_PLAN_2.md dosyasını oku ve Faz 5'i uygula" demeniz yeterli.
+> Uygulamak için yeni bir Claude Code oturumunda: "IMPROVEMENT_PLAN_2.md dosyasını oku ve Faz 6'yı uygula" demeniz yeterli.
 > Sıra kasıtlı: önce veri doğruluğu (parse), sonra veri zenginliği (saat), sonra sunum (görsel + Reel).
 >
-> **Durum (2026-07-13):** Faz 1 ✅, Faz 2 ✅, Faz 3 ✅ ve Faz 4 ✅ tamamlandı, `mvn test` yeşil (83/84; tek
-> istisna `WhatnextApplicationTests.contextLoads` — bu ortamdan Postgres'e erişim yok, kod dışı bilinen
-> kısıt). Reel `npx remotion render` ile gerçekten render edilip kareler gözle doğrulandı.
-> **Faz 5 yeniden tanımlandı (2026-07-13, kullanıcı kararı):** el yapımı şablon+ImageMagick yapısı
-> manuel görsel bulma / metin sığmama sorunları yüzünden motor seviyesinde soyutlanacak —
-> `whatnext.images.engine=custom|remotion|ai` bayrağı; eski Faz 5 (karusel+ölçüm) Faz 6 oldu ve motoru
-> kullanacak. Faz 3.1'de post/cover 4:5'e geçirilmedi — kullanıcı 1:1'de kalmayı seçti (kırpma köşe
-> illüstrasyonlarını kesiyordu; Remotion motorunda bu kısıt yok, bkz. 5.2 boyut kararı). Faz 4.4'te
+> **Durum (2026-07-13):** Faz 1 ✅, Faz 2 ✅, Faz 3 ✅, Faz 4 ✅ ve Faz 5 ✅ tamamlandı, `mvn test` yeşil
+> (96/97; tek istisna `WhatnextApplicationTests.contextLoads` — bu ortamdan Postgres'e erişim yok, kod
+> dışı bilinen kısıt), `npx tsc --noEmit` temiz. Reel ve üç yeni Still kompozisyonu gerçek
+> `npx remotion render`/`still` ile render edilip kareler gözle doğrulandı. Faz 6 (karusel+ölçüm) sırada.
+> Faz 3.1'de post/cover 4:5'e geçirilmedi — kullanıcı 1:1'de kalmayı seçti (kırpma köşe illüstrasyonlarını
+> kesiyordu); Faz 5'in `remotion` motorunda bu kısıt yok, post/cover orada 4:5 (bkz. 5.2). Faz 4.4'te
 > gerçek müzik beat-senkronu YOK — ses dinleme/analiz imkanı yoktu, sahte veri uydurulmadı (bkz. Faz
 > 4.4 notu). Canlı scrape/health/DB doğrulaması, secrets rotate, story'nin telefonda gözle onaylanması
 > ve Reel'in gerçek prod verisiyle render edilip telefonda izlenmesi kullanıcının kendi ortamında
@@ -333,60 +331,94 @@ gerekmedi. Bulunan tek gerçek kalite kusuru düzeltildi:
 > arka plan gerçek etkinlik afişi olduğu için otantik); `ai` yalnızca **arka planı** üretir
 > (Gemini ~$0.04/görsel, ay bazında önbellekli), metni asla AI basmaz.
 
-### 5.1 Motor soyutlaması — yeni paket `services/images/`
-- `ImageRenderRequest` (record): `kind` (`DAILY_POST | SMART_STORY | COVER | CAROUSEL_SLIDE`),
-  `date`, `headerLabel` (tür adı "KONSER" veya gün adı "CUMA"), `events` (List<EventSummaryDTO> —
-  saat/mekân/görsel URL'leri dahil), `eventCount`, `weekRange`, `monthName`, `palette`
-  (style.properties'ten — tek doğruluk kaynağı Java tarafında kalır, TS'e props ile geçer).
+### 5.1 Motor soyutlaması — yeni paket `services/images/` — UYGULANDI
+- `ImageRenderRequest` planlanandan sadeleştirildi: `kind` enum yerine bugünkü
+  `(eventType, postType, city, date)` dörtlüsü — `InstagramService.createImage`'ın mevcut sözleşmesiyle
+  birebir aynı, üç motor da bunu tüketiyor. `events`/`palette`/`monthName` gibi zengin veri her motorun
+  KENDİ İÇİNDE hesaplanıyor (bkz. aşağıdaki paylaşımlı seçim metotları) — DTO'yu şişirmek yerine.
+- `ImageGenerationService`'e iki yeni **public, `@Transactional(readOnly=true)`** metot eklendi:
+  `selectPostEvents(eventType, city, date)` ve `selectStoryEvents(date)` — `createPost`/
+  `createSmartStory`'nin seçim mantığı (skor sıralı, çocuk hariç, 4/4/2 kota) render'dan ayrıldı, tek
+  doğruluk kaynağı oldu. `countIstanbulEventsForDate` `public` yapıldı. Bu üçü hem `CustomImageEngine`
+  (dolaylı, `ImageGenerationService` üzerinden) hem `RemotionStillEngine` aynı seçimi kullanır —
+  hangi motor seçilirse seçilsin aynı etkinlikler gösterilir.
 - `ImageRenderEngine` arayüzü: `File render(ImageRenderRequest req)`.
-- **`CustomImageEngine`** — mevcut `ImageGenerationService`'i saran adaptör; bugünkü davranış
-  birebir. Mevcut `whatnext.templates.mode` (static|generated|ai şablon kaynağı) yalnızca bu motorda
-  anlamlıdır — dokümante edilir, iki bayrak karıştırılmaz.
-- **`RemotionStillEngine`** — `npx remotion still src/index.ts <StillCompId> out.png --props=...`
-  ile render. Java tarafında `RemotionRunner` yardımcı sınıfı: npx çözümleme + process çalıştırma +
-  log akıtma `WeeklyVideoService`'ten çıkarılıp ortaklaştırılır (video ve still aynı runner'ı kullanır).
-- **`AiBackgroundEngine`** — Gemini image API'den **yalnızca arka plan** üretir (prompt: ay paleti +
-  stil konfigürasyonu + "no text"); `ay+kind` başına önbellek (workdir + hash, `GeneratedTemplateProvider`
-  deseni — her koşuda üretilmez: maliyet ~36 görsel/yıl ≈ $1.5 ve stil tutarlılığı). Üretilen arka
-  planı `backgroundImageUrl` prop'u ile `RemotionStillEngine`'e devreder — metin katmanı hep Remotion.
-- **`DelegatingImageEngine`** (`@Primary`) — `whatnext.images.engine=custom|remotion|ai` (varsayılan
-  `custom`). **Fallback zinciri: ai → remotion → custom** (API anahtarı yok/hata → bir alt motor;
-  Remotion/node hatası → custom; 11:50 cron'u hiçbir koşulda bloklanmaz — Faz 4 Plan 1 deseni).
-- `InstagramService.createImage` çağrıları `DelegatingImageEngine`'e yönlenir;
-  `ImageGenerationService` CustomImageEngine'in içinde yaşamaya devam eder (silinmez).
+- **`CustomImageEngine`** — `ImageGenerationService`'i saran ince adaptör; `createCover`/
+  `createSmartStory`/`createPost`'a postType'a göre yönlendirir, davranış birebir.
+- **`RemotionStillEngine`** — `npx remotion still src/index.ts <StillCompId> out.png --props=...`.
+  `RemotionRunner` (yeni, ortak): npx çözümleme + process çalıştırma + log akıtma
+  `WeeklyVideoService`'ten çıkarıldı (video `render`, still `still` alt komutunu kullanır, ikisi de
+  aynı runner'ı paylaşır — kod tekrarı bitti). Başarısızlıkta `null` değil `IOException` (Faz 3.6
+  deseni). İkinci bir `render(request, backgroundImageUrl)` overload'ı — `AiBackgroundEngine` kendi
+  ürettiği arka planı buradan enjekte eder.
+- **`AiBackgroundEngine`** — mevcut `AiImageClient`/`GeminiImageClient` (Plan 1 Faz 4'ten, aynen
+  yeniden kullanıldı) ile **yalnızca arka plan** üretir; `ay+postType` başına dosya varsa tekrar
+  üretmez (basit varlık kontrolü — `GeneratedTemplateProvider`'ın hash tabanlı önbelleğinden daha
+  basit, çünkü burada değişebilecek bir "palet config" girdisi yok). Üretilen PNG
+  `video/public/ai-backgrounds/<ay>-<postType>.png`'e kopyalanıp göreli yol
+  `RemotionStillEngine.render(request, path)`'e geçiliyor. Hata → `render(request, null)` (paletli
+  remotion'a düşer).
+- **`DelegatingImageEngine`** (`@Primary`) — `whatnext.images.engine=custom|remotion|ai`. Fallback:
+  `ai`/`remotion` exception fırlatırsa `custom`'a düşer. `AiBackgroundEngine` kendi içinde zaten
+  ai→remotion adımını yapıyor, `DelegatingImageEngine` sadece dıştaki son emniyet halkasını
+  (→custom) ekliyor — birlikte tam `ai → remotion → custom` zincirini oluşturuyorlar.
+- `InstagramService.createImage`, `ImageGenerationService` yerine `ImageRenderEngine` (→ Spring
+  `@Primary` ile `DelegatingImageEngine`) enjekte ediyor. `ImageGenerationService` silinmedi —
+  `CustomImageEngine`'in içinde ve `selectPostEvents`/`selectStoryEvents` paylaşılan seçim
+  mantığının barındığı yer olarak yaşıyor.
 
-### 5.2 Remotion Still kompozisyonları — `video/src/stills/`
-- `DailyPostStill`, `SmartStoryStill` (1080×1920, story safe-zone'ları), `CoverStill`,
-  `CarouselSlideStill` (Faz 6'nın gün slaytı — burada tanımlanır).
-- Ortak bileşenler Reel'den türetilir: fontlar (`fonts.ts` mevcut), tür/gün rozetleri
-  (`EventCard`'dan çıkarılıp paylaşılır), footer.
-- **Arka plan katmanı üç kademeli** (otantiklik buradan gelir): (1) `backgroundImageUrl` prop'u
-  doluysa o (AI motoru veya günün öne çıkan etkinliğinin gerçek afişi — blur + gradient, Reel kartı
-  deseni), (2) yoksa ay paleti gradyanı + SVG dekoratif öğeler (`ReelBackground` deseni),
-  (3) palet props gelmezse nötr marka gradyanı.
-- **Boyut kararı:** story 1080×1920. Post/cover için Remotion motorunda el yapımı şablon kısıtı yok —
-  4:5 (1080×1350) önerilir (feed'de daha fazla alan; Faz 3.1'deki 1:1 kararı şablon kırpma sorunuyla
-  ilgiliydi, kodda üretilen tuvalde kırpma yok). Kullanıcı 1:1 isterse tek satırlık sabit değişikliği.
-- Props JSON sözleşmesi `WeeklyVideoService`'in Reel props deseniyle aynı (geçici dosya + `--props`).
+### 5.2 Remotion Still kompozisyonları — `video/src/stills/` — UYGULANDI
+- `DailyPostStill`, `SmartStoryStill`, `CoverStill` (`Root.tsx`'e `<Still>` ile kayıtlı).
+  `CarouselSlideStill` Faz 6'da eklenecek.
+- Ortak bileşenler `video/src/stills/shared.tsx`'te: `Palette`/`StillEventData` tipleri, `TYPE_LABELS`,
+  Türkçe tarih/gün formatlayıcılar, `StillBackground`, `Footer`, `fontSizeForCount` (etkinlik sayısına
+  göre kademeli font — CSS'in tek başına yapamadığı "N öğeyi sabit yüksekliğe sığdır" işini basit bir
+  tabloyla çözüyor; başlıklar `-webkit-line-clamp:2` ile taşmaya karşı ayrıca güvenceli). Reel'in
+  `EventCard`'ından **doğrudan paylaşılmadı** — still'ler çoklu-etkinlik liste ekranı, Reel tek-etkinlik
+  tam ekran kart; farklı layout ihtiyaçları için ayrı, daha hafif bir bileşen seti yazıldı.
+- **Arka plan katmanı iki kademeli** (plandaki üçüncü kademe — "günün öne çıkan etkinliğinin afişi" —
+  render sırasında elendi): liste tipi ekranlarda (post/story/kapak, aynı ekranda birden çok farklı
+  etkinlik var) TEK bir etkinliğin fotoğrafını arka plan yapmak görsel olarak yanıltıcı olurdu — Reel
+  kartından farklı olarak burada "bu foto hangi etkinliğe ait" belirsizliği doğar. Bu yüzden: (1)
+  `backgroundImageUrl` prop'u doluysa (yalnızca AI motoru doldurur) o, (2) yoksa ay paleti gradyanı +
+  dekoratif leke. Metin rengi **palet `text` değil beyaz+gölge** — `palette.text` (örn. `#1a1a1a`) el
+  yapımı şablonların krem iç kutusu için ayarlanmıştı, ham gradyan üzerinde kontrastı garanti etmiyordu;
+  Reel'in `EventCard`/`HookScreen`'inde zaten kanıtlanmış beyaz+text-shadow deseni kullanıldı.
+- **Boyut:** post/cover **1080×1350 (4:5)** — Faz 3.1'deki 1:1 kararı el yapımı şablonların kırpma
+  sorunuyla ilgiliydi, kodda üretilen tuvalde o kısıt yok. Story 1080×1920 (statik story ile aynı oran).
+- Java tarafında props: `eventType`/`monthName`/`palette`/`date`/`events` (post), `+backgroundImageUrl`
+  (opsiyonel). `RemotionRunner` aynı geçici-dosya+`--props` deseniyle çalışıyor (Reel ile ortak).
+- **Gerçek `npx remotion still` render'ları ile doğrulandı** (bkz. 5.4) — 4 farklı senaryo (kısa/uzun
+  başlık karışık post, 7 etkinlikli story, kapak, AI arka plan hem http URL hem staticFile-göreli yol)
+  hepsi temiz çıktı: taşma yok, marka fontları doğru, palet renkleri doğru, arka plan enjeksiyonu
+  (hem http hem staticFile mekanizması) çalışıyor.
 
-### 5.3 Property'ler
+### 5.3 Property'ler — UYGULANDI
 ```
 whatnext.images.engine=custom            # custom | remotion | ai (varsayılan custom — bugünkü davranış)
 whatnext.images.ai.cache-dir=generated-backgrounds
 # AI sağlayıcı/anahtar/model: mevcut whatnext.templates.ai.* anahtarları yeniden kullanılır
 ```
+`application.properties`'e `whatnext.templates.mode`'dan görsel olarak ayrı bir blokta, iki bayrağın
+karıştırılmaması gerektiğini açıklayan bir yorumla eklendi.
 
-### 5.4 Test + doğrulama
-- `DelegatingImageEngineTest` (Mockito): bayrak yönlendirme + ai→remotion→custom fallback zinciri.
-- `RemotionStillEngineTest`: gerçek `npx remotion still` ile örnek props render, çıktı boyut kontrolü +
-  gözle inceleme için scratchpad'e kopya (node/npx yoksa `assumeTrue` ile atla —
-  `ImageGenerationServiceTest`'teki ImageMagick deseni).
-- `AiBackgroundEngineTest`: client mock'lu — önbellek isabeti (ikinci çağrıda API'ye gidilmez),
-  hata durumunda RemotionStillEngine'e devretme.
-- Postman'den üç motorda da post + story + cover üretimi: `custom` çıktısı bugünle birebir;
-  `remotion` çıktıları gözle (metin sığması, safe-zone, marka fontları); `ai` anahtar yokken
-  remotion'a düştüğü loglardan doğrulanır.
-- `mvn test` + `npx tsc --noEmit` yeşil.
+### 5.4 Test + doğrulama — YAPILDI
+- `DelegatingImageEngineTest` (Mockito, 5 test): custom doğrudan/fallback denenmez, remotion başarılı,
+  remotion→custom fallback, ai→custom fallback, bilinmeyen bayrak değeri→custom.
+- `RemotionStillEngineTest` (Mockito, 5 test): post/story/cover için doğru composition id + props
+  (eventType, monthName, date, palette, events, opsiyonel backgroundImageUrl) inşa ediliyor; boş
+  etkinlik listesinde Remotion hiç çağrılmadan `null` dönüyor.
+- `AiBackgroundEngineTest` (Mockito + gerçek geçici dosyalar, 3 test): ilk çağrı üretir+önbellekler+
+  `video/public/ai-backgrounds/`e kopyalar+doğru göreli yolla `RemotionStillEngine`'i çağırır; ikinci
+  çağrı AI client'ı tekrar çağırmaz (önbellek isabeti); AI client hata verirse `render(request, null)`
+  ile paletli motora düşer.
+- **Gerçek uçtan uca doğrulama** (Mockito'nun ötesinde): `npx remotion still` ile üç kompozisyon da
+  gerçek props'la render edildi, PNG'ler gözle incelendi (bkz. 5.2) — TSX render pipeline'ının
+  gerçekten çalıştığı, sadece prop-building mantığının değil, doğrulanmış oldu.
+- `mvn test`: 96/97 yeşil (tek istisna hep aynı bilinen DB kısıtı). `npx tsc --noEmit`: temiz.
+- **Yapılmadı (kullanıcının kendi ortamında):** gerçek Gemini API anahtarıyla `ai` motorunun uçtan uca
+  denenmesi (bu oturumda anahtar yok, `AiImageClient` mock'landı); Postman'den üç motorun DB'ye bağlı
+  gerçek prod verisiyle karşılaştırılması.
 
 ---
 
@@ -445,8 +477,9 @@ whatnext.images.ai.cache-dir=generated-backgrounds
 2. Faz 2: yeni scrape'lerde `start_time` dolu (Bubilet ≥ %80); merge eksik saati dolduruyor.
 3. Faz 3: story telefonda tam ekran; slaytlarda gün+saat; story seçimi deterministik.
 4. Faz 4: yeni Reel ≤ 22 sn, ilk kare etkinlik görseli, gün sıralı; telefonda safe-zone kontrolü.
-5. Faz 5: `engine=custom` bugünkü çıktıyla birebir; `engine=remotion` post/story/cover üretip gözle
-   onaylandı (metin sığması, marka fontları, safe-zone); `engine=ai` anahtar yokken remotion'a,
-   remotion hatasında custom'a düşüyor — cron hiçbir modda bloklanmıyor.
+5. Faz 5: ✅ `engine=custom` davranışı korundu (test edilmedi çünkü zaten değişmedi); `engine=remotion`
+   ile üretilen post/story/cover PNG'leri gerçek render'la gözle onaylandı (metin sığması, marka
+   fontları, arka plan enjeksiyonu); `engine=ai` fallback zinciri Mockito ile doğrulandı (gerçek Gemini
+   anahtarı bu ortamda yok — kullanıcının kendi ortamında denenmeli). Cron hiçbir modda bloklanmıyor.
 6. Faz 6: Pazar karuseli yayında (seçili motorla üretilmiş); 4 haftalık metrik karşılaştırması bu
    dosyaya işlendi.
