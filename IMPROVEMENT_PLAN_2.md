@@ -4,15 +4,18 @@
 > Uygulamak için yeni bir Claude Code oturumunda: "IMPROVEMENT_PLAN_2.md dosyasını oku ve Faz 5'i uygula" demeniz yeterli.
 > Sıra kasıtlı: önce veri doğruluğu (parse), sonra veri zenginliği (saat), sonra sunum (görsel + Reel).
 >
-> **Durum (2026-07-11):** Faz 1 ✅, Faz 2 ✅, Faz 3 ✅ ve Faz 4 ✅ tamamlandı, `mvn test` yeşil (83/84; tek
+> **Durum (2026-07-13):** Faz 1 ✅, Faz 2 ✅, Faz 3 ✅ ve Faz 4 ✅ tamamlandı, `mvn test` yeşil (83/84; tek
 > istisna `WhatnextApplicationTests.contextLoads` — bu ortamdan Postgres'e erişim yok, kod dışı bilinen
-> kısıt). Reel `npx remotion render` ile gerçekten render edilip kareler gözle doğrulandı. Faz 5
-> (haftalık karusel + ölçüm) sırada. Faz 3.1'de post/cover 4:5'e geçirilmedi — kullanıcı 1:1'de kalmayı
-> seçti (kırpma köşe illüstrasyonlarını kesiyordu). Faz 4.4'te gerçek müzik beat-senkronu YOK — ses
-> dinleme/analiz imkanı yoktu, sahte veri uydurulmadı (bkz. Faz 4.4 notu). Canlı scrape/health/DB
-> doğrulaması, secrets rotate, story'nin telefonda gözle onaylanması ve Reel'in gerçek prod verisiyle
-> render edilip telefonda izlenmesi kullanıcının kendi ortamında yapılmalı (bkz. ilgili fazların
-> "Doğrulama" bölümleri).
+> kısıt). Reel `npx remotion render` ile gerçekten render edilip kareler gözle doğrulandı.
+> **Faz 5 yeniden tanımlandı (2026-07-13, kullanıcı kararı):** el yapımı şablon+ImageMagick yapısı
+> manuel görsel bulma / metin sığmama sorunları yüzünden motor seviyesinde soyutlanacak —
+> `whatnext.images.engine=custom|remotion|ai` bayrağı; eski Faz 5 (karusel+ölçüm) Faz 6 oldu ve motoru
+> kullanacak. Faz 3.1'de post/cover 4:5'e geçirilmedi — kullanıcı 1:1'de kalmayı seçti (kırpma köşe
+> illüstrasyonlarını kesiyordu; Remotion motorunda bu kısıt yok, bkz. 5.2 boyut kararı). Faz 4.4'te
+> gerçek müzik beat-senkronu YOK — ses dinleme/analiz imkanı yoktu, sahte veri uydurulmadı (bkz. Faz
+> 4.4 notu). Canlı scrape/health/DB doğrulaması, secrets rotate, story'nin telefonda gözle onaylanması
+> ve Reel'in gerçek prod verisiyle render edilip telefonda izlenmesi kullanıcının kendi ortamında
+> yapılmalı (bkz. ilgili fazların "Doğrulama" bölümleri).
 
 ## Bağlam (Context)
 
@@ -320,28 +323,103 @@ gerekmedi. Bulunan tek gerçek kalite kusuru düzeltildi:
 
 ---
 
-## Faz 5 — Haftalık plan karuseli + ölçüm
+## Faz 5 — Görsel üretim motoru: custom | remotion | ai (bayrakla)
 
-### 5.1 Haftalık plan karuseli
-- Yeni üretim: kapak ("Bu Hafta İstanbul • N etkinlik") + Pzt→Paz 7 slayt (gün başına en iyi 3-4
-  etkinlik, saatli). Mevcut `createPost` altyapısı `postType=weekly` varyantıyla kullanılır;
-  şablon aylık post şablonunun kendisi (yeni tasarım gerekmez), üst bilgi satırı gün adını taşır.
-- Paylaşım: Pazar akşamı **tek karusel** (planlamanın yapıldığı an). Mevcut Pazar 17:00'deki
-  3 günlük seri bununla değiştirilir; Pzt 10:00 / Salı 10:00 serileri ilk etapta korunur, ölçüm
-  (5.2) sonuçlarına göre sadeleştirilir.
-- `InstagramService`'teki mevcut carousel yolu kullanılır (halihazırda 10 görsel limitiyle var).
+> Gerekçe (2026-07-13 araştırması): mevcut yapıda tasarım bir PNG dosyası, içerik üstüne ImageMagick
+> ile basılan metin. Bu yüzden ay başına iyi görsel bulmak manuel, metin sığdırma tahmine dayalı,
+> şablon değişince koordinatlar elle ayarlanıyor. Karar: üretim **motor** seviyesinde soyutlanır,
+> üç motor tek bayrakla seçilir. `custom` bugünkü davranışı birebir korur (varsayılan, sıfır risk);
+> `remotion` tasarımı koda taşır (Faz 4'ün Reel altyapısı — gerçek layout motoru, metin daima sığar,
+> arka plan gerçek etkinlik afişi olduğu için otantik); `ai` yalnızca **arka planı** üretir
+> (Gemini ~$0.04/görsel, ay bazında önbellekli), metni asla AI basmaz.
 
-### 5.2 Ölçüm
+### 5.1 Motor soyutlaması — yeni paket `services/images/`
+- `ImageRenderRequest` (record): `kind` (`DAILY_POST | SMART_STORY | COVER | CAROUSEL_SLIDE`),
+  `date`, `headerLabel` (tür adı "KONSER" veya gün adı "CUMA"), `events` (List<EventSummaryDTO> —
+  saat/mekân/görsel URL'leri dahil), `eventCount`, `weekRange`, `monthName`, `palette`
+  (style.properties'ten — tek doğruluk kaynağı Java tarafında kalır, TS'e props ile geçer).
+- `ImageRenderEngine` arayüzü: `File render(ImageRenderRequest req)`.
+- **`CustomImageEngine`** — mevcut `ImageGenerationService`'i saran adaptör; bugünkü davranış
+  birebir. Mevcut `whatnext.templates.mode` (static|generated|ai şablon kaynağı) yalnızca bu motorda
+  anlamlıdır — dokümante edilir, iki bayrak karıştırılmaz.
+- **`RemotionStillEngine`** — `npx remotion still src/index.ts <StillCompId> out.png --props=...`
+  ile render. Java tarafında `RemotionRunner` yardımcı sınıfı: npx çözümleme + process çalıştırma +
+  log akıtma `WeeklyVideoService`'ten çıkarılıp ortaklaştırılır (video ve still aynı runner'ı kullanır).
+- **`AiBackgroundEngine`** — Gemini image API'den **yalnızca arka plan** üretir (prompt: ay paleti +
+  stil konfigürasyonu + "no text"); `ay+kind` başına önbellek (workdir + hash, `GeneratedTemplateProvider`
+  deseni — her koşuda üretilmez: maliyet ~36 görsel/yıl ≈ $1.5 ve stil tutarlılığı). Üretilen arka
+  planı `backgroundImageUrl` prop'u ile `RemotionStillEngine`'e devreder — metin katmanı hep Remotion.
+- **`DelegatingImageEngine`** (`@Primary`) — `whatnext.images.engine=custom|remotion|ai` (varsayılan
+  `custom`). **Fallback zinciri: ai → remotion → custom** (API anahtarı yok/hata → bir alt motor;
+  Remotion/node hatası → custom; 11:50 cron'u hiçbir koşulda bloklanmaz — Faz 4 Plan 1 deseni).
+- `InstagramService.createImage` çağrıları `DelegatingImageEngine`'e yönlenir;
+  `ImageGenerationService` CustomImageEngine'in içinde yaşamaya devam eder (silinmez).
+
+### 5.2 Remotion Still kompozisyonları — `video/src/stills/`
+- `DailyPostStill`, `SmartStoryStill` (1080×1920, story safe-zone'ları), `CoverStill`,
+  `CarouselSlideStill` (Faz 6'nın gün slaytı — burada tanımlanır).
+- Ortak bileşenler Reel'den türetilir: fontlar (`fonts.ts` mevcut), tür/gün rozetleri
+  (`EventCard`'dan çıkarılıp paylaşılır), footer.
+- **Arka plan katmanı üç kademeli** (otantiklik buradan gelir): (1) `backgroundImageUrl` prop'u
+  doluysa o (AI motoru veya günün öne çıkan etkinliğinin gerçek afişi — blur + gradient, Reel kartı
+  deseni), (2) yoksa ay paleti gradyanı + SVG dekoratif öğeler (`ReelBackground` deseni),
+  (3) palet props gelmezse nötr marka gradyanı.
+- **Boyut kararı:** story 1080×1920. Post/cover için Remotion motorunda el yapımı şablon kısıtı yok —
+  4:5 (1080×1350) önerilir (feed'de daha fazla alan; Faz 3.1'deki 1:1 kararı şablon kırpma sorunuyla
+  ilgiliydi, kodda üretilen tuvalde kırpma yok). Kullanıcı 1:1 isterse tek satırlık sabit değişikliği.
+- Props JSON sözleşmesi `WeeklyVideoService`'in Reel props deseniyle aynı (geçici dosya + `--props`).
+
+### 5.3 Property'ler
+```
+whatnext.images.engine=custom            # custom | remotion | ai (varsayılan custom — bugünkü davranış)
+whatnext.images.ai.cache-dir=generated-backgrounds
+# AI sağlayıcı/anahtar/model: mevcut whatnext.templates.ai.* anahtarları yeniden kullanılır
+```
+
+### 5.4 Test + doğrulama
+- `DelegatingImageEngineTest` (Mockito): bayrak yönlendirme + ai→remotion→custom fallback zinciri.
+- `RemotionStillEngineTest`: gerçek `npx remotion still` ile örnek props render, çıktı boyut kontrolü +
+  gözle inceleme için scratchpad'e kopya (node/npx yoksa `assumeTrue` ile atla —
+  `ImageGenerationServiceTest`'teki ImageMagick deseni).
+- `AiBackgroundEngineTest`: client mock'lu — önbellek isabeti (ikinci çağrıda API'ye gidilmez),
+  hata durumunda RemotionStillEngine'e devretme.
+- Postman'den üç motorda da post + story + cover üretimi: `custom` çıktısı bugünle birebir;
+  `remotion` çıktıları gözle (metin sığması, safe-zone, marka fontları); `ai` anahtar yokken
+  remotion'a düştüğü loglardan doğrulanır.
+- `mvn test` + `npx tsc --noEmit` yeşil.
+
+---
+
+## Faz 6 — Haftalık plan karuseli + ölçüm (Faz 5 motorunu kullanır)
+
+### 6.1 Haftalık plan karuseli
+- Üretim `DelegatingImageEngine` üzerinden `kind=CAROUSEL_SLIDE` ile: kapak ("Bu Hafta İstanbul •
+  N etkinlik", `kind=COVER` + `weekRange`) + Pzt→Paz 7 gün slaytı (gün başına karışık türde en iyi
+  3-4 etkinlik, saatli; `headerLabel` gün adı).
+- Motor başına davranış: `remotion`/`ai` → `CarouselSlideStill`; `custom` → mevcut post şablonu +
+  Faz 3.2'nin gün+tarih başlık altyapısı (zaten gün adı basabiliyor — küçük ek: tür başlığı yerine
+  gün adı geçilir).
+- **Açık karar (kullanıcıya sorulacak):** gün slaytında türler karışık listelendiği için satır başına
+  tür göstergesi (küçük ikon/etiket) eklensin mi, sade mi kalsın.
+- Etkinlik seçimi: yeni `PopularEventService.getDailyMixedTop(date, n)` — concert+theater+standup
+  tek listede, skor sıralı, çocuk hariç, `EventIdentity` dedup'lı.
+- Paylaşım: Pazar akşamı **tek karusel** (planlamanın yapıldığı an). Mevcut Pazar 17:00'deki 3 günlük
+  seri bununla değiştirilir; Pzt 10:00 / Salı 10:00 serileri ilk etapta korunur, ölçüm (6.2)
+  sonuçlarına göre sadeleştirilir. `InstagramService`'teki mevcut carousel yolu kullanılır
+  (halihazırda 10 görsel limitiyle var).
+
+### 6.2 Ölçüm
 - Yeni `services/InstagramInsightsService`: Graph API'den medya başına `reach, saves, shares, plays,
   avg_watch_time` çeker; yeni tablo `instagram_media_metrics` (media_id, tip, yayın zamanı, metrikler,
   çekim zamanı). Günlük cron ile son 14 günün medyası güncellenir.
 - `GET /api/instagram/metrics/summary`: içerik tipine (daily-post / weekly-carousel / reel / story)
   göre son 4 hafta karşılaştırması.
 - İlk deney: Reel yayın saati — 4 hafta Salı 13:00 vs 4 hafta Pazar 19:00; `avg_watch_time` ve
-  `reach` karşılaştırılır. Sonuç bu dosyaya işlenir.
+  `reach` karşılaştırılır. Sonuç bu dosyaya işlenir. **Not: deney gerçek zaman gerektirir — tek
+  oturumda yalnızca altyapısı kurulabilir.**
 
-### 5.3 Doğrulama
-1. Karusel Postman'den üretilip gözle kontrol; test paylaşımı onay sonrası.
+### 6.3 Doğrulama
+1. Karusel üç motorda da Postman'den üretilip gözle kontrol; test paylaşımı onay sonrası.
 2. Metrik cron'u bir gün çalıştıktan sonra tablo dolu; summary endpoint'i makul değerler dönüyor.
 
 ---
@@ -353,7 +431,10 @@ gerekmedi. Bulunan tek gerçek kalite kusuru düzeltildi:
   Dosyadan silmek yetmez — **anahtarlar rotate edilmeli**, yenileri `application-local.properties`'te
   (gitignore'lu) tutulmalı. Ayrıca repo kökündeki `compile_output.txt` silinip gitignore'a eklenmeli.
 - **DB değişiklikleri (eklemeli, ddl-auto=update ile güvenli):** `event.start_time`,
-  `instagram_media_metrics` tablosu (Faz 5).
+  `instagram_media_metrics` tablosu (Faz 6).
+- **Faz 5 motor sırası:** önce `custom` adaptörü (davranış birebir, regresyon güvencesi), sonra
+  `remotion`, en son `ai` (remotion'a bağımlı — arka planı ona devrediyor). El yapımı şablonlar ve
+  `ImageGenerationService` silinmez: custom motoru + fallback zincirinin son halkası olarak kalır.
 - **Şablon dönüştürmeleri (Faz 3.1) geri alınabilir olmalı:** orijinal PNG'ler
   `src/main/resources/instagram-posts/` altında değiştirilmeden önce `instagram-posts-legacy/`
   altına kopyalanır (veya sadece git'e güvenilir — commit öncesi çıktılar gözle onaylanır).
@@ -364,4 +445,8 @@ gerekmedi. Bulunan tek gerçek kalite kusuru düzeltildi:
 2. Faz 2: yeni scrape'lerde `start_time` dolu (Bubilet ≥ %80); merge eksik saati dolduruyor.
 3. Faz 3: story telefonda tam ekran; slaytlarda gün+saat; story seçimi deterministik.
 4. Faz 4: yeni Reel ≤ 22 sn, ilk kare etkinlik görseli, gün sıralı; telefonda safe-zone kontrolü.
-5. Faz 5: Pazar karuseli yayında; 4 haftalık metrik karşılaştırması bu dosyaya işlendi.
+5. Faz 5: `engine=custom` bugünkü çıktıyla birebir; `engine=remotion` post/story/cover üretip gözle
+   onaylandı (metin sığması, marka fontları, safe-zone); `engine=ai` anahtar yokken remotion'a,
+   remotion hatasında custom'a düşüyor — cron hiçbir modda bloklanmıyor.
+6. Faz 6: Pazar karuseli yayında (seçili motorla üretilmiş); 4 haftalık metrik karşılaştırması bu
+   dosyaya işlendi.
