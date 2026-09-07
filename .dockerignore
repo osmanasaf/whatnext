@@ -3,3 +3,6 @@ target/
 .gitignore
 *.md
 video/node_modules/
+data/
+*.log
+compile_output.txt
