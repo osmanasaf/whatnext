@@ -26,7 +26,21 @@ public final class TurkishDateParser {
         if (monthStr == null) {
             return 0;
         }
-        return switch (monthStr) {
+        // Biletix kartları 3 harfli kısaltma kullanır ("Eyl"); tam ad ve kısaltma ön ekleri çakışmaz.
+        String key = monthStr.length() > 3 ? monthStr.substring(0, 3) : monthStr;
+        return switch (key) {
+            case "Oca" -> 1;
+            case "Şub" -> 2;
+            case "Mar" -> 3;
+            case "Nis" -> 4;
+            case "May" -> 5;
+            case "Haz" -> 6;
+            case "Tem" -> 7;
+            case "Ağu" -> 8;
+            case "Eyl" -> 9;
+            case "Eki" -> 10;
+            case "Kas" -> 11;
+            case "Ara" -> 12;
             case "Ocak" -> 1;
             case "Şubat" -> 2;
             case "Mart" -> 3;

@@ -18,31 +18,24 @@ public class BiletixScraperConfig {
     public static final String BASE_URL = "https://www.biletix.com";
     
     public static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd.MM.yyyy");
-    public static final DateTimeFormatter SEARCH_RESULT_DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yy");
 
     public static final BiletixCategory DEFAULT_CATEGORY = BiletixCategory.MUSIC;
     public static final BiletixDate DEFAULT_DATE = BiletixDate.THISWEEK;
     public static final BiletixCity DEFAULT_CITY = BiletixCity.ISTANBUL;
 
-    public static final String EVENT_CARD_SELECTOR = ".grid_21.alpha.omega.listevent.searchResultEvent";
-    public static final String EVENT_TITLE_SELECTOR = ".ln1.searchResultEventName";
-    public static final String EVENT_TITLE_MOBILE_SELECTOR = ".searchResultEventNameMobile";
-    public static final String EVENT_LINK_SELECTOR = "a[href*='/etkinlik/']";
-    public static final String EVENT_DATE_SELECTOR = ".fld3 .ln1";
-    public static final String EVENT_SECONDARY_DATE_SELECTOR = ".fld3 .ln2";
-    public static final String EVENT_VENUE_SELECTOR = ".searchResultPlace";
-    public static final String EVENT_LOCATION_SELECTOR = ".searchResultCity";
     /**
-     * Kartta mekan: sırayla dene. Tarih alanındaki .ln2 ile karışmaması için
-     * genel ".searchResult .ln2" kullanılmaz (tarih {@link #EVENT_SECONDARY_DATE_SELECTOR}).
+     * 2026-09 yeni Angular arayüzü: her kart bir {@code <btx-card-item>} web component'i
+     * (shadow DOM yok, light DOM). Kart içi: {@code a.search-card > .card-body > .card-event-name},
+     * {@code .card-footer .card-info > .card-venue + .card-datetime}. Kartta şehir alanı yok.
+     * "Daha fazla" düğmesi kaldırıldı — sonsuz kaydırma, yalnızca gerçek tekerlek olayıyla tetiklenir
+     * ({@code window.scrollTo} yüklemez), bkz. {@code WebScraperUtils.wheelScrollToLoadAll}.
      */
-    public static final String[] EVENT_VENUE_ALTERNATE_SELECTORS = {
-            EVENT_VENUE_SELECTOR,
-            ".searchResultEventPlace",
-            "div.searchResultEvent .searchResultPlace",
-            "a[href*='/mekan/']"
-    };
-    public static final String LOAD_MORE_BUTTON_SELECTOR = ".search_load_more";
+    public static final String EVENT_CARD_SELECTOR = "btx-card-item";
+    public static final String EVENT_TITLE_SELECTOR = ".card-event-name";
+    public static final String EVENT_LINK_SELECTOR = "a.search-card";
+    public static final String EVENT_VENUE_SELECTOR = ".card-venue";
+    /** "08 Eyl 2026, 21:00" | "07 Eyl 2026 - 30 Eyl 2026" | "08 Eyl 2026" */
+    public static final String EVENT_DATE_SELECTOR = ".card-datetime";
 
     /**
      * Canlı doğrulamada (2026-07-13) tespit edildi: {@code /search/TURKIYE/tr?city_sb=...} şehri
