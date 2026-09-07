@@ -94,11 +94,14 @@ public class RemotionStillEngine implements ImageRenderEngine {
     private File renderCover(ImageRenderRequest request, String monthName, Map<String, String> palette,
             String backgroundImageUrl) throws IOException, InterruptedException {
         int eventCount = imageGenerationService.countIstanbulEventsForDate(request.date());
+        // Kapak = karuselin ilk karesi; günün en iyi afişlerinden mozaik (story seçimiyle aynı skor sırası).
+        List<EventSummaryDTO> topEvents = imageGenerationService.selectStoryEvents(request.date());
         Map<String, Object> props = new HashMap<>();
         props.put("monthName", monthName);
         props.put("palette", palette);
         props.put("date", request.date().toString());
         props.put("eventCount", eventCount);
+        props.put("events", toEventMaps(topEvents));
         putIfPresent(props, "backgroundImageUrl", backgroundImageUrl);
         return remotionRunner.run("still", "CoverStill", props, "png");
     }
