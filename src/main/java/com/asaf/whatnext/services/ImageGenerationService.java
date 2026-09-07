@@ -51,7 +51,8 @@ public class ImageGenerationService {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ImageGenerationService.class);
 
-    private static final int STORY_EVENT_TARGET = 10;
+    /** Story'de en çok 8 satır — 10 kalabalık bulundu (2026-09-07 kullanıcı kararı). */
+    private static final int STORY_EVENT_TARGET = 8;
     private static final int STORY_FETCH_LIMIT = 14;
     private static final int MAX_TITLE_ANNOTATE_LINES = 3;
     private static final int MAX_VENUE_ANNOTATE_LINES = 2;
@@ -283,8 +284,8 @@ public class ImageGenerationService {
         sortByScoreDescending(theaters);
         sortByScoreDescending(standups);
         Set<Event> selected = new LinkedHashSet<>();
-        addUpTo(selected, concerts, 4);
-        addUpTo(selected, theaters, 4);
+        addUpTo(selected, concerts, 3);
+        addUpTo(selected, theaters, 3);
         addUpTo(selected, standups, 2);
         if (selected.size() < STORY_EVENT_TARGET) {
             List<Event> filler = Stream.of(concerts, theaters, standups)

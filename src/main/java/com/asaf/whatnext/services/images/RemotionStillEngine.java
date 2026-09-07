@@ -118,8 +118,21 @@ public class RemotionStillEngine implements ImageRenderEngine {
             m.put("venueName", e.getVenueName() != null ? e.getVenueName() : "");
             m.put("startTime", e.getStartTime() != null ? e.getStartTime().toString() : "");
             m.put("imageUrl", e.getImageUrl() != null ? e.getImageUrl() : "");
+            m.put("eventType", toStillEventType(e));
             out.add(m);
         }
         return out;
+    }
+
+    /** DTO'nun (type, performanceType) çiftini still'lerin "concert|theater|standup" etiketine indirger. */
+    static String toStillEventType(EventSummaryDTO e) {
+        if (e.getPerformanceType() != null) {
+            return switch (e.getPerformanceType()) {
+                case THEATER -> "theater";
+                case STANDUP -> "standup";
+                default -> "theater";
+            };
+        }
+        return e.getType() != null ? e.getType().name().toLowerCase(Locale.ROOT).replace("performing_art", "theater") : "concert";
     }
 }

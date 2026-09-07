@@ -2,7 +2,7 @@ import React from 'react';
 import { AbsoluteFill } from 'remotion';
 import { FONT_TITLE } from '../fonts';
 import {
-  DateBlock,
+  DateStamp,
   EventRow,
   MetaLine,
   Palette,
@@ -10,7 +10,7 @@ import {
   SaveCta,
   StillBackground,
   StillEventData,
-  TypeBadge,
+  TypeRail,
   firstImage,
 } from './shared';
 
@@ -24,11 +24,13 @@ export interface DailyPostStillProps {
 }
 
 const PAD = 64;
-const HEADER_H = 120;
+const HEADER_H = 130;
 /** Alt CTA bölgesi — liste bu alana girmez, CTA ile son kart arasında nefes payı kalır. */
 const CTA_ZONE = 180;
 const CTA_BOTTOM = 64;
 const ROW_GAP = 22;
+/** Sol dikey tür rayı için kartların soldan kayma payı. */
+const RAIL_W = 62;
 
 /** Satır yüksekliği — listedeki kart sayısına göre, kullanılabilir alana tam oturacak şekilde. */
 const layoutFor = (count: number, canvasHeight: number) => {
@@ -57,9 +59,8 @@ export const DailyPostStill: React.FC<DailyPostStillProps> = ({
       <AbsoluteFill
         style={{ padding: `${PAD}px ${PAD}px ${CTA_ZONE}px ${PAD}px`, display: 'flex', flexDirection: 'column' }}
       >
-        <div style={{ height: HEADER_H, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <DateBlock date={date} daySize={64} subtitle={subtitle} />
-          <TypeBadge eventType={eventType} size={18} />
+        <div style={{ height: HEADER_H, display: 'flex', alignItems: 'center' }}>
+          <DateStamp date={date} subtitle={subtitle} />
         </div>
 
         {shown.length === 1 ? (
@@ -69,6 +70,9 @@ export const DailyPostStill: React.FC<DailyPostStillProps> = ({
         )}
       </AbsoluteFill>
 
+      {/* Sol kenar: aşağıdan yukarı "KONSER" rayı — kart listesiyle aynı dikey aralık */}
+      <TypeRail eventType={eventType} left={PAD - 10} top={PAD + HEADER_H + 24} bottom={CTA_ZONE} />
+
       <SaveCta bottom={CTA_BOTTOM} />
     </AbsoluteFill>
   );
@@ -76,8 +80,17 @@ export const DailyPostStill: React.FC<DailyPostStillProps> = ({
 
 /** Tek etkinlik: afiş büyük, başlık altında — tipik "bugün tek tiyatro var" günü. */
 const Hero: React.FC<{ event: StillEventData; eventType: string }> = ({ event, eventType }) => (
-  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-    <Poster imageUrl={event.imageUrl} title={event.title} eventType={eventType} width={680} height={680} radius={30} />
+  <div
+    style={{
+      flex: 1,
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingLeft: RAIL_W,
+    }}
+  >
+    <Poster imageUrl={event.imageUrl} title={event.title} eventType={eventType} width={660} height={660} radius={30} />
     <div
       style={{
         marginTop: 34,
@@ -87,7 +100,7 @@ const Hero: React.FC<{ event: StillEventData; eventType: string }> = ({ event, e
         lineHeight: 1.15,
         textAlign: 'center',
         textShadow: '0 2px 24px rgba(0,0,0,0.7)',
-        maxWidth: 900,
+        maxWidth: 860,
         display: '-webkit-box',
         WebkitLineClamp: 2,
         WebkitBoxOrient: 'vertical' as const,
@@ -96,7 +109,7 @@ const Hero: React.FC<{ event: StillEventData; eventType: string }> = ({ event, e
     >
       {event.title}
     </div>
-    <div style={{ marginTop: 14, maxWidth: 900 }}>
+    <div style={{ marginTop: 14, maxWidth: 860 }}>
       <MetaLine startTime={event.startTime} venueName={event.venueName} size={26} />
     </div>
   </div>
@@ -105,7 +118,17 @@ const Hero: React.FC<{ event: StillEventData; eventType: string }> = ({ event, e
 const List: React.FC<{ events: StillEventData[]; eventType: string }> = ({ events, eventType }) => {
   const { posterHeight, titleSize } = layoutFor(events.length, 1350);
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: ROW_GAP, paddingTop: 12 }}>
+    <div
+      style={{
+        flex: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        gap: ROW_GAP,
+        paddingTop: 12,
+        paddingLeft: RAIL_W,
+      }}
+    >
       {events.map((e) => (
         <EventRow key={e.id} event={e} eventType={eventType} posterHeight={posterHeight} titleSize={titleSize} />
       ))}

@@ -15,6 +15,8 @@ export interface StillEventData {
   venueName?: string;
   startTime?: string;
   imageUrl?: string;
+  /** "concert" | "theater" | "standup" — karışık listelerde (story) satır etiketi için. */
+  eventType?: string;
 }
 
 export const TYPE_LABELS: Record<string, string> = {
@@ -43,6 +45,9 @@ export const formatDateTr = (isoDate: string): string => {
   const [, m, d] = parts;
   return `${parseInt(d, 10)} ${MONTHS_TR[parseInt(m, 10) - 1]}`;
 };
+
+export const dayOfMonth = (isoDate: string): string => String(parseInt(isoDate.split('-')[2] ?? '0', 10));
+export const monthNameTr = (isoDate: string): string => MONTHS_TR[parseInt(isoDate.split('-')[1] ?? '1', 10) - 1] ?? '';
 
 /** "2026-07-17" -> "Cuma". */
 export const dayNameTr = (isoDate: string): string => {
@@ -209,6 +214,159 @@ export const DateBlock: React.FC<{ date: string; daySize?: number; subtitle?: st
   </div>
 );
 
+/**
+ * Takvim damgası başlık: büyük gün sayısı + yanında ay / gün adı sütunu.
+ * "Cumartesi" tek başına büyük yazmak yerine tarihi bir bakışta okutur (26 | EYLÜL / Cumartesi).
+ */
+export const DateStamp: React.FC<{ date: string; kicker?: string; subtitle?: string; scale?: number }> = ({
+  date,
+  kicker,
+  subtitle,
+  scale = 1,
+}) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: Math.round(20 * scale) }}>
+    <div
+      style={{
+        fontSize: Math.round(118 * scale),
+        fontFamily: FONT_TITLE,
+        lineHeight: 0.85,
+        color: '#f8fafc',
+        textShadow: '0 4px 24px rgba(0,0,0,0.6)',
+        letterSpacing: -2,
+      }}
+    >
+      {dayOfMonth(date)}
+    </div>
+    <div style={{ width: 2, alignSelf: 'stretch', background: 'rgba(255,255,255,0.22)', borderRadius: 2 }} />
+    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+      {kicker && (
+        <div
+          style={{
+            fontSize: Math.round(17 * scale),
+            fontWeight: 700,
+            letterSpacing: 4,
+            color: 'rgba(255,255,255,0.6)',
+            fontFamily: FONT_BODY,
+            marginBottom: Math.round(4 * scale),
+          }}
+        >
+          {kicker}
+        </div>
+      )}
+      <div
+        style={{
+          fontSize: Math.round(22 * scale),
+          fontWeight: 700,
+          letterSpacing: 5,
+          color: 'rgba(255,255,255,0.78)',
+          fontFamily: FONT_BODY,
+          textShadow: '0 2px 10px rgba(0,0,0,0.6)',
+        }}
+      >
+        {monthNameTr(date).toLocaleUpperCase('tr')}
+      </div>
+      <div
+        style={{
+          fontSize: Math.round(46 * scale),
+          fontFamily: FONT_TITLE,
+          color: '#f8fafc',
+          lineHeight: 1.05,
+          textShadow: '0 4px 20px rgba(0,0,0,0.6)',
+        }}
+      >
+        {dayNameTr(date)}
+      </div>
+      {subtitle && (
+        <div
+          style={{
+            marginTop: Math.round(4 * scale),
+            fontSize: Math.round(20 * scale),
+            fontWeight: 600,
+            color: 'rgba(255,255,255,0.7)',
+            fontFamily: FONT_BODY,
+            letterSpacing: 1,
+          }}
+        >
+          {subtitle}
+        </div>
+      )}
+    </div>
+  </div>
+);
+
+/**
+ * Sol kenarda dikey tür rayı: aşağıdan yukarıya okunan "KONSER" + üstüne doğru sönen çizgi.
+ * Post'ta sağ üst rozetin yerini alır; kartlar rayın sağından başlar.
+ */
+export const TypeRail: React.FC<{ eventType: string; left: number; top: number; bottom: number }> = ({
+  eventType,
+  left,
+  top,
+  bottom,
+}) => {
+  const cfg = TYPE_COLORS[eventType] ?? TYPE_COLORS.concert;
+  const label = TYPE_LABELS[eventType] ?? eventType.toUpperCase();
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left,
+        top,
+        bottom,
+        width: 44,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 18,
+      }}
+    >
+      <div style={{ flex: 1, width: 3, borderRadius: 2, background: `linear-gradient(to top, ${cfg.color}, transparent)` }} />
+      <div
+        style={{
+          writingMode: 'vertical-rl' as const,
+          transform: 'rotate(180deg)',
+          fontSize: 34,
+          fontWeight: 800,
+          letterSpacing: 9,
+          color: cfg.color,
+          fontFamily: FONT_BODY,
+          textShadow: '0 2px 14px rgba(0,0,0,0.6)',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {label}
+      </div>
+    </div>
+  );
+};
+
+/** Karışık listelerde satır başına küçük tür etiketi (story). */
+export const TypeTag: React.FC<{ eventType?: string; size: number }> = ({ eventType, size }) => {
+  if (!eventType) return null;
+  const cfg = TYPE_COLORS[eventType] ?? TYPE_COLORS.concert;
+  const label = TYPE_LABELS[eventType] ?? eventType.toUpperCase();
+  return (
+    <span
+      style={{
+        display: 'inline-block',
+        alignSelf: 'flex-start',
+        fontSize: Math.round(size * 0.78),
+        fontWeight: 800,
+        letterSpacing: 2,
+        color: cfg.color,
+        fontFamily: FONT_BODY,
+        border: `1px solid ${cfg.border}`,
+        borderRadius: 6,
+        padding: `2px ${Math.round(size * 0.45)}px`,
+        lineHeight: 1.25,
+        flexShrink: 0,
+      }}
+    >
+      {label}
+    </span>
+  );
+};
+
 /** Afiş küçük resmi — yoksa tür renginde gradyan + baş harf (boş kutu bırakmaz). */
 export const Poster: React.FC<{
   imageUrl?: string;
@@ -307,7 +465,10 @@ export const EventRow: React.FC<{
   eventType?: string;
   posterHeight: number;
   titleSize: number;
-}> = ({ event, eventType, posterHeight, titleSize }) => {
+  /** Karışık listede satır başına tür etiketi göster (post'ta ray zaten var, gerekmez). */
+  showType?: boolean;
+}> = ({ event, eventType, posterHeight, titleSize, showType }) => {
+  const rowType = eventType ?? event.eventType;
   // Bilet sitelerinin afişleri ağırlıkla kare — kare küçük resim, afiş metnini kırpmaz.
   const posterWidth = posterHeight;
   return (
@@ -326,12 +487,13 @@ export const EventRow: React.FC<{
       <Poster
         imageUrl={event.imageUrl}
         title={event.title}
-        eventType={eventType}
+        eventType={rowType}
         width={posterWidth}
         height={posterHeight}
         radius={Math.round(posterHeight * 0.1)}
       />
       <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1, gap: Math.round(titleSize * 0.3) }}>
+        {showType && <TypeTag eventType={rowType} size={Math.round(titleSize * 0.5)} />}
         <div
           style={{
             fontSize: titleSize,
