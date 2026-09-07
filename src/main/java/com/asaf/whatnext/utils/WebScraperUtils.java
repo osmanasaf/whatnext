@@ -67,6 +67,11 @@ public final class WebScraperUtils {
         return ScraperNavigation.scrollToLoadAll(driver, maxScrolls, waitMs, contentSelector);
     }
 
+    public static int wheelScrollToLoadAll(
+            WebDriver driver, int maxScrolls, int waitMs, String contentSelector) {
+        return ScraperNavigation.wheelScrollToLoadAll(driver, maxScrolls, waitMs, contentSelector);
+    }
+
     public static int clickLoadMoreUntilEnd(
             WebDriver driver,
             WebDriverWait wait,

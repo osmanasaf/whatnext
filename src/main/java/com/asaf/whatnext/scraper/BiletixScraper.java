@@ -9,6 +9,7 @@ import com.asaf.whatnext.services.ScrapeHealthService;
 import com.asaf.whatnext.utils.WebScraperUtils;
 import org.openqa.selenium.By;
 import org.openqa.selenium.WebElement;
+import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.annotation.Order;
@@ -104,12 +105,14 @@ public class BiletixScraper extends BaseScraper {
             try {
                 WebScraperUtils.navigateToUrl(driver, wait, searchUrl);
 
-                WebScraperUtils.clickLoadMoreUntilEnd(
-                    driver, wait,
-                    BiletixScraperConfig.LOAD_MORE_BUTTON_SELECTOR,
-                    BiletixScraperConfig.EVENT_CARD_SELECTOR,
+                WebScraperUtils.handleCookieConsent(driver);
+                wait.until(ExpectedConditions.presenceOfElementLocated(
+                        By.cssSelector(BiletixScraperConfig.EVENT_CARD_SELECTOR)));
+                WebScraperUtils.wheelScrollToLoadAll(
+                    driver,
                     config.getMaxLoadMoreAttempts(),
-                    config.getLoadMoreWaitMs()
+                    config.getLoadMoreWaitMs(),
+                    BiletixScraperConfig.EVENT_CARD_SELECTOR
                 );
 
                 List<WebElement> cards = driver.findElements(By.cssSelector(BiletixScraperConfig.EVENT_CARD_SELECTOR));
