@@ -7,8 +7,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 
-import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 
 @Configuration
 public class BiletixScraperConfig {
@@ -42,6 +44,16 @@ public class BiletixScraperConfig {
     };
     public static final String LOAD_MORE_BUTTON_SELECTOR = ".search_load_more";
 
+    /**
+     * Canlı doğrulamada (2026-07-13) tespit edildi: {@code /search/TURKIYE/tr?city_sb=...} şehri
+     * filtrelemiyor (site "Tüm Türkiye" gösteriyor); {@code /search/{ŞEHİR}/tr?category_sb=...} da
+     * kategoriyi filtrelemiyor. Şehir VE kategori ikisinin birlikte doğru çalıştığı tek kombinasyon:
+     * {@code /search/{ŞEHİR}/tr#subcategory:{alt}${KATEGORİ}&qt=standard} — alt-kategori zorunlu,
+     * bu yüzden kategori başına birden fazla URL (alt-kategoriler) gezilip birleştirilir.
+     */
+    public static final String[] MUSIC_SUBCATEGORIES = {"pop", "rock", "jazz", "klasik", "alternatif"};
+    public static final String[] ART_SUBCATEGORIES = {"tiyatro", "gosteri", "bale_dans", "stand_up"};
+
     private final ScraperConfig scraperConfig;
     
     @Value("${biletix.load.more.attempts:15}")
@@ -71,28 +83,20 @@ public class BiletixScraperConfig {
         return loadMoreWaitMs;
     }
 
-    public String buildSearchUrl(BiletixCategory category, BiletixCity city, LocalDate startDate, LocalDate endDate) {
-        String dateParam;
-        String hashParam = "";
-        if (startDate != null && endDate != null) {
-            dateParam = String.format("%s-%s",
-                    startDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")),
-                    endDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
-            hashParam = String.format(",subcat_interval:%sTO%s",
-                    startDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")),
-                    endDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy")));
-        } else {
-            dateParam = DEFAULT_DATE.getValue();
+    /**
+     * Kategori için şehir+kategori'nin ikisinin de doğru filtrelendiği alt-kategori URL'lerini
+     * döndürür (bkz. {@link #MUSIC_SUBCATEGORIES}/{@link #ART_SUBCATEGORIES}). Çağıran taraf her
+     * URL'yi ayrı ayrı tarayıp sonuçları (ticketUrl'e göre) tekilleştirmeli — aynı etkinlik birden
+     * fazla alt-kategoride görünebilir.
+     */
+    public List<String> buildSubcategoryUrls(BiletixCategory category, BiletixCity city) {
+        String[] subcategories = category == BiletixCategory.MUSIC ? MUSIC_SUBCATEGORIES : ART_SUBCATEGORIES;
+        String cityPath = city.getValue().toUpperCase(Locale.ROOT);
+        List<String> urls = new ArrayList<>();
+        for (String sub : subcategories) {
+            urls.add(String.format("%s/search/%s/tr#subcategory:%s$%s&qt=standard",
+                    BASE_URL, cityPath, sub, category.getValue()));
         }
-        return String.format(
-                "%s/search/TURKIYE/tr?category_sb=%s&date_sb=%s&city_sb=%s#!category_sb:%s,city_sb:%s%s",
-                BASE_URL,
-                category.getValue(),
-                dateParam,
-                city.getValue(),
-                category.getValue(),
-                city.getValue(),
-                hashParam
-        );
+        return urls;
     }
 }

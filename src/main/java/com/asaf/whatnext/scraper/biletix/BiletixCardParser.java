@@ -72,11 +72,15 @@ public class BiletixCardParser {
 
     private String extractDate(WebElement card) {
         try {
-            String secondDate = card.findElement(
-                    By.cssSelector(BiletixScraperConfig.EVENT_SECONDARY_DATE_SELECTOR)).getText();
             String firstDate = card.findElement(
                     By.cssSelector(BiletixScraperConfig.EVENT_DATE_SELECTOR)).getText();
-            return !secondDate.isEmpty() ? secondDate : firstDate;
+            String secondDate = card.findElement(
+                    By.cssSelector(BiletixScraperConfig.EVENT_SECONDARY_DATE_SELECTOR)).getText();
+            // .fld3 .ln1 tek tarihli kartlarda etkinlik tarihi, aralıklı/tekrarlayan kartlarda
+            // (turne, rezidans, "X Etkinlikleri" mekan-agregatörü) aralığın BAŞLANGICI; .ln2 ise o
+            // durumda aralığın bitişi (bazen aylar sonrası) — canlı doğrulamada ln1 hep dolu
+            // olduğundan başlangıç tarihi önceliklidir.
+            return !firstDate.isEmpty() ? firstDate : secondDate;
         } catch (Exception e) {
             try {
                 String day = card.findElement(By.cssSelector(".searchMobileDateDayNumber")).getText();
@@ -114,6 +118,8 @@ public class BiletixCardParser {
             normalized = normalized.substring(commaIndex + 1).trim();
         }
         normalized = normalized.replaceAll("\\s+", "");
+        // Aralıklı kartlarda .ln1 sonda "-" taşır (örn. "13/07/26-"); parse öncesi kırpılmalı.
+        normalized = normalized.replaceAll("-+$", "");
 
         List<String> patterns = Arrays.asList("dd/MM/yy", "dd/MM/yyyy");
         for (String pattern : patterns) {

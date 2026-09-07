@@ -61,9 +61,14 @@ public class BiletinoScraperConfig {
         return buildSearchUrl(category, BiletinoCity.ISTANBUL);
     }
 
+    /**
+     * {@code category}/{@code location} yerine {@code categoryid}/{@code city} kullanılır — canlı
+     * doğrulamada (2026-07-13) eski isimlerin siteye hiçbir etkisi olmadığı, gerçek form alanlarının
+     * bunlar olduğu tespit edildi (aksi halde kategori/şehir filtresiz aynı sonuç listesi döner).
+     */
     public String buildSearchUrl(BiletinoCategory category, BiletinoCity city) {
         return String.format(
-                "%s/en/search/?start=0&count=0&ajax=false&loadmore=false&autochange=true&userid=&query=&performer=&category=%s&location=%s&date=%s",
+                "%s/en/search/?start=0&count=0&ajax=false&loadmore=false&autochange=true&userid=&query=&performer=&categoryid=%s&city=%s&date=%s",
                 BASE_URL,
                 category.getValue(),
                 city.getValue(),

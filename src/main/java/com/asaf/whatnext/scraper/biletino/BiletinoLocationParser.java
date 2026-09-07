@@ -2,6 +2,8 @@ package com.asaf.whatnext.scraper.biletino;
 
 import com.asaf.whatnext.enums.Biletino.BiletinoCity;
 
+import java.util.Locale;
+
 /**
  * "Mekân, şehir" ayrıştırır. Virgül yoksa tüm metin mekân sayılır, şehir arama bağlamındaki şehirden gelir.
  */
@@ -26,6 +28,11 @@ public final class BiletinoLocationParser {
                 }
             } else {
                 venueName = fullLocation.trim();
+                // Virgülsüz "Online Event" gibi metinlerde fiziksel şehir yok; arama şehrine düşürmek
+                // canlı doğrulamada sanal etkinlikleri yanlışlıkla İstanbul'a etiketliyordu.
+                if (fullLocation.toLowerCase(Locale.ROOT).contains("online")) {
+                    city = "";
+                }
             }
         }
 

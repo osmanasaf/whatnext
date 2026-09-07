@@ -30,4 +30,12 @@ class BiletinoLocationParserTest {
         assertThat(r.venueName()).isEqualTo("Salon");
         assertThat(r.city()).isEqualTo("Ankara");
     }
+
+    @Test
+    void noComma_online_leavesCityBlank() {
+        BiletinoLocationParser.VenueCity r = BiletinoLocationParser.parse(
+                "Online Event", BiletinoCity.ISTANBUL);
+        assertThat(r.venueName()).isEqualTo("Online Event");
+        assertThat(r.city()).isEmpty();
+    }
 }
