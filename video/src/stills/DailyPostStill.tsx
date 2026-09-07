@@ -1,7 +1,18 @@
 import React from 'react';
 import { AbsoluteFill } from 'remotion';
-import { FONT_BODY, FONT_TITLE } from '../fonts';
-import { Footer, Palette, StillBackground, StillEventData, TYPE_LABELS, fontSizeForCount, formatDateTr } from './shared';
+import { FONT_TITLE } from '../fonts';
+import {
+  DateBlock,
+  EventRow,
+  MetaLine,
+  Palette,
+  Poster,
+  SaveCta,
+  StillBackground,
+  StillEventData,
+  TypeBadge,
+  firstImage,
+} from './shared';
 
 export interface DailyPostStillProps {
   eventType: string;
@@ -12,6 +23,22 @@ export interface DailyPostStillProps {
   backgroundImageUrl?: string;
 }
 
+const PAD = 64;
+const HEADER_H = 120;
+/** Alt CTA bölgesi — liste bu alana girmez, CTA ile son kart arasında nefes payı kalır. */
+const CTA_ZONE = 180;
+const CTA_BOTTOM = 64;
+const ROW_GAP = 22;
+
+/** Satır yüksekliği — listedeki kart sayısına göre, kullanılabilir alana tam oturacak şekilde. */
+const layoutFor = (count: number, canvasHeight: number) => {
+  const available = canvasHeight - PAD - HEADER_H - 24 - CTA_ZONE;
+  const rowH = Math.floor((available - (count - 1) * ROW_GAP) / count);
+  const posterHeight = Math.min(240, Math.round(rowH * 0.82));
+  const titleSize = count <= 3 ? 40 : count <= 4 ? 36 : count <= 5 ? 32 : 28;
+  return { posterHeight, titleSize };
+};
+
 export const DailyPostStill: React.FC<DailyPostStillProps> = ({
   eventType,
   palette,
@@ -19,89 +46,69 @@ export const DailyPostStill: React.FC<DailyPostStillProps> = ({
   events,
   backgroundImageUrl,
 }) => {
-  const label = TYPE_LABELS[eventType] ?? eventType.toUpperCase();
   const shown = events.slice(0, 6);
-  const titleSize = fontSizeForCount(shown.length, { few: 40, some: 34, many: 28 });
-  const metaSize = Math.round(titleSize * 0.56);
+  const ambient = firstImage(shown);
+  const subtitle = shown.length > 1 ? `İstanbul • ${shown.length} etkinlik` : 'İstanbul';
 
   return (
     <AbsoluteFill>
-      <StillBackground backgroundImageUrl={backgroundImageUrl} palette={palette} />
+      <StillBackground backgroundImageUrl={backgroundImageUrl} palette={palette} ambientImageUrl={ambient} />
 
-      <AbsoluteFill style={{ padding: '84px 76px 110px 76px', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ alignSelf: 'center', textAlign: 'center' }}>
-          <div
-            style={{
-              fontSize: 28,
-              fontWeight: 800,
-              letterSpacing: 5,
-              color: '#ffffff',
-              fontFamily: FONT_BODY,
-              textShadow: '0 2px 16px rgba(0,0,0,0.45)',
-            }}
-          >
-            {label}
-          </div>
-          <div
-            style={{
-              fontSize: 20,
-              color: 'rgba(255,255,255,0.8)',
-              fontFamily: FONT_BODY,
-              marginTop: 6,
-              textShadow: '0 2px 12px rgba(0,0,0,0.4)',
-            }}
-          >
-            {formatDateTr(date)}
-          </div>
+      <AbsoluteFill
+        style={{ padding: `${PAD}px ${PAD}px ${CTA_ZONE}px ${PAD}px`, display: 'flex', flexDirection: 'column' }}
+      >
+        <div style={{ height: HEADER_H, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <DateBlock date={date} daySize={64} subtitle={subtitle} />
+          <TypeBadge eventType={eventType} size={18} />
         </div>
 
-        <div
-          style={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-            gap: 30,
-            marginTop: 20,
-          }}
-        >
-          {shown.map((e) => (
-            <div key={e.id} style={{ display: 'flex', flexDirection: 'column' }}>
-              <div
-                style={{
-                  fontSize: titleSize,
-                  fontWeight: 900,
-                  color: '#ffffff',
-                  fontFamily: FONT_TITLE,
-                  lineHeight: 1.22,
-                  textShadow: '0 2px 18px rgba(0,0,0,0.5)',
-                  display: '-webkit-box',
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: 'vertical' as const,
-                  overflow: 'hidden',
-                }}
-              >
-                {e.title}
-              </div>
-              {(e.venueName || e.startTime) && (
-                <div
-                  style={{
-                    fontSize: metaSize,
-                    color: 'rgba(255,255,255,0.82)',
-                    fontFamily: FONT_BODY,
-                    marginTop: 4,
-                    textShadow: '0 2px 10px rgba(0,0,0,0.4)',
-                  }}
-                >
-                  {[e.startTime, e.venueName ? '@' + e.venueName : null].filter(Boolean).join(' • ')}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
+        {shown.length === 1 ? (
+          <Hero event={shown[0]} eventType={eventType} />
+        ) : (
+          <List events={shown} eventType={eventType} />
+        )}
       </AbsoluteFill>
 
-      <Footer color="rgba(255,255,255,0.6)" />
+      <SaveCta bottom={CTA_BOTTOM} />
     </AbsoluteFill>
+  );
+};
+
+/** Tek etkinlik: afiş büyük, başlık altında — tipik "bugün tek tiyatro var" günü. */
+const Hero: React.FC<{ event: StillEventData; eventType: string }> = ({ event, eventType }) => (
+  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+    <Poster imageUrl={event.imageUrl} title={event.title} eventType={eventType} width={680} height={680} radius={30} />
+    <div
+      style={{
+        marginTop: 34,
+        fontSize: event.title.length > 30 ? 42 : 50,
+        color: '#f8fafc',
+        fontFamily: FONT_TITLE,
+        lineHeight: 1.15,
+        textAlign: 'center',
+        textShadow: '0 2px 24px rgba(0,0,0,0.7)',
+        maxWidth: 900,
+        display: '-webkit-box',
+        WebkitLineClamp: 2,
+        WebkitBoxOrient: 'vertical' as const,
+        overflow: 'hidden',
+      }}
+    >
+      {event.title}
+    </div>
+    <div style={{ marginTop: 14, maxWidth: 900 }}>
+      <MetaLine startTime={event.startTime} venueName={event.venueName} size={26} />
+    </div>
+  </div>
+);
+
+const List: React.FC<{ events: StillEventData[]; eventType: string }> = ({ events, eventType }) => {
+  const { posterHeight, titleSize } = layoutFor(events.length, 1350);
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: ROW_GAP, paddingTop: 12 }}>
+      {events.map((e) => (
+        <EventRow key={e.id} event={e} eventType={eventType} posterHeight={posterHeight} titleSize={titleSize} />
+      ))}
+    </div>
   );
 };

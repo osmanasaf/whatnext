@@ -376,7 +376,14 @@ gerekmedi. Bulunan tek gerçek kalite kusuru düzeltildi:
   tabloyla çözüyor; başlıklar `-webkit-line-clamp:2` ile taşmaya karşı ayrıca güvenceli). Reel'in
   `EventCard`'ından **doğrudan paylaşılmadı** — still'ler çoklu-etkinlik liste ekranı, Reel tek-etkinlik
   tam ekran kart; farklı layout ihtiyaçları için ayrı, daha hafif bir bileşen seti yazıldı.
-- **Arka plan katmanı iki kademeli** (plandaki üçüncü kademe — "günün öne çıkan etkinliğinin afişi" —
+- **Tasarım revizyonu (2026-09-07):** ilk render "düz gradyan + küçük metin" olarak zayıf bulundu.
+  Yeniden tasarlandı — Reel `EventCard` diliyle: her etkinlik **kendi kare afiş küçük resmiyle** bir cam
+  panel kartı (afiş→etkinlik eşleşmesi belirsizliği böylece kalkar), sol üst büyük gün adı + tarih,
+  sağ üst tür rozeti (Reel renkleri), tek etkinlikte büyük "hero" afiş, alt "KAYDET • whatnext.tr"
+  pill'i. Arka plan artık üç kademeli: AI görseli → listedeki ilk afişin **blur+karartılmış** hâli
+  (yalnızca ışık/doku) → ay paleti. Satır yüksekliği/başlık boyutu etkinlik sayısına göre alana
+  oturur (1/3/6 post, 10'lu story, kapak gerçek render'la doğrulandı).
+- ~~**Arka plan katmanı iki kademeli**~~ (aşağıdaki not tarihsel; üstteki revizyonla değişti) (plandaki üçüncü kademe — "günün öne çıkan etkinliğinin afişi" —
   render sırasında elendi): liste tipi ekranlarda (post/story/kapak, aynı ekranda birden çok farklı
   etkinlik var) TEK bir etkinliğin fotoğrafını arka plan yapmak görsel olarak yanıltıcı olurdu — Reel
   kartından farklı olarak burada "bu foto hangi etkinliğe ait" belirsizliği doğar. Bu yüzden: (1)

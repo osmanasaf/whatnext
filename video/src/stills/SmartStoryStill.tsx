@@ -1,7 +1,7 @@
 import React from 'react';
 import { AbsoluteFill } from 'remotion';
 import { FONT_BODY, FONT_TITLE } from '../fonts';
-import { Footer, Palette, StillBackground, StillEventData, fontSizeForCount, dayNameTr, formatDateTr } from './shared';
+import { EventRow, Palette, SaveCta, StillBackground, StillEventData, dayNameTr, firstImage, formatDateTr } from './shared';
 
 export interface SmartStoryStillProps {
   monthName: string;
@@ -11,115 +11,80 @@ export interface SmartStoryStillProps {
   backgroundImageUrl?: string;
 }
 
+const PAD = 60;
+const HEADER_H = 170;
+/** Instagram story alt yanıt çubuğu güvenli bölgesi (~%12) + CTA. */
+const CTA_ZONE = 340;
+const CTA_BOTTOM = 250;
+const ROW_GAP = 18;
+
+const layoutFor = (count: number, canvasHeight: number) => {
+  const available = canvasHeight - PAD - HEADER_H - 30 - CTA_ZONE;
+  const rowH = Math.floor((available - (count - 1) * ROW_GAP) / count);
+  const posterHeight = Math.min(200, Math.round(rowH * 0.82));
+  const titleSize = count <= 4 ? 36 : count <= 6 ? 32 : count <= 8 ? 28 : 25;
+  return { posterHeight, titleSize };
+};
+
 export const SmartStoryStill: React.FC<SmartStoryStillProps> = ({ palette, date, events, backgroundImageUrl }) => {
   const shown = events.slice(0, 10);
-  const titleSize = fontSizeForCount(shown.length, { few: 34, some: 28, many: 22 });
-  const metaSize = Math.round(titleSize * 0.5);
+  const { posterHeight, titleSize } = layoutFor(Math.max(shown.length, 1), 1920);
 
   return (
     <AbsoluteFill>
-      <StillBackground backgroundImageUrl={backgroundImageUrl} palette={palette} />
+      <StillBackground backgroundImageUrl={backgroundImageUrl} palette={palette} ambientImageUrl={firstImage(shown)} />
 
-      <AbsoluteFill style={{ padding: '110px 68px 170px 68px', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ alignSelf: 'center', textAlign: 'center' }}>
+      <AbsoluteFill
+        style={{ padding: `${PAD}px ${PAD}px ${CTA_ZONE}px ${PAD}px`, display: 'flex', flexDirection: 'column' }}
+      >
+        <div style={{ height: HEADER_H, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
           <div
             style={{
-              fontSize: 30,
-              fontWeight: 900,
-              color: '#ffffff',
-              fontFamily: FONT_TITLE,
-              textShadow: '0 2px 16px rgba(0,0,0,0.45)',
+              fontSize: 22,
+              fontWeight: 700,
+              letterSpacing: 4,
+              color: 'rgba(255,255,255,0.75)',
+              fontFamily: FONT_BODY,
+              textShadow: '0 2px 10px rgba(0,0,0,0.6)',
             }}
           >
-            Bugün İstanbul'da
+            BUGÜN İSTANBUL&apos;DA
           </div>
           <div
             style={{
-              fontSize: 20,
-              color: 'rgba(255,255,255,0.8)',
-              fontFamily: FONT_BODY,
-              marginTop: 6,
-              textShadow: '0 2px 12px rgba(0,0,0,0.4)',
+              marginTop: 10,
+              fontSize: 72,
+              color: '#f8fafc',
+              fontFamily: FONT_TITLE,
+              lineHeight: 1,
+              textShadow: '0 4px 24px rgba(0,0,0,0.6)',
             }}
           >
-            {dayNameTr(date)} • {formatDateTr(date)}
+            {dayNameTr(date)}
+          </div>
+          <div
+            style={{
+              marginTop: 10,
+              fontSize: 28,
+              fontWeight: 600,
+              color: 'rgba(255,255,255,0.85)',
+              fontFamily: FONT_BODY,
+              letterSpacing: 1,
+              textShadow: '0 2px 10px rgba(0,0,0,0.6)',
+            }}
+          >
+            {formatDateTr(date)} • {shown.length} etkinlik
           </div>
         </div>
 
-        <div
-          style={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-            gap: 22,
-            marginTop: 24,
-          }}
-        >
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: ROW_GAP, paddingTop: 14 }}>
           {shown.map((e) => (
-            <div key={e.id} style={{ display: 'flex', flexDirection: 'column' }}>
-              <div
-                style={{
-                  fontSize: titleSize,
-                  fontWeight: 900,
-                  color: '#ffffff',
-                  fontFamily: FONT_TITLE,
-                  lineHeight: 1.2,
-                  textShadow: '0 2px 16px rgba(0,0,0,0.5)',
-                  display: '-webkit-box',
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: 'vertical' as const,
-                  overflow: 'hidden',
-                }}
-              >
-                {e.title}
-              </div>
-              {(e.venueName || e.startTime) && (
-                <div
-                  style={{
-                    fontSize: metaSize,
-                    color: 'rgba(255,255,255,0.82)',
-                    fontFamily: FONT_BODY,
-                    marginTop: 3,
-                    textShadow: '0 2px 8px rgba(0,0,0,0.4)',
-                  }}
-                >
-                  {[e.startTime, e.venueName ? '@' + e.venueName : null].filter(Boolean).join(' • ')}
-                </div>
-              )}
-            </div>
+            <EventRow key={e.id} event={e} posterHeight={posterHeight} titleSize={titleSize} />
           ))}
         </div>
       </AbsoluteFill>
 
-      {/* Instagram story yanıt çubuğu güvenli bölgesi — alttan ~%12 */}
-      <div
-        style={{
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          bottom: 210,
-          display: 'flex',
-          justifyContent: 'center',
-        }}
-      >
-        <div
-          style={{
-            background: 'rgba(20,20,20,0.55)',
-            borderRadius: 100,
-            padding: '12px 24px',
-            fontSize: 22,
-            fontWeight: 700,
-            color: '#ffffff',
-            fontFamily: FONT_BODY,
-            letterSpacing: 1,
-          }}
-        >
-          KAYDET • whatnext.tr
-        </div>
-      </div>
-
-      <Footer color="rgba(255,255,255,0.6)" />
+      <SaveCta bottom={CTA_BOTTOM} size={24} />
     </AbsoluteFill>
   );
 };
