@@ -42,7 +42,7 @@ public class BiletinoScraper extends BaseScraper {
             ScrapeHealthService scrapeHealthService,
             @Value("${whatnext.scrape-health.min-parse-ratio:0.8}") double minParseRatio,
             @Value("${biletino.enrich-venue-from-detail:true}") boolean enrichVenueFromDetail) {
-        super(null, 0, BiletinoScraper.class);
+        super(BiletinoScraper.class);
         this.config = config;
         this.scrapeHealthService = scrapeHealthService;
         this.minParseRatio = minParseRatio;

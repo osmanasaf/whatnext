@@ -40,7 +40,7 @@ public class BiletixScraper extends BaseScraper {
             BiletixScraperConfig config,
             ScrapeHealthService scrapeHealthService,
             @Value("${whatnext.scrape-health.min-parse-ratio:0.8}") double minParseRatio) {
-        super(null, 0, BiletixScraper.class);
+        super(BiletixScraper.class);
         this.solrClient = new BiletixSolrClient(config.getSolrRows(), config.getTimeoutSeconds());
         this.scrapeHealthService = scrapeHealthService;
         this.minParseRatio = minParseRatio;

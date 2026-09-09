@@ -55,7 +55,7 @@ public class BubiletScraper extends BaseScraper {
             @Value("${bubilet.biletler-date.rollover-days:60}") int biletlerSectionRolloverDays,
             @Value("${bubilet.draft.progress-log-every:25}") int draftProgressLogEvery,
             @Value("${bubilet.scrape-health.min-parse-ratio:${whatnext.scrape-health.min-parse-ratio:0.8}}") double minParseRatio) {
-        super(null, 0, BubiletScraper.class);
+        super(BubiletScraper.class);
         this.config = config;
         this.scrapeHealthService = scrapeHealthService;
         this.enrichMissingVenueFromDetail = enrichMissingVenueFromDetail;

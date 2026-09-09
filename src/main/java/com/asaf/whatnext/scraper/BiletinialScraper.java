@@ -45,7 +45,7 @@ public class BiletinialScraper extends BaseScraper {
             ScrapeHealthService scrapeHealthService,
             @Value("${biletinial.scrape.date-range-days:14}") int scrapeDateRangeDays,
             @Value("${whatnext.scrape-health.min-parse-ratio:0.8}") double minParseRatio) {
-        super(null, 0, BiletinialScraper.class);
+        super(BiletinialScraper.class);
         this.timeoutMs = config.getTimeoutMs();
         this.scrapeDateRangeDays = scrapeDateRangeDays;
         this.scrapeHealthService = scrapeHealthService;
