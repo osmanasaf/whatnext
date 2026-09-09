@@ -2,7 +2,6 @@ package com.asaf.whatnext.config;
 
 import com.asaf.whatnext.enums.Bubilet.BubiletCategory;
 import com.asaf.whatnext.enums.Bubilet.BubiletCity;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 
@@ -62,33 +61,12 @@ public class BubiletScraperConfig {
             "a[href*='/Mekan/']"
     };
 
-    private final ScraperConfig scraperConfig;
-    
-    @Value("${bubilet.scroll.attempts:20}")
-    private int maxScrollAttempts;
-    
-    @Value("${bubilet.scroll.wait:2000}")
-    private int scrollWaitMs;
+    /** Liste ve detay sayfaları sunucuda render ediliyor; tarayıcı yerine düz GET (bkz. HtmlFetcher). */
+    @Value("${bubilet.http.timeout.ms:20000}")
+    private int timeoutMs;
 
-    @Autowired
-    public BubiletScraperConfig(ScraperConfig scraperConfig) {
-        this.scraperConfig = scraperConfig;
-    }
-
-    public String getChromePath() {
-        return scraperConfig.getChromePath();
-    }
-
-    public int getWaitTimeoutSeconds() {
-        return scraperConfig.getWaitTimeoutSeconds();
-    }
-
-    public int getMaxScrollAttempts() {
-        return maxScrollAttempts;
-    }
-
-    public int getScrollWaitMs() {
-        return scrollWaitMs;
+    public int getTimeoutMs() {
+        return timeoutMs;
     }
 
     public String buildSearchUrl(BubiletCategory category, BubiletCity city) {

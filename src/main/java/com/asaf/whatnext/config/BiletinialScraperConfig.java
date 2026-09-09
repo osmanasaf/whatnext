@@ -2,7 +2,6 @@ package com.asaf.whatnext.config;
 
 import com.asaf.whatnext.enums.Biletinial.BiletinialCategory;
 import com.asaf.whatnext.enums.Biletinial.BiletinialCity;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 
@@ -25,32 +24,11 @@ public class BiletinialScraperConfig {
     public static final String EVENT_LINK_SELECTOR = "a";
     public static final String EVENT_IMAGE_SELECTOR = "img[src*='merlincdn.net']";
 
-    private final ScraperConfig scraperConfig;
-    
-    @Value("${biletinial.scroll.attempts:15}")
-    private int maxScrollAttempts;
-    
-    @Value("${biletinial.scroll.wait:1500}")
-    private int scrollWaitMs;
+    /** Liste ve detay sayfaları sunucuda render ediliyor; tarayıcı yerine düz GET (bkz. HtmlFetcher). */
+    @Value("${biletinial.http.timeout.ms:20000}")
+    private int timeoutMs;
 
-    @Autowired
-    public BiletinialScraperConfig(ScraperConfig scraperConfig) {
-        this.scraperConfig = scraperConfig;
-    }
-
-    public String getChromePath() {
-        return scraperConfig.getChromePath();
-    }
-
-    public int getWaitTimeoutSeconds() {
-        return scraperConfig.getWaitTimeoutSeconds();
-    }
-
-    public int getMaxScrollAttempts() {
-        return maxScrollAttempts;
-    }
-
-    public int getScrollWaitMs() {
-        return scrollWaitMs;
+    public int getTimeoutMs() {
+        return timeoutMs;
     }
 } 

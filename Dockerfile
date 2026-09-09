@@ -15,30 +15,16 @@ RUN apt-get update -qq && apt-get install -qq -y --no-install-recommends \
 RUN which magick || which convert || ls -l /usr/bin/ | grep -i magick
 RUN convert -version || echo 'convert yok'
 
+# Tarayıcı yalnızca Remotion (video/still render) için: scraper katmanı 2026-09-09'da
+# Selenium'dan çıkarıldı, tam Chrome + chromedriver kaldırıldı (bkz. scraper/web/HtmlFetcher).
 ENV CHROME_FOR_TESTING_VERSION=138.0.7204.49
-RUN wget -q -O /tmp/chrome.zip \
-    "https://storage.googleapis.com/chrome-for-testing-public/${CHROME_FOR_TESTING_VERSION}/linux64/chrome-linux64.zip" && \
-    unzip -qq /tmp/chrome.zip -d /usr/local && \
-    chmod +x /usr/local/chrome-linux64/chrome && \
-    rm /tmp/chrome.zip
-
-RUN wget -q -O /tmp/chromedriver.zip \
-    "https://storage.googleapis.com/chrome-for-testing-public/${CHROME_FOR_TESTING_VERSION}/linux64/chromedriver-linux64.zip" && \
-    unzip -qq /tmp/chromedriver.zip -d /tmp && \
-    mv /tmp/chromedriver-linux64/chromedriver /usr/local/bin/ && \
-    chmod +x /usr/local/bin/chromedriver && \
-    rm -rf /tmp/chromedriver*
-
 RUN wget -q -O /tmp/headless-shell.zip \
     "https://storage.googleapis.com/chrome-for-testing-public/${CHROME_FOR_TESTING_VERSION}/linux64/chrome-headless-shell-linux64.zip" && \
     unzip -qq /tmp/headless-shell.zip -d /usr/local && \
     chmod +x /usr/local/chrome-headless-shell-linux64/chrome-headless-shell && \
     rm /tmp/headless-shell.zip
 
-RUN ls -la /usr/local/chrome-linux64/ && ls -la /usr/local/bin/chromedriver
-ENV CHROME_BIN=/usr/local/chrome-linux64/chrome
-ENV CHROMEDRIVER_PATH=/usr/local/bin/chromedriver
-ENV WEBDRIVER_CHROME_DRIVER=/usr/local/bin/chromedriver
+RUN ls -la /usr/local/chrome-headless-shell-linux64/
 ENV CHROME_HEADLESS_SHELL=/usr/local/chrome-headless-shell-linux64/chrome-headless-shell
 
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \

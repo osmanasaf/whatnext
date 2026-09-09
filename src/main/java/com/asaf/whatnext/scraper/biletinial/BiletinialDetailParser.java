@@ -2,12 +2,9 @@ package com.asaf.whatnext.scraper.biletinial;
 
 import com.asaf.whatnext.scraper.ScrapedEventData;
 import com.asaf.whatnext.utils.Texts;
-import com.asaf.whatnext.utils.WebScraperUtils;
-import org.openqa.selenium.By;
-import org.openqa.selenium.WebDriver;
-import org.openqa.selenium.WebElement;
-import org.openqa.selenium.support.ui.ExpectedConditions;
-import org.openqa.selenium.support.ui.WebDriverWait;
+import com.asaf.whatnext.scraper.web.HtmlFetcher;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -39,35 +36,34 @@ public class BiletinialDetailParser {
     public record ParseResult(List<ScrapedEventData> events, String venueTextFromPage) {
     }
 
-    public ParseResult loadSessionsAndVenue(WebDriver driver, WebDriverWait wait, BiletinialCardDraft d) {
+    public ParseResult loadSessionsAndVenue(BiletinialCardDraft d, int timeoutMs) {
         List<ScrapedEventData> out = new ArrayList<>();
         String venueTextFromPage = "";
         try {
-            WebScraperUtils.navigateToUrl(driver, wait, d.ticketUrl());
-            WebScraperUtils.handleCookieConsent(driver);
-            WebScraperUtils.handleOverlays(driver);
+            Document doc = HtmlFetcher.getOrNull(d.ticketUrl(), timeoutMs);
+            if (doc == null || doc.getElementById(DETAIL_TICKET_SECTION_ID) == null) {
+                return new ParseResult(out, venueTextFromPage);
+            }
 
-            wait.until(ExpectedConditions.presenceOfElementLocated(By.id(DETAIL_TICKET_SECTION_ID)));
-
-            venueTextFromPage = readVenueTextFromOpenDetailPage(driver);
+            venueTextFromPage = readVenueText(doc);
             String baseVenue = Texts.firstNonBlank(d.venueName(), venueTextFromPage);
 
-            List<WebElement> cityBlocks = driver.findElements(By.cssSelector(DETAIL_CITY_BLOCK));
+            List<Element> cityBlocks = doc.select(DETAIL_CITY_BLOCK);
             Set<String> seenSessionKeys = new LinkedHashSet<>();
 
-            for (WebElement block : cityBlocks) {
-                String dataSehir = block.getAttribute("data-sehir");
+            for (Element block : cityBlocks) {
+                String dataSehir = block.attr("data-sehir");
                 if (!regionMatchesListSlug(dataSehir, d.cityValue())) {
                     continue;
                 }
 
-                List<WebElement> sessions = block.findElements(By.cssSelector(DETAIL_SESSION_BLOCK));
-                for (WebElement session : sessions) {
-                    List<WebElement> times = session.findElements(By.cssSelector(DETAIL_START_DATE));
+                List<Element> sessions = block.select(DETAIL_SESSION_BLOCK);
+                for (Element session : sessions) {
+                    List<Element> times = session.select(DETAIL_START_DATE);
                     if (times.isEmpty()) {
                         continue;
                     }
-                    String content = times.get(0).getAttribute("content");
+                    String content = times.get(0).attr("content");
                     if (content == null || content.isBlank()) {
                         continue;
                     }
@@ -83,16 +79,12 @@ public class BiletinialDetailParser {
                     }
 
                     String venue = baseVenue;
-                    try {
-                        WebElement addr = session.findElement(By.cssSelector(DETAIL_VENUE_ADDRESS));
-                        String v = addr.getText();
-                        if (v != null && !v.trim().isEmpty()) {
-                            venue = v.trim();
-                        }
-                    } catch (Exception ignored) {
+                    Element addr = session.selectFirst(DETAIL_VENUE_ADDRESS);
+                    if (addr != null && !addr.text().trim().isEmpty()) {
+                        venue = addr.text().trim();
                     }
 
-                    String raw = times.get(0).getText();
+                    String raw = times.get(0).text();
                     if (raw == null || raw.isBlank()) {
                         raw = ldt.toString();
                     }
@@ -112,15 +104,11 @@ public class BiletinialDetailParser {
         return new ParseResult(out, venueTextFromPage);
     }
 
-    private static String readVenueTextFromOpenDetailPage(WebDriver driver) {
-        try {
-            for (WebElement el : driver.findElements(By.cssSelector(DETAIL_VENUE_ADDRESS))) {
-                String t = el.getText();
-                if (t != null && !t.isBlank()) {
-                    return t.trim();
-                }
+    private static String readVenueText(Document doc) {
+        for (Element el : doc.select(DETAIL_VENUE_ADDRESS)) {
+            if (!el.text().isBlank()) {
+                return el.text().trim();
             }
-        } catch (Exception ignored) {
         }
         return "";
     }

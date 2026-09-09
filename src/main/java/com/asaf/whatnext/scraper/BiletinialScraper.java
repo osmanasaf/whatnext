@@ -10,9 +10,8 @@ import com.asaf.whatnext.scraper.biletinial.BiletinialDetailParser;
 import com.asaf.whatnext.scraper.biletinial.BiletinialEventMapper;
 import com.asaf.whatnext.services.ScrapeHealthService;
 import com.asaf.whatnext.utils.Texts;
-import com.asaf.whatnext.utils.WebScraperUtils;
-import org.openqa.selenium.By;
-import org.openqa.selenium.WebElement;
+import com.asaf.whatnext.scraper.web.HtmlFetcher;
+import org.jsoup.nodes.Element;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.annotation.Order;
@@ -35,6 +34,7 @@ public class BiletinialScraper extends BaseScraper {
     private static final String LOCATION_SELECTOR = "address";
     private static final String IMAGE_SELECTOR = "img[src*='merlincdn.net']";
 
+    private final int timeoutMs;
     private final int scrapeDateRangeDays;
     private final ScrapeHealthService scrapeHealthService;
     private final double minParseRatio;
@@ -45,7 +45,8 @@ public class BiletinialScraper extends BaseScraper {
             ScrapeHealthService scrapeHealthService,
             @Value("${biletinial.scrape.date-range-days:14}") int scrapeDateRangeDays,
             @Value("${whatnext.scrape-health.min-parse-ratio:0.8}") double minParseRatio) {
-        super(config.getChromePath(), config.getWaitTimeoutSeconds(), BiletinialScraper.class);
+        super(BiletinialScraper.class);
+        this.timeoutMs = config.getTimeoutMs();
         this.scrapeDateRangeDays = scrapeDateRangeDays;
         this.scrapeHealthService = scrapeHealthService;
         this.minParseRatio = minParseRatio;
@@ -58,26 +59,18 @@ public class BiletinialScraper extends BaseScraper {
         BiletinialCity selectedCity = parseCity(city);
         ScrapeRunStats stats = new ScrapeRunStats(getSourceName());
 
-        List<CategoryScraper> scrapers = new ArrayList<>();
+        // İstanbul sitede iki bölge slug'ına ayrılmış; diğer şehirler tek slug.
+        List<String> citySlugs = selectedCity == BiletinialCity.ISTANBUL
+                ? List.of("istanbul-anadolu", "istanbul-avrupa")
+                : List.of(selectedCity.getValue());
 
-        if (selectedCity == BiletinialCity.ISTANBUL) {
-            scrapers.addAll(Arrays.asList(
-                (driver, wait) -> scrapeCategory(BiletinialCategory.THEATRE, "istanbul-anadolu", stats),
-                (driver, wait) -> scrapeCategory(BiletinialCategory.MUSIC, "istanbul-anadolu", stats),
-                (driver, wait) -> scrapeCategory(BiletinialCategory.STANDUP, "istanbul-anadolu", stats),
-                (driver, wait) -> scrapeCategory(BiletinialCategory.THEATRE, "istanbul-avrupa", stats),
-                (driver, wait) -> scrapeCategory(BiletinialCategory.MUSIC, "istanbul-avrupa", stats),
-                (driver, wait) -> scrapeCategory(BiletinialCategory.STANDUP, "istanbul-avrupa", stats)
-            ));
-        } else {
-            scrapers.addAll(Arrays.asList(
-                (driver, wait) -> scrapeCategory(BiletinialCategory.THEATRE, selectedCity.getValue(), stats),
-                (driver, wait) -> scrapeCategory(BiletinialCategory.MUSIC, selectedCity.getValue(), stats),
-                (driver, wait) -> scrapeCategory(BiletinialCategory.STANDUP, selectedCity.getValue(), stats)
-            ));
+        List<ScrapedEventData> allData = new ArrayList<>();
+        for (String citySlug : citySlugs) {
+            for (BiletinialCategory category : Arrays.asList(
+                    BiletinialCategory.THEATRE, BiletinialCategory.MUSIC, BiletinialCategory.STANDUP)) {
+                allData.addAll(scrapeCategory(category, citySlug, stats));
+            }
         }
-
-        List<ScrapedEventData> allData = scrapeForCategories(scrapers);
         logger.info("Scraped " + allData.size() + " events from Biletinial");
 
         long validCount = allData.stream().filter(ScrapedEventData::isValid).count();
@@ -99,14 +92,10 @@ public class BiletinialScraper extends BaseScraper {
             String searchUrl = String.format(SEARCH_URL_TEMPLATE, BASE_URL, category.getValue(), cityValue, dateStr, dateStr);
 
             try {
-                WebScraperUtils.navigateToUrl(driver, wait, searchUrl);
-                WebScraperUtils.handleCookieConsent(driver);
-                WebScraperUtils.handleOverlays(driver);
-
-                List<WebElement> cards = driver.findElements(By.cssSelector(EVENT_CARD_SELECTOR));
+                List<Element> cards = HtmlFetcher.get(searchUrl, timeoutMs).select(EVENT_CARD_SELECTOR);
 
                 BiletinialDetailParser detailParser = new BiletinialDetailParser();
-                for (WebElement card : cards) {
+                for (Element card : cards) {
                     stats.recordCardSeen();
                     try {
                         BiletinialCardDraft draft = extractCardDraft(card, category, cityValue, date);
@@ -118,7 +107,7 @@ public class BiletinialScraper extends BaseScraper {
                             stats.recordMissingVenue(draft.title());
                         }
                         BiletinialDetailParser.ParseResult detailResult =
-                                detailParser.loadSessionsAndVenue(driver, wait, draft);
+                                detailParser.loadSessionsAndVenue(draft, timeoutMs);
                         if (!detailResult.events().isEmpty()) {
                             events.addAll(detailResult.events());
                             stats.recordParsed(draft.title());
@@ -139,8 +128,6 @@ public class BiletinialScraper extends BaseScraper {
                     }
                 }
 
-                checkAndRestartBrowserIfNeeded();
-
             } catch (Exception e) {
                 logger.warn("Error scraping date: " + date, e);
             }
@@ -149,38 +136,36 @@ public class BiletinialScraper extends BaseScraper {
         return events;
     }
 
-    private static String safeSnippet(WebElement card) {
-        try {
-            String html = card.getAttribute("outerHTML");
-            return html == null ? "" : html.substring(0, Math.min(120, html.length()));
-        } catch (Exception e) {
-            return "";
-        }
+    private static String safeSnippet(Element card) {
+        String html = card.outerHtml();
+        return html.substring(0, Math.min(120, html.length()));
     }
 
     private BiletinialCardDraft extractCardDraft(
-            WebElement card, BiletinialCategory category, String cityValue, LocalDate listDate) {
+            Element card, BiletinialCategory category, String cityValue, LocalDate listDate) {
         try {
-            String title = card.findElement(By.cssSelector(TITLE_SELECTOR)).getText();
-            WebElement addressElement = card.findElement(By.cssSelector(LOCATION_SELECTOR));
+            Element titleAnchor = card.selectFirst(TITLE_SELECTOR);
+            Element addressElement = card.selectFirst(LOCATION_SELECTOR);
+            if (titleAnchor == null || addressElement == null) {
+                return null;
+            }
+            String title = titleAnchor.text();
 
-            String city = addressElement.findElement(By.cssSelector("b")).getText();
+            Element cityElement = addressElement.selectFirst("b");
+            String city = cityElement == null ? "" : cityElement.text();
             if (city != null && city.toLowerCase().contains("stanbul")) {
                 city = "istanbul";
             }
             String venueName = BiletinialAddressVenueParser.extractVenueNameFromAddressHtml(
-                    addressElement.getAttribute("outerHTML"));
-            String href = card.findElement(By.cssSelector(TITLE_SELECTOR)).getAttribute("href");
+                    addressElement.outerHtml());
+            String href = titleAnchor.attr("href");
             if (href == null || href.isEmpty()) {
                 return null;
             }
             String ticketUrl = href.startsWith("http") ? href : BASE_URL + href;
 
-            String imageUrl = null;
-            try {
-                imageUrl = card.findElement(By.cssSelector(IMAGE_SELECTOR)).getAttribute("src");
-            } catch (Exception ignored) {
-            }
+            Element image = card.selectFirst(IMAGE_SELECTOR);
+            String imageUrl = image == null ? null : image.attr("src");
 
             if (title.isEmpty()) {
                 return null;
