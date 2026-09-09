@@ -1,5 +1,6 @@
 package com.asaf.whatnext.scraper.biletino;
 
+import com.asaf.whatnext.scraper.web.HtmlFetcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,7 +31,7 @@ public final class BiletinoVenueEnricher {
             return null;
         }
         try {
-            return extractVenueFromTitle(BiletinoHttp.get(ticketUrl, TIMEOUT_MS).title());
+            return extractVenueFromTitle(HtmlFetcher.get(ticketUrl, TIMEOUT_MS).title());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return null;

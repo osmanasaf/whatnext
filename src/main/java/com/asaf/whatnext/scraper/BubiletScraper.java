@@ -1,6 +1,7 @@
 package com.asaf.whatnext.scraper;
 
 import com.asaf.whatnext.config.BubiletScraperConfig;
+import com.asaf.whatnext.scraper.web.HtmlFetcher;
 import com.asaf.whatnext.enums.AudienceType;
 import com.asaf.whatnext.enums.Bubilet.BubiletCategory;
 import com.asaf.whatnext.enums.Bubilet.BubiletCity;
@@ -14,9 +15,7 @@ import com.asaf.whatnext.scraper.bubilet.BubiletListCardParser;
 import com.asaf.whatnext.scraper.common.DateScrapeStrategy;
 import com.asaf.whatnext.services.ScrapeHealthService;
 import com.asaf.whatnext.utils.Texts;
-import com.asaf.whatnext.utils.WebScraperUtils;
-import org.openqa.selenium.By;
-import org.openqa.selenium.WebElement;
+import org.jsoup.nodes.Element;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.annotation.Order;
@@ -56,7 +55,7 @@ public class BubiletScraper extends BaseScraper {
             @Value("${bubilet.biletler-date.rollover-days:60}") int biletlerSectionRolloverDays,
             @Value("${bubilet.draft.progress-log-every:25}") int draftProgressLogEvery,
             @Value("${bubilet.scrape-health.min-parse-ratio:${whatnext.scrape-health.min-parse-ratio:0.8}}") double minParseRatio) {
-        super(config.getChromePath(), config.getWaitTimeoutSeconds(), BubiletScraper.class);
+        super(null, 0, BubiletScraper.class);
         this.config = config;
         this.scrapeHealthService = scrapeHealthService;
         this.enrichMissingVenueFromDetail = enrichMissingVenueFromDetail;
@@ -74,14 +73,14 @@ public class BubiletScraper extends BaseScraper {
         BubiletCity selectedCity = parseCity(city, stats);
 
         Map<BubiletCategory, List<ScrapedEventData>> byCategory = new EnumMap<>(BubiletCategory.class);
-        List<CategoryScraper> scrapers = Arrays.asList(
-            (driver, wait) -> capture(byCategory, BubiletCategory.KIDS, scrapeCategory(BubiletCategory.KIDS, selectedCity, stats)),
-            (driver, wait) -> capture(byCategory, BubiletCategory.THEATRE, scrapeCategory(BubiletCategory.THEATRE, selectedCity, stats)),
-            (driver, wait) -> capture(byCategory, BubiletCategory.MUSIC, scrapeCategory(BubiletCategory.MUSIC, selectedCity, stats)),
-            (driver, wait) -> capture(byCategory, BubiletCategory.STANDUP, scrapeCategory(BubiletCategory.STANDUP, selectedCity, stats))
-        );
+        List<ScrapedEventData> allData = new ArrayList<>();
+        for (BubiletCategory category : Arrays.asList(
+                BubiletCategory.KIDS, BubiletCategory.THEATRE, BubiletCategory.MUSIC, BubiletCategory.STANDUP)) {
+            List<ScrapedEventData> categoryData = scrapeCategory(category, selectedCity, stats);
+            byCategory.put(category, categoryData);
+            allData.addAll(categoryData);
+        }
 
-        List<ScrapedEventData> allData = scrapeForCategories(scrapers);
         markChildrenAudience(byCategory, allData);
         allData = dedupeByPathAndDate(allData);
         logger.info("Scraped " + allData.size() + " events from Bubilet (yol+tarih tekilleştirilmiş)");
@@ -100,20 +99,11 @@ public class BubiletScraper extends BaseScraper {
         try {
             String searchUrl = config.buildSearchUrl(category, city);
             logger.info("Bubilet kategori " + category + ": liste sayfası yükleniyor…");
-            WebScraperUtils.navigateToUrl(driver, wait, searchUrl);
-            WebScraperUtils.handleCookieConsent(driver);
-            WebScraperUtils.handleOverlays(driver);
 
-            long t0 = System.currentTimeMillis();
-            WebScraperUtils.scrollToLoadAll(
-                driver,
-                config.getMaxScrollAttempts(),
-                config.getScrollWaitMs(),
-                BubiletScraperConfig.EVENT_CARD_SELECTOR
-            );
-            logger.info("Bubilet kategori " + category + ": kaydırma bitti, süre " + (System.currentTimeMillis() - t0) + " ms");
-
-            List<WebElement> cards = driver.findElements(By.cssSelector(BubiletScraperConfig.EVENT_CARD_SELECTOR));
+            // Liste sunucuda render ediliyor: kartların tamamı tek GET yanıtında geliyor
+            // (2026-09-09 canlı doğrulama: tiyatro/İstanbul 48/48), kaydırmaya gerek yok.
+            List<Element> cards = HtmlFetcher.get(searchUrl, config.getTimeoutMs())
+                    .select(BubiletScraperConfig.EVENT_CARD_SELECTOR);
             if (cards.isEmpty()) {
                 logger.warn("Bubilet: kart bulunamadı (selector veya sayfa yapısı değişmiş olabilir): " + searchUrl);
             } else {
@@ -121,7 +111,7 @@ public class BubiletScraper extends BaseScraper {
             }
 
             List<BubiletCardDraft> drafts = new ArrayList<>();
-            for (WebElement card : cards) {
+            for (Element card : cards) {
                 stats.recordCardSeen();
                 try {
                     BubiletCardDraft d = extractCardDraft(card, city.getValue());
@@ -166,7 +156,7 @@ public class BubiletScraper extends BaseScraper {
                     events.addAll(expandDraftToEvents(
                             d,
                             category,
-                            new BubiletDetailParser(driver, wait, biletlerSectionRolloverDays)));
+                            new BubiletDetailParser(biletlerSectionRolloverDays, config.getTimeoutMs())));
                 } catch (Exception e) {
                     logger.debug("Error expanding card: " + d.title(), e);
                 }
@@ -208,20 +198,16 @@ public class BubiletScraper extends BaseScraper {
         return (d.getCity() != null ? d.getCity() : "") + "|" + canonicalEtkinlikPath(d.getTicketUrl());
     }
 
-    private static String safeSnippet(WebElement card) {
-        try {
-            String html = card.getAttribute("outerHTML");
-            return html == null ? "" : html.substring(0, Math.min(120, html.length()));
-        } catch (Exception e) {
-            return "";
-        }
+    private static String safeSnippet(Element card) {
+        String html = card.outerHtml();
+        return html.substring(0, Math.min(120, html.length()));
     }
 
     /**
      * Liste kartından ham veri (WebElement stale olmadan önce toplanır).
      */
-    private BubiletCardDraft extractCardDraft(WebElement card, String city) {
-        var parsed = cardParser.parse(card.getAttribute("outerHTML"));
+    private BubiletCardDraft extractCardDraft(Element card, String city) {
+        var parsed = cardParser.parse(card.outerHtml());
         if (parsed.isEmpty()) {
             return null;
         }

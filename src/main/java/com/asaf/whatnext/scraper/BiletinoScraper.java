@@ -5,7 +5,7 @@ import com.asaf.whatnext.enums.Biletino.BiletinoCategory;
 import com.asaf.whatnext.enums.Biletino.BiletinoCity;
 import com.asaf.whatnext.enums.EventSourceType;
 import com.asaf.whatnext.scraper.biletino.BiletinoCardParser;
-import com.asaf.whatnext.scraper.biletino.BiletinoHttp;
+import com.asaf.whatnext.scraper.web.HtmlFetcher;
 import com.asaf.whatnext.scraper.biletino.BiletinoVenueEnricher;
 import com.asaf.whatnext.services.ScrapeHealthService;
 import org.jsoup.nodes.Element;
@@ -76,7 +76,7 @@ public class BiletinoScraper extends BaseScraper {
 
         List<Element> cards;
         try {
-            cards = BiletinoHttp.get(config.buildSearchUrl(category, city), config.getTimeoutMs())
+            cards = HtmlFetcher.get(config.buildSearchUrl(category, city), config.getTimeoutMs())
                     .select(EVENT_CARD_SELECTOR);
         } catch (Exception e) {
             logger.error("Biletino arama isteği başarısız: " + category.name(), e);

@@ -26,10 +26,6 @@ public class BiletinoScraperConfig {
     public static final String EVENT_LINK_SELECTOR = "a.event-url";
     public static final String EVENT_IMAGE_SELECTOR = "img";
 
-    /** Arama sonucu sunucuda render ediliyor; tarayıcı gerekmez, düz GET yeterli. */
-    public static final String USER_AGENT =
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36";
-
     /**
      * Sayfa boyutu. {@code count=0} sitenin varsayılan ilk sayfasını (9 kart) döndürür — canlı
      * doğrulamada (2026-09-09) İstanbul/müzik için 20 etkinliğin yalnız 9'u geliyordu. Tek istekte
