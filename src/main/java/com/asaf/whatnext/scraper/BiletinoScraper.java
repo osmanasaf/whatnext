@@ -5,11 +5,10 @@ import com.asaf.whatnext.enums.Biletino.BiletinoCategory;
 import com.asaf.whatnext.enums.Biletino.BiletinoCity;
 import com.asaf.whatnext.enums.EventSourceType;
 import com.asaf.whatnext.scraper.biletino.BiletinoCardParser;
+import com.asaf.whatnext.scraper.biletino.BiletinoHttp;
 import com.asaf.whatnext.scraper.biletino.BiletinoVenueEnricher;
 import com.asaf.whatnext.services.ScrapeHealthService;
-import com.asaf.whatnext.utils.WebScraperUtils;
-import org.openqa.selenium.By;
-import org.openqa.selenium.WebElement;
+import org.jsoup.nodes.Element;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.annotation.Order;
@@ -21,6 +20,12 @@ import java.util.List;
 
 import static com.asaf.whatnext.config.BiletinoScraperConfig.*;
 
+/**
+ * Biletino arama sonucu sunucuda render ediliyor, bu yüzden tarayıcı yerine düz HTTP GET + Jsoup
+ * kullanılır. {@code categoryid}/{@code city} parametreleri filtreyi doğru uyguluyor (2026-09-09
+ * canlı doğrulama), ama şehir yine de kart üzerindeki değerle denetlenir: filtre sessizce bozulursa
+ * etkinlikler yanlış şehirle kaydedilmek yerine {@code unknownCity} olarak sağlık özetine düşer.
+ */
 @Service
 @Order(30)
 public class BiletinoScraper extends BaseScraper {
@@ -37,7 +42,7 @@ public class BiletinoScraper extends BaseScraper {
             ScrapeHealthService scrapeHealthService,
             @Value("${whatnext.scrape-health.min-parse-ratio:0.8}") double minParseRatio,
             @Value("${biletino.enrich-venue-from-detail:true}") boolean enrichVenueFromDetail) {
-        super(config.getChromePath(), config.getWaitTimeoutSeconds(), BiletinoScraper.class);
+        super(null, 0, BiletinoScraper.class);
         this.config = config;
         this.scrapeHealthService = scrapeHealthService;
         this.minParseRatio = minParseRatio;
@@ -51,15 +56,13 @@ public class BiletinoScraper extends BaseScraper {
         BiletinoCity selectedCity = parseCity(city);
         ScrapeRunStats stats = new ScrapeRunStats(getSourceName());
 
-        List<CategoryScraper> scrapers = Arrays.asList(
-            (driver, wait) -> scrapeCategory(BiletinoCategory.MUSIC, selectedCity, stats),
-            (driver, wait) -> scrapeCategory(BiletinoCategory.THEATRE, selectedCity, stats),
-            (driver, wait) -> scrapeCategory(BiletinoCategory.COMEDY, selectedCity, stats)
-        );
+        List<ScrapedEventData> allData = new ArrayList<>();
+        for (BiletinoCategory category : Arrays.asList(
+                BiletinoCategory.MUSIC, BiletinoCategory.THEATRE, BiletinoCategory.COMEDY)) {
+            allData.addAll(scrapeCategory(category, selectedCity, stats));
+        }
 
-        List<ScrapedEventData> allData = scrapeForCategories(scrapers);
         logger.info("Scraped " + allData.size() + " events from Biletino");
-
         long validCount = allData.stream().filter(ScrapedEventData::isValid).count();
         logger.info("Valid events: " + validCount + "/" + allData.size());
 
@@ -71,46 +74,42 @@ public class BiletinoScraper extends BaseScraper {
     private List<ScrapedEventData> scrapeCategory(BiletinoCategory category, BiletinoCity city, ScrapeRunStats stats) {
         List<ScrapedEventData> events = new ArrayList<>();
 
+        List<Element> cards;
         try {
-            String searchUrl = config.buildSearchUrl(category, city);
-            WebScraperUtils.navigateToUrl(driver, wait, searchUrl);
-            WebScraperUtils.handleCookieConsent(driver);
-            WebScraperUtils.handleOverlays(driver);
-
-            WebScraperUtils.scrollToLoadAll(
-                driver,
-                config.getMaxScrollAttempts(),
-                config.getScrollWaitMs(),
-                EVENT_CARD_SELECTOR
-            );
-
-            List<WebElement> cards = driver.findElements(By.cssSelector(EVENT_CARD_SELECTOR));
-
-            for (WebElement card : cards) {
-                stats.recordCardSeen();
-                try {
-                    ScrapedEventData data = cardParser.parseCard(card, category, city);
-                    if (data != null && data.isValid()) {
-                        enrichVenueIfNeeded(data);
-                        events.add(data);
-                        stats.recordParsed(data.getTitle());
-                        if (data.getVenueName() == null || data.getVenueName().isBlank()) {
-                            stats.recordMissingVenue(data.getTitle());
-                        }
-                        if (data.getStartDate() == null) {
-                            stats.recordMissingDate(data.getTitle());
-                        }
-                    } else {
-                        stats.recordParseFailed(safeSnippet(card));
-                    }
-                } catch (Exception e) {
-                    stats.recordParseFailed(safeSnippet(card));
-                    logger.debug("Error extracting card", e);
-                }
-            }
-
+            cards = BiletinoHttp.get(config.buildSearchUrl(category, city), config.getTimeoutMs())
+                    .select(EVENT_CARD_SELECTOR);
         } catch (Exception e) {
-            logger.error("Error scraping category: " + category.name(), e);
+            logger.error("Biletino arama isteği başarısız: " + category.name(), e);
+            return events;
+        }
+
+        for (Element card : cards) {
+            stats.recordCardSeen();
+            try {
+                ScrapedEventData data = cardParser.parseCard(card, category, city);
+                if (data == null || !data.isValid()) {
+                    stats.recordParseFailed(safeSnippet(card));
+                    continue;
+                }
+                // Şehir kartın kendi "İlçe, Şehir" alanından gelir; site filtresi bozulursa
+                // etkinlik yanlış şehirle kaydedilmesin diye burada elenir.
+                if (!city.getValue().equals(data.getCity())) {
+                    stats.recordUnknownCity();
+                    continue;
+                }
+                enrichVenueIfNeeded(data);
+                events.add(data);
+                stats.recordParsed(data.getTitle());
+                if (data.getVenueName() == null || data.getVenueName().isBlank()) {
+                    stats.recordMissingVenue(data.getTitle());
+                }
+                if (data.getStartDate() == null) {
+                    stats.recordMissingDate(data.getTitle());
+                }
+            } catch (Exception e) {
+                stats.recordParseFailed(safeSnippet(card));
+                logger.debug("Error extracting card", e);
+            }
         }
 
         return events;
@@ -134,13 +133,9 @@ public class BiletinoScraper extends BaseScraper {
         }
     }
 
-    private static String safeSnippet(WebElement card) {
-        try {
-            String html = card.getAttribute("outerHTML");
-            return html == null ? "" : html.substring(0, Math.min(120, html.length()));
-        } catch (Exception e) {
-            return "";
-        }
+    private static String safeSnippet(Element card) {
+        String html = card.outerHtml();
+        return html.substring(0, Math.min(120, html.length()));
     }
 
     private BiletinoCity parseCity(String city) {

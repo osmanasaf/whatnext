@@ -5,9 +5,7 @@ import com.asaf.whatnext.enums.Biletino.BiletinoCity;
 import com.asaf.whatnext.enums.EventSourceType;
 import com.asaf.whatnext.enums.EventType;
 import com.asaf.whatnext.scraper.ScrapedEventData;
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
-import org.openqa.selenium.WebElement;
+import org.jsoup.nodes.Element;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -26,27 +24,20 @@ public class BiletinoCardParser {
 
     private static final Logger LOG = LoggerFactory.getLogger(BiletinoCardParser.class);
 
-    public ScrapedEventData parseCard(WebElement card, BiletinoCategory category, BiletinoCity searchCity) {
-        String cardHtml = card.getAttribute("outerHTML");
-        Document doc = Jsoup.parse(cardHtml);
-
-        String title = doc.select(EVENT_TITLE_SELECTOR).text();
-        String dateStr = doc.select(EVENT_DATE_SELECTOR).text();
-        String location = doc.select(EVENT_LOCATION_SELECTOR).text();
-        String ticketUrl = BASE_URL + doc.select(EVENT_LINK_SELECTOR).attr("href");
-        String imageUrl = doc.select(".event-image img").attr("src");
+    public ScrapedEventData parseCard(Element card, BiletinoCategory category, BiletinoCity searchCity) {
+        String title = card.select(EVENT_TITLE_SELECTOR).text();
+        String dateStr = card.select(EVENT_DATE_SELECTOR).text();
+        String location = card.select(EVENT_LOCATION_SELECTOR).text();
+        String ticketUrl = BASE_URL + card.select(EVENT_LINK_SELECTOR).attr("href");
+        String imageUrl = card.select(".event-image img").attr("src");
 
         if (title.isEmpty() || ticketUrl.equals(BASE_URL)) {
             return null;
         }
 
         BiletinoLocationParser.VenueCity loc = BiletinoLocationParser.parse(location, searchCity);
-        String venueName = loc.venueName();
-        String cityName = loc.city();
 
-        EventType eventType = categoryToEventType(category);
         LocalDate parsedDate = parseEnglishMonthDate(dateStr);
-
         if (parsedDate == null) {
             LOG.debug("Failed to parse date: {} for event: {}", dateStr, title);
         }
@@ -55,12 +46,12 @@ public class BiletinoCardParser {
                 .title(title)
                 .rawDateString(dateStr)
                 .startDate(parsedDate)
-                .venueName(venueName)
+                .venueName(loc.venueName())
                 .location(location)
-                .city(ScrapedEventData.normalizeCity(cityName))
+                .city(ScrapedEventData.normalizeCity(loc.city()))
                 .ticketUrl(ticketUrl)
                 .imageUrl(imageUrl)
-                .eventType(eventType)
+                .eventType(categoryToEventType(category))
                 .source(EventSourceType.BILETINO)
                 .build();
     }
@@ -72,7 +63,7 @@ public class BiletinoCardParser {
 
         try {
             String startPart = dateStr.contains("-") ? dateStr.split("-")[0].trim() : dateStr.trim();
-            String[] tokens = startPart.split("\\s+");
+            String[] tokens = startPart.split("\s+");
 
             if (tokens.length >= 2) {
                 String day = tokens[0];
