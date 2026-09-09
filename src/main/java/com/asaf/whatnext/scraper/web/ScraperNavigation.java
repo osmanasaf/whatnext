@@ -4,7 +4,6 @@ import org.openqa.selenium.By;
 import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
-import org.openqa.selenium.interactions.Actions;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
 import org.slf4j.Logger;
@@ -144,35 +143,6 @@ public final class ScraperNavigation {
             }
         }
 
-        return previousCount;
-    }
-
-    /**
-     * Gerçek tekerlek olayıyla (CDP mouseWheel) sayfa sonuna kaydırır — {@code window.scrollTo}
-     * bazı Angular sonsuz-kaydırma listelerini (Biletix) tetiklemez. Kart sayısı iki denemede
-     * artmazsa durur.
-     */
-    public static int wheelScrollToLoadAll(WebDriver driver, int maxScrolls, int waitMs, String contentSelector) {
-        int previousCount = driver.findElements(By.cssSelector(contentSelector)).size();
-        int sameCountAttempts = 0;
-        for (int i = 0; i < maxScrolls; i++) {
-            try {
-                new Actions(driver).scrollByAmount(0, 5000).perform();
-                Thread.sleep(waitMs);
-                int currentCount = driver.findElements(By.cssSelector(contentSelector)).size();
-                if (currentCount == previousCount) {
-                    if (++sameCountAttempts >= 2) {
-                        break;
-                    }
-                } else {
-                    sameCountAttempts = 0;
-                    previousCount = currentCount;
-                }
-            } catch (Exception e) {
-                LOG.debug("Wheel scroll failed", e);
-                break;
-            }
-        }
         return previousCount;
     }
 
