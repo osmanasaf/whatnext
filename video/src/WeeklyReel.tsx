@@ -2,7 +2,7 @@ import React from 'react';
 import { AbsoluteFill, Img, Sequence, interpolate, useCurrentFrame, useVideoConfig, spring, Audio, staticFile } from 'remotion';
 import { EventCard, EventData } from './EventCard';
 import { ReelBackground } from './ReelBackground';
-import { FONT_BODY, FONT_TITLE } from './fonts';
+import { FONT_BODY, FONT_TITLE, useBrandFonts } from './fonts';
 import { HOOK_FRAMES, OUTRO_FRAMES, computeCardRanges } from './timing';
 
 export interface WeeklyReelProps {
@@ -159,6 +159,7 @@ const OutroScreen: React.FC = () => {
 };
 
 export const WeeklyReel: React.FC<WeeklyReelProps> = ({ events, weekRange, backgroundVariant = 0 }) => {
+  useBrandFonts();
   const { durationInFrames } = useVideoConfig();
   const cardRanges = computeCardRanges(events);
   const outroFrom = HOOK_FRAMES + cardRanges.reduce((acc, r) => acc + r.durationInFrames, 0);

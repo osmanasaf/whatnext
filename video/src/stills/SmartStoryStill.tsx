@@ -1,5 +1,6 @@
 import React from 'react';
 import { AbsoluteFill } from 'remotion';
+import { useBrandFonts } from '../fonts';
 import { DateStamp, EventRow, Palette, SaveCta, StillBackground, StillEventData, firstImage } from './shared';
 
 export interface SmartStoryStillProps {
@@ -28,6 +29,7 @@ const layoutFor = (count: number, canvasHeight: number) => {
 };
 
 export const SmartStoryStill: React.FC<SmartStoryStillProps> = ({ palette, date, events, backgroundImageUrl }) => {
+  useBrandFonts();
   const shown = events.slice(0, MAX_ROWS);
   const { posterHeight, titleSize } = layoutFor(Math.max(shown.length, 1), 1920);
 

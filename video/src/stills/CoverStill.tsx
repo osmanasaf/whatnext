@@ -1,6 +1,6 @@
 import React from 'react';
 import { AbsoluteFill } from 'remotion';
-import { FONT_BODY } from '../fonts';
+import { FONT_BODY, useBrandFonts } from '../fonts';
 import { DateStamp, Palette, Poster, StillBackground, StillEventData, firstImage } from './shared';
 
 export interface CoverStillProps {
@@ -24,6 +24,7 @@ const SLOTS: { x: number; y: number; rot: number; size: number }[] = [
 ];
 
 export const CoverStill: React.FC<CoverStillProps> = ({ palette, date, eventCount, events = [], backgroundImageUrl }) => {
+  useBrandFonts();
   const tiles = events.filter((e) => e.imageUrl).slice(0, SLOTS.length);
   // Az afişte ortadaki yuvaları tercih et (2-3 afiş tek köşede yığılmasın).
   const order = [1, 4, 0, 2, 3, 5];

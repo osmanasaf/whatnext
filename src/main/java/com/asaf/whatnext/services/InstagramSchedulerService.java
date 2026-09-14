@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -41,6 +42,9 @@ public class InstagramSchedulerService {
 
     @Autowired
     private EventScoringStrategy scoringStrategy;
+
+    @Autowired
+    private TransactionTemplate transactionTemplate;
 
     private static final DateTimeFormatter TR_DATE_YEAR_FORMAT = DateTimeFormatter.ofPattern("d MMMM yyyy", new Locale("tr"));
     private static final DateTimeFormatter HHMM = DateTimeFormatter.ofPattern("HH:mm");
@@ -339,12 +343,13 @@ public class InstagramSchedulerService {
             return Long.compare(img1.getId(), img2.getId());
         });
 
-        String caption = buildDailyCaption(targetDate);
-
         LOGGER.info("[Scheduler] " + groupName + " paylaşım başlatılıyor. Görsel ID'leri: "
                 + allPosts.stream().map(InstagramImage::getId).toList());
 
         try {
+            // Event.venue LAZY ve cron thread'inde açık Hibernate oturumu yok — caption sorgusu kendi
+            // transaction'ında (bu metot @Transactional olamaz: 10sn'lik bekleme döngüsü bağlantıyı tutardı).
+            String caption = transactionTemplate.execute(status -> buildDailyCaption(targetDate));
             instagramService.sharePost(allPosts, caption);
 
             int maxAttempts = 30;

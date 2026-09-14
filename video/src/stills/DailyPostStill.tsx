@@ -1,6 +1,6 @@
 import React from 'react';
 import { AbsoluteFill } from 'remotion';
-import { FONT_TITLE } from '../fonts';
+import { FONT_TITLE, useBrandFonts } from '../fonts';
 import {
   DateStamp,
   EventRow,
@@ -48,6 +48,7 @@ export const DailyPostStill: React.FC<DailyPostStillProps> = ({
   events,
   backgroundImageUrl,
 }) => {
+  useBrandFonts();
   const shown = events.slice(0, 6);
   const ambient = firstImage(shown);
   const subtitle = shown.length > 1 ? `İstanbul • ${shown.length} etkinlik` : 'İstanbul';
