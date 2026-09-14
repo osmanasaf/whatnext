@@ -74,7 +74,7 @@ class BiletixSolrClientTest {
 
     @Test
     void altKategoriFiltresiOrIleKurulur() {
-        assertEquals("subcategory:(\"tiyatro$ART\" OR \"gosteri$ART\" OR \"bale_dans$ART\" OR \"stand_up$ART\")",
+        assertEquals("subcategory:(\"tiyatro$ART\" OR \"gosteri$ART\" OR \"bale_dans$ART\" OR \"stand_up$ART\" OR \"musical$ART\")",
                 BiletixScraperConfig.buildSubcategoryFilter(BiletixCategory.ART));
     }
 }

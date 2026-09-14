@@ -151,6 +151,10 @@ public class EventSaveService {
         if (data.getAudience() == AudienceType.CHILDREN) {
             existing.setAudience(AudienceType.CHILDREN);
         }
+        // Max değil üzerine yaz: listeden düşen etkinlik haftalık kazımada 0'a iner, eski "çok satan" kalmaz.
+        if (data.getSourcePopularity() != null) {
+            existing.setSourcePopularity(data.getSourcePopularity());
+        }
     }
     
     private void warnIfLocationSetButVenueNameMissing(ScrapedEventData data, Venue venue) {
@@ -270,7 +274,8 @@ public class EventSaveService {
         if (data.getAudience() != null) {
             event.setAudience(data.getAudience());
         }
-        
+        event.setSourcePopularity(data.getSourcePopularity());
+
         if (venue != null) {
             event.setVenue(venue);
         }

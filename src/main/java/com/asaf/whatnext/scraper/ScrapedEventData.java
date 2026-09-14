@@ -33,6 +33,8 @@ public class ScrapedEventData {
     private Integer minPriceTl;
     private String venueSlug;
     private AudienceType audience;
+    /** Kaynağın popülerlik puanı (0–20). NULL = bu kazımada sinyal alınamadı, mevcut değer korunur. */
+    private Integer sourcePopularity;
 
     public boolean isValid() {
         return title != null && !title.isEmpty() 

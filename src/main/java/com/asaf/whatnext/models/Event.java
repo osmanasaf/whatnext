@@ -78,6 +78,10 @@ public class Event extends BaseEntity {
     @Column(name = "audience")
     private AudienceType audience;
 
+    /** Kaynak sitenin kendi popülerlik sinyali (Biletix çok satanlar / öne çıkanlar), 0–20; bilinmiyorsa NULL. */
+    @Column(name = "source_popularity")
+    private Integer sourcePopularity;
+
     public void setVenue(Venue venue) {
         this.venue = venue;
     }

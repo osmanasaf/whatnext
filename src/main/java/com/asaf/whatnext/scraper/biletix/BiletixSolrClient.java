@@ -6,6 +6,7 @@ import com.asaf.whatnext.enums.Biletix.BiletixCity;
 import com.asaf.whatnext.enums.EventSourceType;
 import com.asaf.whatnext.enums.EventType;
 import com.asaf.whatnext.scraper.ScrapedEventData;
+import com.asaf.whatnext.scraper.web.HtmlFetcher;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -70,6 +71,20 @@ public class BiletixSolrClient {
         List<JsonNode> docs = new ArrayList<>();
         MAPPER.readTree(response.body()).path("response").path("docs").forEach(docs::add);
         return docs;
+    }
+
+    /** Düz GET + JSON (ana sayfa listeleri, bkz. {@link BiletixScraperConfig#HOMEPAGE_API_URL}). */
+    public JsonNode fetchJson(String url) throws IOException, InterruptedException {
+        HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+                .header("User-Agent", HtmlFetcher.USER_AGENT)
+                .timeout(timeout)
+                .GET()
+                .build();
+        HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        if (response.statusCode() != 200) {
+            throw new IOException("Biletix HTTP " + response.statusCode() + " — " + url);
+        }
+        return MAPPER.readTree(response.body());
     }
 
     /** Solr belgesini {@link ScrapedEventData}'ya çevirir; zorunlu alanlar eksikse {@code null}. */

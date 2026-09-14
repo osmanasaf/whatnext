@@ -4,6 +4,7 @@ import com.asaf.whatnext.config.BiletixScraperConfig;
 import com.asaf.whatnext.enums.Biletix.BiletixCategory;
 import com.asaf.whatnext.enums.Biletix.BiletixCity;
 import com.asaf.whatnext.enums.EventSourceType;
+import com.asaf.whatnext.scraper.biletix.BiletixPopularityIndex;
 import com.asaf.whatnext.scraper.biletix.BiletixSolrClient;
 import com.asaf.whatnext.services.ScrapeHealthService;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -53,13 +54,22 @@ public class BiletixScraper extends BaseScraper {
         BiletixCity selectedCity = parseCity(city);
         ScrapeRunStats stats = new ScrapeRunStats(getSourceName());
 
-        List<ScrapedEventData> allData = new ArrayList<>();
+        Map<BiletixCategory, List<JsonNode>> docsByCategory = new LinkedHashMap<>();
         for (BiletixCategory category : Arrays.asList(BiletixCategory.MUSIC, BiletixCategory.ART)) {
-            allData.addAll(scrapeCategory(category, selectedCity, stats));
+            docsByCategory.put(category, fetchDocs(category, selectedCity));
+        }
+        // Seri sönümlemesi tüm belgeleri görmeli: bir grubun kaç farklı başlığa yayıldığı kategoriler arası sayılır.
+        BiletixPopularityIndex popularity = loadPopularity(selectedCity)
+                .dampSeries(docsByCategory.values().stream().flatMap(List::stream).toList());
+        List<ScrapedEventData> allData = new ArrayList<>();
+        for (Map.Entry<BiletixCategory, List<JsonNode>> entry : docsByCategory.entrySet()) {
+            allData.addAll(scrapeCategory(entry.getKey(), entry.getValue(), selectedCity, stats, popularity));
         }
         allData = dedupeByTicketUrl(allData);
 
-        logger.info("Scraped " + allData.size() + " events from Biletix");
+        long popularCount = allData.stream()
+                .filter(d -> d.getSourcePopularity() != null && d.getSourcePopularity() > 0).count();
+        logger.info("Scraped " + allData.size() + " events from Biletix (" + popularCount + " tanesi çok satan/öne çıkan)");
         long validCount = allData.stream().filter(ScrapedEventData::isValid).count();
         logger.info("Valid events: " + validCount + "/" + allData.size());
 
@@ -68,20 +78,46 @@ public class BiletixScraper extends BaseScraper {
         return allData;
     }
 
-    private List<ScrapedEventData> scrapeCategory(BiletixCategory category, BiletixCity city, ScrapeRunStats stats) {
-        List<ScrapedEventData> events = new ArrayList<>();
-        List<JsonNode> docs;
+    /**
+     * Çok satanlar (konser + sanat) ve öne çıkanlar listeleri. Başarısızlıkta boş dizin: kazıma durmaz,
+     * etkinliklere NULL yazılır ve DB'deki önceki popülerlik değeri korunur.
+     */
+    private BiletixPopularityIndex loadPopularity(BiletixCity city) {
+        String region = BiletixScraperConfig.regionOf(city);
         try {
-            docs = solrClient.fetchDocs(category, city);
+            List<JsonNode> hot = new ArrayList<>();
+            for (BiletixCategory category : Arrays.asList(BiletixCategory.MUSIC, BiletixCategory.ART)) {
+                hot.add(solrClient.fetchJson(BiletixScraperConfig.hotTicketsUrl(category, region)));
+            }
+            JsonNode featured = solrClient.fetchJson(BiletixScraperConfig.featuredEventsUrl(region));
+            BiletixPopularityIndex index = BiletixPopularityIndex.from(hot, List.of(featured));
+            logger.info("Biletix popülerlik listeleri yüklendi: " + index.size() + " anahtar");
+            return index;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.warn("Biletix popülerlik listeleri kesildi, puansız devam ediliyor");
+            return BiletixPopularityIndex.EMPTY;
+        } catch (Exception e) {
+            logger.warn("Biletix popülerlik listeleri alınamadı, puansız devam ediliyor: " + e.getMessage());
+            return BiletixPopularityIndex.EMPTY;
+        }
+    }
+
+    private List<JsonNode> fetchDocs(BiletixCategory category, BiletixCity city) {
+        try {
+            return solrClient.fetchDocs(category, city);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             logger.error("Biletix solr sorgusu kesildi: " + category, e);
-            return events;
         } catch (Exception e) {
             logger.error("Biletix solr sorgusu başarısız: " + category, e);
-            return events;
         }
+        return List.of();
+    }
 
+    private List<ScrapedEventData> scrapeCategory(BiletixCategory category, List<JsonNode> docs, BiletixCity city,
+                                                  ScrapeRunStats stats, BiletixPopularityIndex popularity) {
+        List<ScrapedEventData> events = new ArrayList<>();
         for (JsonNode doc : docs) {
             ScrapedEventData data = BiletixSolrClient.toEventData(doc, category);
             // Solr'daki region bir pazarlama bölgesi: region:ISTANBUL Marmara'nın tamamını
@@ -93,6 +129,9 @@ public class BiletixScraper extends BaseScraper {
             if (data == null || !data.isValid()) {
                 stats.recordParseFailed(doc.path("id").asText(""));
                 continue;
+            }
+            if (!popularity.isEmpty()) {
+                data.setSourcePopularity(popularity.pointsFor(doc));
             }
             events.add(data);
             stats.recordParsed(data.getTitle());

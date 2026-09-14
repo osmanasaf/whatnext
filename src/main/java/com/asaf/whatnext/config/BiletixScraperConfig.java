@@ -37,9 +37,26 @@ public class BiletixScraperConfig {
     /** Etkinlik sayfası: {@code /etkinlik/{id}/{REGION}/tr} (kartlardaki href biçimi). */
     public static final String EVENT_URL_FORMAT = BASE_URL + "/etkinlik/%s/%s/tr";
 
-    /** Kapsam eskisiyle aynı tutuldu; {@code sinema$ART} bilinçli olarak dışarıda. */
-    public static final String[] MUSIC_SUBCATEGORIES = {"pop", "rock", "jazz", "klasik", "alternatif"};
-    public static final String[] ART_SUBCATEGORIES = {"tiyatro", "gosteri", "bale_dans", "stand_up"};
+    /**
+     * 2026-09-14 facet (İstanbul): önceki beşli liste rap_hiphop, turksanat_halkmuzik, dunya_muzik,
+     * dans_elektronik, other... alt kategorilerini hiç kazımıyordu — Biletix çok satanlarındaki Sagopa
+     * Kajmer, Bülent Ersoy, Sami Yusuf, Sibel Can bu yüzden DB'de yoktu. {@code party$MUSIC} bilinçli
+     * dışarıda (parti/festival/çocuk Halloween — konser değil); {@code sinema$ART} de öyle.
+     */
+    public static final String[] MUSIC_SUBCATEGORIES = {"pop", "rock", "alternatif", "jazz", "klasik", "rap_hiphop",
+            "turksanat_halkmuzik", "dunya_muzik", "dans_elektronik", "heavy_metal", "latin_tango", "other"};
+    public static final String[] ART_SUBCATEGORIES = {"tiyatro", "gosteri", "bale_dans", "stand_up", "musical"};
+
+    /** Ana sayfanın sıralı listeleri (çok satanlar / öne çıkanlar) — sitenin kendi önbellekli API'si, anonim GET. */
+    public static final String HOMEPAGE_API_URL = BASE_URL + "/wbtxapi/api/v1/bxcached/homePage/";
+
+    public static String hotTicketsUrl(BiletixCategory category, String region) {
+        return HOMEPAGE_API_URL + "getHotTickets/" + category.getValue() + "/" + region + "/INTERNET/tr";
+    }
+
+    public static String featuredEventsUrl(String region) {
+        return HOMEPAGE_API_URL + "getFeaturedEvents/ALL/" + region + "/tr";
+    }
 
     @Value("${biletix.solr.rows:2000}")
     private int solrRows;
