@@ -6,12 +6,14 @@ import com.asaf.whatnext.enums.City;
 import com.asaf.whatnext.enums.PerformanceType;
 import com.asaf.whatnext.models.*;
 import com.asaf.whatnext.repository.EventRepository;
+import com.asaf.whatnext.services.scoring.EventScoringStrategy;
 import com.asaf.whatnext.utils.EventDuplicateKeys;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Locale;
@@ -24,16 +26,19 @@ public class EventService {
     private final ArtistService artistService;
     private final DirectorService directorService;
     private final VenueService venueService;
+    private final EventScoringStrategy scoringStrategy;
 
     @Autowired
     public EventService(EventRepository eventRepository,
                         ArtistService artistService,
                         DirectorService directorService,
-                        VenueService venueService) {
+                        VenueService venueService,
+                        EventScoringStrategy scoringStrategy) {
         this.eventRepository = eventRepository;
         this.artistService = artistService;
         this.directorService = directorService;
         this.venueService = venueService;
+        this.scoringStrategy = scoringStrategy;
     }
 
     public List<Event> findAll() {
@@ -149,10 +154,12 @@ public class EventService {
         return events;
     }
 
-    public List<Event> findTop6EventsForDateAndCity(LocalDate date, EventType eventType, String city) {
-        return findTopNEventsForDateAndCity(date, eventType, city, 6);
-    }
-
+    /**
+     * O gün aktif etkinliklerden skoru en yüksek {@code limit} tanesi. Sıralama limitten ÖNCE yapılır —
+     * önceden sorgu {@code startDate, id} sırasıyla kesiliyordu, yani "ilk kazınan N etkinlik" seçiliyor,
+     * popüler ama sonradan kazınmış etkinlikler hiç havuza girmiyordu. THEATER/STANDUP doğrudan verilebilir.
+     * Skor LAZY ilişkilere (venue, artist, actors) dokunur: çağıran açık bir transaction içinde olmalı.
+     */
     public List<Event> findTopNEventsForDateAndCity(LocalDate date, EventType eventType, String city, int limit) {
         String cityStr = city.toLowerCase(Locale.ROOT);
         boolean isPerformanceType = false;
@@ -162,39 +169,19 @@ public class EventService {
                 break;
             }
         }
-        List<Event> events;
-        if ("istanbul".equals(cityStr)) {
-            if (isPerformanceType) {
-                events = eventRepository.findByTypeAndIstanbulActiveOnDate(EventType.PERFORMING_ART, date);
-                List<Event> out = events.stream()
-                        .filter(event -> event instanceof com.asaf.whatnext.models.PerformingArt performingArt
-                                && performingArt.getPerformanceType() != null
-                                && performingArt.getPerformanceType().name().equals(eventType.name()))
-                        .filter(e -> e.getTitle() != null && !e.getTitle().isBlank())
-                        .collect(Collectors.toList());
-                out = EventDuplicateKeys.dedupeByTitleAndDateKeepOrder(out);
-                return out.stream().limit(limit).collect(Collectors.toList());
-            }
-            events = eventRepository.findByTypeAndIstanbulActiveOnDate(eventType, date);
-        } else {
-            if (isPerformanceType) {
-                events = eventRepository.findByTypeAndCityActiveOnDate(EventType.PERFORMING_ART, cityStr, date);
-                List<Event> out = events.stream()
-                        .filter(event -> event instanceof com.asaf.whatnext.models.PerformingArt performingArt
-                                && performingArt.getPerformanceType() != null
-                                && performingArt.getPerformanceType().name().equals(eventType.name()))
-                        .filter(e -> e.getTitle() != null && !e.getTitle().isBlank())
-                        .collect(Collectors.toList());
-                out = EventDuplicateKeys.dedupeByTitleAndDateKeepOrder(out);
-                return out.stream().limit(limit).collect(Collectors.toList());
-            }
-            events = eventRepository.findByTypeAndCityActiveOnDate(eventType, cityStr, date);
-        }
-        List<Event> out = events.stream()
+        EventType queryType = isPerformanceType ? EventType.PERFORMING_ART : eventType;
+        List<Event> events = "istanbul".equals(cityStr)
+                ? eventRepository.findByTypeAndIstanbulActiveOnDate(queryType, date)
+                : eventRepository.findByTypeAndCityActiveOnDate(queryType, cityStr, date);
+        boolean filterPerformance = isPerformanceType;
+        List<Event> sorted = events.stream()
+                .filter(e -> !filterPerformance || (e instanceof PerformingArt pa
+                        && pa.getPerformanceType() != null
+                        && pa.getPerformanceType().name().equals(eventType.name())))
                 .filter(e -> e.getTitle() != null && !e.getTitle().isBlank())
+                .sorted(Comparator.comparingInt(scoringStrategy::calculateScore).reversed())
                 .collect(Collectors.toList());
-        out = EventDuplicateKeys.dedupeByTitleAndDateKeepOrder(out);
-        return out.stream().limit(limit).collect(Collectors.toList());
+        return EventDuplicateKeys.dedupeByTitleAndDateKeepOrder(sorted).stream().limit(limit).collect(Collectors.toList());
     }
 
     @Transactional

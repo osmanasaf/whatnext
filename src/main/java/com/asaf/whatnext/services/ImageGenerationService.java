@@ -116,29 +116,9 @@ public class ImageGenerationService {
      */
     @Transactional(readOnly = true)
     public List<EventSummaryDTO> selectPostEvents(String eventType, String city, LocalDate date) {
-        EventType eventTypeEnum;
-        final PerformanceType targetPerformanceType;
-
-        if ("theater".equalsIgnoreCase(eventType)) {
-            eventTypeEnum = EventType.PERFORMING_ART;
-            targetPerformanceType = PerformanceType.THEATER;
-        } else if ("standup".equalsIgnoreCase(eventType)) {
-            eventTypeEnum = EventType.PERFORMING_ART;
-            targetPerformanceType = PerformanceType.STANDUP;
-        } else {
-            eventTypeEnum = EventType.valueOf(eventType.toUpperCase());
-            targetPerformanceType = null;
-        }
-
-        List<Event> events = eventService.findTopNEventsForDateAndCity(date, eventTypeEnum, city, 18);
-
-        if (targetPerformanceType != null) {
-            events = events.stream()
-                    .filter(event -> event instanceof PerformingArt performingArt &&
-                            performingArt.getPerformanceType() == targetPerformanceType)
-                    .toList();
-        }
-        events = events.stream()
+        // concert/theater/standup → CONCERT/THEATER/STANDUP; findTopN skora göre sıralı döner.
+        EventType eventTypeEnum = EventType.valueOf(eventType.toUpperCase(Locale.ROOT));
+        List<Event> events = eventService.findTopNEventsForDateAndCity(date, eventTypeEnum, city, 18).stream()
                 .filter(event -> !EventAudience.isChildrensEvent(event))
                 .limit(6)
                 .toList();
@@ -261,28 +241,9 @@ public class ImageGenerationService {
      */
     @Transactional(readOnly = true)
     public List<EventSummaryDTO> selectStoryEvents(LocalDate date) {
-        List<Event> allPerformingArts = eventService.findTopNEventsForDateAndCity(date, EventType.PERFORMING_ART, "istanbul",
-                STORY_FETCH_LIMIT);
-        List<Event> theaters = new ArrayList<>();
-        List<Event> standups = new ArrayList<>();
-        for (Event e : allPerformingArts) {
-            if (EventAudience.isChildrensEvent(e)) {
-                continue;
-            }
-            if (e instanceof PerformingArt pa) {
-                if (pa.getPerformanceType() == PerformanceType.THEATER) {
-                    theaters.add(e);
-                } else if (pa.getPerformanceType() == PerformanceType.STANDUP) {
-                    standups.add(e);
-                }
-            }
-        }
-        List<Event> concerts = new ArrayList<>(eventService.findTopNEventsForDateAndCity(date, EventType.CONCERT, "istanbul",
-                STORY_FETCH_LIMIT));
-        concerts.removeIf(EventAudience::isChildrensEvent);
-        sortByScoreDescending(concerts);
-        sortByScoreDescending(theaters);
-        sortByScoreDescending(standups);
+        List<Event> concerts = topForStory(date, EventType.CONCERT);
+        List<Event> theaters = topForStory(date, EventType.THEATER);
+        List<Event> standups = topForStory(date, EventType.STANDUP);
         Set<Event> selected = new LinkedHashSet<>();
         addUpTo(selected, concerts, 3);
         addUpTo(selected, theaters, 3);
@@ -300,6 +261,13 @@ public class ImageGenerationService {
         EventDuplicateKeys.dedupeSetByTitleAndDate(selected);
 
         return selected.stream().limit(STORY_EVENT_TARGET).map(eventMapper::toSummaryDTO).toList();
+    }
+
+    /** Türün skora göre ilk {@code STORY_FETCH_LIMIT} etkinliği, çocuk etkinlikleri hariç. */
+    private List<Event> topForStory(LocalDate date, EventType type) {
+        List<Event> events = new ArrayList<>(eventService.findTopNEventsForDateAndCity(date, type, "istanbul", STORY_FETCH_LIMIT));
+        events.removeIf(EventAudience::isChildrensEvent);
+        return events;
     }
 
     /** Rastgele değil, {@link EventScoringStrategy} skoruna göre en yüksekten düşüğe (PopularEventService ile tutarlı). */
