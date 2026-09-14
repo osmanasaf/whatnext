@@ -188,7 +188,10 @@ public class InstagramService {
 
     private String createContainerFromUrl(String imageUrl, boolean isStory, String caption) throws IOException, InstagramApiException {
         String endpoint = GRAPH_API_BASE + userId + "/media";
-        String postData = "image_url=" + URLEncoder.encode(imageUrl, StandardCharsets.UTF_8) + "&access_token=" + accessToken;
+        // Görseller Cloudinary'de webp; Instagram image_url'de yalnızca JPEG'i destekliyor ("Only photo or video can be
+        // accepted" reddi). Cloudinary uzantı değişince aynı görseli JPEG olarak sunar — eski kayıtlar da kapsanır.
+        String jpegUrl = imageUrl.replaceFirst("\\.webp$", ".jpg");
+        String postData = "image_url=" + URLEncoder.encode(jpegUrl, StandardCharsets.UTF_8) + "&access_token=" + accessToken;
         if (isStory) {
             postData += "&media_type=STORIES";
         }
