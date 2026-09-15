@@ -4,6 +4,7 @@ import com.asaf.whatnext.models.InstagramImage;
 import com.asaf.whatnext.repository.InstagramImageRepository;
 import com.asaf.whatnext.services.images.ImageRenderEngine;
 import com.asaf.whatnext.services.images.ImageRenderRequest;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -191,6 +192,7 @@ public class InstagramService {
         // Görseller Cloudinary'de webp; Instagram image_url'de yalnızca JPEG'i destekliyor ("Only photo or video can be
         // accepted" reddi). Cloudinary uzantı değişince aynı görseli JPEG olarak sunar — eski kayıtlar da kapsanır.
         String jpegUrl = imageUrl.replaceFirst("\\.webp$", ".jpg");
+        warmUp(jpegUrl);
         String postData = "image_url=" + URLEncoder.encode(jpegUrl, StandardCharsets.UTF_8) + "&access_token=" + accessToken;
         if (isStory) {
             postData += "&media_type=STORIES";
@@ -218,6 +220,24 @@ public class InstagramService {
         } else {
             handleApiError(conn);
             return null;
+        }
+    }
+
+    /**
+     * Instagram indirmeden önce adresi bir kez çeker. 2026-09-15: Instagram'ın 3 denemesi Cloudinary'nin
+     * {@code .jpg} kopyasını hiç üretemedi ("Only photo or video can be accepted"); aynı adres elle çekilince
+     * kopya oluştu ve 0,2 sn'de image/jpeg döndü. Eski webp kayıtları için; hata olursa sessizce geçilir.
+     */
+    private static void warmUp(String imageUrl) {
+        try {
+            HttpURLConnection conn = (HttpURLConnection) new URL(imageUrl).openConnection();
+            conn.setConnectTimeout(10_000);
+            conn.setReadTimeout(30_000);
+            try (var in = conn.getInputStream()) {
+                in.transferTo(OutputStream.nullOutputStream());
+            }
+        } catch (IOException ignored) {
+            // Isıtma başarısızsa asıl hatayı Graph API cevabı gösterecek.
         }
     }
 
@@ -541,32 +561,58 @@ public class InstagramService {
         return userId;
     }
 
+    /**
+     * Graph API hata gövdesi {@code {"error":{"code":..,"error_subcode":..}}} — kodlar tam sayı olarak okunur.
+     * Önceden {@code contains("\"code\":9")} ile bakılıyordu; bu {@code "code":9004} (medya indirilemedi,
+     * ör. "Only photo or video can be accepted") gövdesini de rate limit sayıp her görevi 15 dk uyutup
+     * 3 kez yeniden deniyordu — tek iş parçacıklı kuyruk saatlerce tıkanıyordu (2026-09-15).
+     */
     public static class InstagramApiException extends Exception {
+        private static final ObjectMapper ERROR_MAPPER = new ObjectMapper();
+
         private final String errorBody;
         private final int responseCode;
+        private final int code;
+        private final int subcode;
 
         public InstagramApiException(String errorBody, int responseCode) {
-            super("Instagram API returned error code " + responseCode);
-            this.errorBody = errorBody;
-            this.responseCode = responseCode;
+            this(errorBody == null ? "" : errorBody, responseCode, parseError(errorBody));
         }
 
+        private InstagramApiException(String errorBody, int responseCode, int[] codeAndSubcode) {
+            // Mesajda kod/alt kod/açıklama: Publisher satırı tek başına teşhis için yeterli olsun
+            // (Coolify log ekranı çok satırlı çıktıda satır kaybedebiliyor).
+            super("Instagram API returned error code " + responseCode
+                    + " (code=" + codeAndSubcode[0] + ", subcode=" + codeAndSubcode[1] + ") "
+                    + errorBody.substring(0, Math.min(errorBody.length(), 300)));
+            this.errorBody = errorBody;
+            this.responseCode = responseCode;
+            this.code = codeAndSubcode[0];
+            this.subcode = codeAndSubcode[1];
+        }
+
+        private static int[] parseError(String body) {
+            try {
+                JsonNode error = ERROR_MAPPER.readTree(body == null ? "" : body).path("error");
+                return new int[]{error.path("code").asInt(-1), error.path("error_subcode").asInt(-1)};
+            } catch (Exception e) {
+                return new int[]{-1, -1};
+            }
+        }
+
+        /** 4/17/32/613 istek limitleri; 9 (ör. alt kod 2207042: 24 saatlik gönderi limiti). 9004 DEĞİL. */
         public boolean isRateLimitError() {
-            return errorBody.contains("\"code\":4") || errorBody.contains("\"code\": 4,")
-                || errorBody.contains("\"code\":9") || errorBody.contains("\"code\": 9,")
-                || errorBody.contains("request limit reached");
+            return code == 4 || code == 9 || code == 17 || code == 32 || code == 613
+                || errorBody.toLowerCase().contains("request limit reached");
         }
 
         public boolean isActionBlockedError() {
-            return errorBody.contains("\"error_subcode\":2207051") || errorBody.contains("\"error_subcode\": 2207051");
+            return subcode == 2207051;
         }
 
         public boolean isExpiredOrInvalidToken() {
-            return errorBody.contains("\"code\":190") || errorBody.contains("\"code\": 190")
-                || errorBody.contains("\"code\":102") || errorBody.contains("\"code\": 102")
-                || errorBody.contains("\"error_subcode\":463") || errorBody.contains("\"error_subcode\": 463")
-                || errorBody.contains("\"error_subcode\":460") || errorBody.contains("\"error_subcode\": 460")
-                || errorBody.contains("\"error_subcode\":467") || errorBody.contains("\"error_subcode\": 467")
+            return code == 190 || code == 102
+                || subcode == 460 || subcode == 463 || subcode == 467
                 || errorBody.toLowerCase().contains("invalid oauth")
                 || errorBody.toLowerCase().contains("access token has expired")
                 || errorBody.toLowerCase().contains("session has expired")

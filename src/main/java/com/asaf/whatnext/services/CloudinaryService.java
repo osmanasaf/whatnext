@@ -15,11 +15,16 @@ public class CloudinaryService {
     @Autowired
     private Cloudinary cloudinary;
 
+    /**
+     * Yalnız Instagram görselleri (post/kapak/story) buradan yüklenir — JPEG saklanır: Instagram image_url'de
+     * resmi olarak yalnız JPEG destekliyor ve webp'yi aralıklı reddediyordu (9004/2207052). Türetilmiş kopyaya
+     * ({@code .webp}→{@code .jpg}) güvenmek de yetmedi: 2026-09-15'te Instagram'ın indirmesi kopyayı hiç üretemedi.
+     */
     public Map<String, Object> uploadImage(File file, String folder) throws IOException {
         Map<String, Object> options = ObjectUtils.asMap(
                 "folder", folder,
                 "resource_type", "image",
-                "format", "webp",
+                "format", "jpg",
                 "quality", "auto:good"
         );
         return cloudinary.uploader().upload(file, options);
