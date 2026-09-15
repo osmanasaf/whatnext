@@ -17,4 +17,6 @@ public class EventSummaryDTO {
     private String venueName;
     private String imageUrl;
     private PerformanceType performanceType;
+    /** Skorlama stratejisinin puanı (PopularEventService doldurur); diğer uçlarda NULL. */
+    private Integer popularityScore;
 } 

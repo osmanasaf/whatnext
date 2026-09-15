@@ -1,9 +1,10 @@
 import React from 'react';
-import { AbsoluteFill, Img, Sequence, interpolate, useCurrentFrame, useVideoConfig, spring, Audio, staticFile } from 'remotion';
+import { AbsoluteFill, Audio, Img, Sequence, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
 import { EventCard, EventData } from './EventCard';
 import { ReelBackground } from './ReelBackground';
 import { FONT_BODY, FONT_TITLE, useBrandFonts } from './fonts';
 import { HOOK_FRAMES, OUTRO_FRAMES, computeCardRanges } from './timing';
+import { SaveCta } from './stills/shared';
 
 export interface WeeklyReelProps {
   events: EventData[];
@@ -11,149 +12,140 @@ export interface WeeklyReelProps {
   backgroundVariant?: number;
 }
 
-const LogoIcon: React.FC<{ size?: number; color?: string }> = ({ size = 14, color = 'rgba(167,139,250,0.5)' }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-    <polygon points="12,2 22,8.5 22,15.5 12,22 2,15.5 2,8.5" stroke={color} strokeWidth="1.5" />
-  </svg>
-);
+/** Hook mozaiği: üst yarıya yayılan, hafif eğik afiş yuvaları (afişler kırpılmaz, kutuya sığdırılır). */
+const HOOK_SLOTS: { x: number; y: number; rot: number }[] = [
+  { x: 300, y: 250, rot: 4 },
+  { x: 40, y: 430, rot: -8 },
+  { x: 560, y: 520, rot: 7 },
+  { x: 120, y: 820, rot: 5 },
+  { x: 520, y: 880, rot: -5 },
+];
+const HOOK_TILE_MAX = 470;
 
-const DAY_LABELS = ['P', 'S', 'Ç', 'P', 'C', 'C', 'P'];
-
-/**
- * Hafta ilerleme çubuğu: 7 nokta (Pzt-Paz), o an gösterilen kartın günü dolu. Kartların üstünde
- * sabit kalan bir overlay — "haftanı planla" vaadinin sürekli görsel karşılığı.
- */
-const WeekProgressBar: React.FC<{ ranges: ReturnType<typeof computeCardRanges>; weekRange: string }> = ({
-  ranges,
-  weekRange,
-}) => {
-  const frame = useCurrentFrame();
-  const active = ranges.find((r) => frame >= r.from && frame < r.from + r.durationInFrames);
-  const activeDayIndex = active?.event.dayIndex ?? -1;
-
-  return (
-    <div
-      style={{
-        position: 'absolute',
-        top: 24,
-        left: 0,
-        right: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: 8,
-        zIndex: 5,
-      }}
-    >
-      <div style={{ display: 'flex', justifyContent: 'center', gap: 14 }}>
-        {DAY_LABELS.map((label, i) => {
-          const isActive = i === activeDayIndex;
-          return (
-            <div
-              key={i}
-              style={{
-                width: isActive ? 12 : 8,
-                height: isActive ? 12 : 8,
-                borderRadius: '50%',
-                background: isActive ? '#f9a8d4' : 'rgba(255,255,255,0.35)',
-                boxShadow: isActive ? '0 0 12px rgba(249,168,212,0.8)' : 'none',
-              }}
-            />
-          );
-        })}
-      </div>
-      <span style={{ fontSize: 14, color: 'rgba(255,255,255,0.45)', fontFamily: FONT_BODY, letterSpacing: 1 }}>
-        {weekRange}
-      </span>
-    </div>
-  );
-};
-
-const HookScreen: React.FC<{ event: EventData | undefined; eventCount: number }> = ({ event, eventCount }) => {
+const HookScreen: React.FC<{ events: EventData[]; weekRange: string; variant: number }> = ({ events, weekRange, variant }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-
-  const zoom = interpolate(frame, [0, HOOK_FRAMES], [1.0, 1.08], { extrapolateRight: 'clamp' });
-  const textIn = spring({ frame, fps, config: { damping: 14, stiffness: 160 } });
-  const textOpacity = interpolate(textIn, [0, 1], [0, 1]);
-  const textY = interpolate(textIn, [0, 1], [24, 0]);
-  const fadeOut = interpolate(frame, [HOOK_FRAMES - 8, HOOK_FRAMES], [1, 0], { extrapolateLeft: 'clamp' });
+  const tiles = events.filter((e) => e.imageUrl).slice(0, HOOK_SLOTS.length);
+  const textIn = spring({ frame: frame - 6, fps, config: { damping: 16, stiffness: 150 } });
 
   return (
-    <AbsoluteFill style={{ opacity: fadeOut }}>
-      {event?.imageUrl ? (
-        <AbsoluteFill>
-          <Img
-            src={event.imageUrl}
-            style={{ width: '100%', height: '100%', objectFit: 'cover', transform: `scale(${zoom})` }}
-          />
-          <AbsoluteFill style={{ background: 'linear-gradient(180deg, rgba(10,8,25,0.35) 0%, rgba(10,8,25,0.75) 100%)' }} />
-        </AbsoluteFill>
-      ) : (
-        <ReelBackground variant={0} />
-      )}
-      <AbsoluteFill style={{ justifyContent: 'flex-end', alignItems: 'center', paddingBottom: 140 }}>
-        <div style={{ opacity: textOpacity, transform: `translateY(${textY}px)`, textAlign: 'center', padding: '0 56px' }}>
+    <AbsoluteFill>
+      <ReelBackground variant={variant} />
+      {tiles.map((e, i) => {
+        const slot = HOOK_SLOTS[i];
+        const pop = spring({ frame: frame - i * 3, fps, config: { damping: 14, stiffness: 160 } });
+        return (
           <div
+            key={e.id}
             style={{
-              fontSize: 44,
-              fontWeight: 900,
-              color: '#f8fafc',
-              fontFamily: FONT_TITLE,
-              lineHeight: 1.2,
-              textShadow: '0 4px 30px rgba(0,0,0,0.6)',
+              position: 'absolute',
+              left: slot.x,
+              top: slot.y,
+              transform: `rotate(${slot.rot}deg) scale(${interpolate(pop, [0, 1], [0.6, 1])})`,
+              opacity: interpolate(pop, [0, 1], [0, 1]),
             }}
           >
-            İstanbul'da bu hafta {eventCount} etkinlik
+            <Img
+              src={e.imageUrl as string}
+              style={{
+                maxWidth: HOOK_TILE_MAX,
+                maxHeight: HOOK_TILE_MAX,
+                width: 'auto',
+                height: 'auto',
+                display: 'block',
+                borderRadius: 22,
+                border: '1px solid rgba(255,255,255,0.18)',
+                boxShadow: '0 24px 60px rgba(0,0,0,0.6)',
+              }}
+            />
           </div>
-          <div style={{ marginTop: 14, fontSize: 40 }}>👇</div>
+        );
+      })}
+
+      <AbsoluteFill
+        style={{
+          background:
+            'linear-gradient(180deg, rgba(11,10,26,0) 45%, rgba(11,10,26,0.75) 62%, rgba(11,10,26,0.97) 78%, rgba(11,10,26,1) 100%)',
+        }}
+      />
+
+      <div
+        style={{
+          position: 'absolute',
+          left: 72,
+          right: 72,
+          top: 1180,
+          opacity: interpolate(textIn, [0, 1], [0, 1]),
+          transform: `translateY(${interpolate(textIn, [0, 1], [40, 0])}px)`,
+        }}
+      >
+        <div style={{ fontSize: 32, fontWeight: 700, letterSpacing: 6, color: 'rgba(255,255,255,0.7)', fontFamily: FONT_BODY }}>
+          İSTANBUL • {weekRange.toLocaleUpperCase('tr')}
         </div>
-      </AbsoluteFill>
+        <div
+          style={{
+            marginTop: 18,
+            fontSize: 120,
+            lineHeight: 1.02,
+            color: '#f8fafc',
+            fontFamily: FONT_TITLE,
+            textShadow: '0 6px 36px rgba(0,0,0,0.6)',
+          }}
+        >
+          Bu hafta
+          <br />
+          kaçırma
+        </div>
+        <div style={{ marginTop: 22, fontSize: 40, fontWeight: 600, color: '#c4b5fd', fontFamily: FONT_BODY }}>
+          {events.length} öne çıkan etkinlik
+        </div>
+      </div>
     </AbsoluteFill>
   );
 };
 
-const OutroScreen: React.FC = () => {
+const OutroScreen: React.FC<{ variant: number }> = ({ variant }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-
-  const pop = spring({ frame, fps, config: { damping: 12, stiffness: 100 } });
-  const opacity = interpolate(pop, [0, 1], [0, 1]);
-  const scale = interpolate(pop, [0, 1], [0.92, 1]);
+  const pop = spring({ frame, fps, config: { damping: 13, stiffness: 120 } });
 
   return (
-    <AbsoluteFill
-      style={{
-        justifyContent: 'center',
-        alignItems: 'center',
-        flexDirection: 'column',
-        opacity,
-        transform: `scale(${scale})`,
-      }}
-    >
-      <LogoIcon size={36} color="#a78bfa" />
-      <div style={{ marginTop: 20, fontSize: 42, fontWeight: 900, color: '#f8fafc', fontFamily: FONT_TITLE, letterSpacing: 2 }}>
-        whatnext
-      </div>
-      <div style={{ marginTop: 8, fontSize: 20, color: '#a78bfa', fontFamily: FONT_BODY, letterSpacing: 1 }}>
-        whatnext.tr
-      </div>
-      <div style={{ marginTop: 32, height: 1.5, width: 120, background: 'linear-gradient(90deg, transparent, #a78bfa, transparent)' }} />
-      <div
+    <AbsoluteFill>
+      <ReelBackground variant={variant} />
+      <AbsoluteFill
         style={{
-          marginTop: 28,
-          fontSize: 20,
-          color: '#f8fafc',
-          fontFamily: FONT_BODY,
-          letterSpacing: 1,
-          background: 'rgba(139,92,246,0.18)',
-          padding: '14px 28px',
-          borderRadius: 100,
-          border: '1px solid rgba(139,92,246,0.35)',
+          justifyContent: 'center',
+          alignItems: 'center',
+          flexDirection: 'column',
+          paddingBottom: 200,
+          opacity: interpolate(pop, [0, 1], [0, 1]),
+          transform: `scale(${interpolate(pop, [0, 1], [0.92, 1])})`,
         }}
       >
-        🔖 Kaydet — hafta içinde lazım olacak
-      </div>
+        <svg width={120} height={120} viewBox="0 0 24 24" fill="none">
+          <polygon points="12,2 22,8.5 22,15.5 12,22 2,15.5 2,8.5" stroke="#a78bfa" strokeWidth="1.4" />
+        </svg>
+        <div style={{ marginTop: 28, fontSize: 110, color: '#f8fafc', fontFamily: FONT_TITLE, letterSpacing: 2 }}>whatnext</div>
+        <div style={{ marginTop: 8, fontSize: 44, color: '#c4b5fd', fontFamily: FONT_BODY, fontWeight: 600, letterSpacing: 2 }}>
+          whatnext.tr
+        </div>
+        <div
+          style={{
+            marginTop: 64,
+            fontSize: 46,
+            lineHeight: 1.3,
+            textAlign: 'center',
+            color: '#f8fafc',
+            fontFamily: FONT_BODY,
+            fontWeight: 700,
+          }}
+        >
+          Kaydet,
+          <br />
+          hafta içinde lazım olacak
+        </div>
+      </AbsoluteFill>
+      <SaveCta bottom={470} size={38} />
     </AbsoluteFill>
   );
 };
@@ -163,53 +155,24 @@ export const WeeklyReel: React.FC<WeeklyReelProps> = ({ events, weekRange, backg
   const { durationInFrames } = useVideoConfig();
   const cardRanges = computeCardRanges(events);
   const outroFrom = HOOK_FRAMES + cardRanges.reduce((acc, r) => acc + r.durationInFrames, 0);
-  const hookEvent = events.find((e) => e.featured && e.imageUrl) ?? events.find((e) => e.imageUrl) ?? events[0];
 
   return (
-    <AbsoluteFill>
+    <AbsoluteFill style={{ background: '#0b0a1a' }}>
       <Audio src={staticFile('bg-music.mp3')} loop />
 
-      <ReelBackground variant={backgroundVariant} />
-
       <Sequence from={0} durationInFrames={HOOK_FRAMES}>
-        <HookScreen event={hookEvent} eventCount={events.length} />
+        <HookScreen events={events} weekRange={weekRange} variant={backgroundVariant} />
       </Sequence>
 
       {cardRanges.map(({ event, from, durationInFrames: cardDuration }) => (
-        <Sequence key={event.id} from={from} durationInFrames={cardDuration}>
-          <EventCard event={event} index={0} durationInFrames={cardDuration} />
+        <Sequence key={`${event.id}-${from}`} from={from} durationInFrames={cardDuration}>
+          <EventCard event={event} durationInFrames={cardDuration} />
         </Sequence>
       ))}
 
       <Sequence from={outroFrom} durationInFrames={Math.max(OUTRO_FRAMES, durationInFrames - outroFrom)}>
-        <OutroScreen />
+        <OutroScreen variant={backgroundVariant} />
       </Sequence>
-
-      {/* Kartlar boyunca sabit: hafta ilerleme çubuğu */}
-      <Sequence from={HOOK_FRAMES} durationInFrames={outroFrom - HOOK_FRAMES}>
-        <WeekProgressBar ranges={cardRanges} weekRange={weekRange} />
-      </Sequence>
-
-      {/* Sabit footer — tüm video boyunca */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          height: 56,
-          background: 'linear-gradient(180deg, transparent, rgba(0,0,0,0.4))',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 8,
-        }}
-      >
-        <LogoIcon />
-        <span style={{ fontSize: 15, color: 'rgba(255,255,255,0.35)', fontFamily: FONT_BODY, letterSpacing: 1 }}>
-          whatnext.tr
-        </span>
-      </div>
     </AbsoluteFill>
   );
 };

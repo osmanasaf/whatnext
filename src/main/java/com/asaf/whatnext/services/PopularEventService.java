@@ -109,7 +109,9 @@ public class PopularEventService {
         if (event instanceof PerformingArt performingArt) {
             dto.setPerformanceType(performingArt.getPerformanceType());
         }
-        
+
+        dto.setPopularityScore(scoringStrategy.calculateScore(event));
+
         return dto;
     }
 }

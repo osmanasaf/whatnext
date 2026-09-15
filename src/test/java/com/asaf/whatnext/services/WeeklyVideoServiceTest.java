@@ -84,6 +84,26 @@ class WeeklyVideoServiceTest {
     }
 
     @Test
+    void collectEventsForVideo_skipsZeroScoreAfterCategoryLeader() {
+        WeeklyPopularEventsDTO weekly = new WeeklyPopularEventsDTO();
+        LocalDate date = LocalDate.of(2026, 9, 19);
+        EventSummaryDTO leader = event(1L, "Anlatanadam", "Torium Sahne", date, LocalTime.of(20, 30));
+        leader.setPopularityScore(20);
+        EventSummaryDTO openMic = event(2L, "Kadıköy Açık Mikrofon Stand Up", "Corner Kadıköy", date, LocalTime.of(20, 15));
+        openMic.setPopularityScore(0);
+        EventSummaryDTO known = event(3L, "Gömercin Kuşları - Kaan Sekban", "Habitat Hilltown", date, LocalTime.of(20, 30));
+        known.setPopularityScore(10);
+        weekly.setConcerts(List.of());
+        weekly.setTheaters(List.of());
+        weekly.setStandups(List.of(leader, openMic, known));
+
+        List<WeeklyVideoService.SelectedEvent> result = service.collectEventsForVideo(weekly);
+
+        assertThat(result).extracting(se -> se.event().getTitle())
+                .containsExactlyInAnyOrder("Anlatanadam", "Gömercin Kuşları - Kaan Sekban");
+    }
+
+    @Test
     void buildReelCaption_listsEventsWithDayAndTime() {
         EventSummaryDTO withTime = event(1L, "Feridun Düzağaç", "Dorock XL", LocalDate.of(2026, 7, 17), LocalTime.of(21, 0));
         EventSummaryDTO noTime = event(2L, "Gülinler", "Blind İstanbul", LocalDate.of(2026, 7, 18), null);

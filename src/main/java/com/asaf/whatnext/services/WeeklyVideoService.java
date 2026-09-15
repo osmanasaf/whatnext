@@ -114,6 +114,11 @@ public class WeeklyVideoService {
             if (e == null || isDuplicate(seen, e)) {
                 continue;
             }
+            // Kategori liderinden sonra hiçbir popülerlik sinyali olmayan etkinlik (skor 0) Reel'e girmez:
+            // 2026-09-15 Reel'i "Kadıköy Açık Mikrofon" (bar açık mikrofonu) ile açılıyordu. Skor bilinmiyorsa (null) eskisi gibi alınır.
+            if (added > 0 && e.getPopularityScore() != null && e.getPopularityScore() <= 0) {
+                continue;
+            }
             seen.add(e);
             target.add(new SelectedEvent(e, added == 0));
             added++;
