@@ -3,7 +3,6 @@ package com.asaf.whatnext.services;
 import com.asaf.whatnext.dto.EventSummaryDTO;
 import com.asaf.whatnext.dto.WeeklyPopularEventsDTO;
 import com.asaf.whatnext.services.images.RemotionRunner;
-import com.asaf.whatnext.services.scoring.PopularityCatalog;
 import com.asaf.whatnext.utils.EventIdentity;
 import com.asaf.whatnext.utils.TrClock;
 import org.slf4j.Logger;
@@ -16,7 +15,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.time.LocalDate;
-import java.util.regex.Pattern;
 import java.time.format.DateTimeFormatter;
 import java.time.format.TextStyle;
 import java.time.temporal.IsoFields;
@@ -109,18 +107,6 @@ public class WeeklyVideoService {
      * Aynı etkinlik (farklı kaynak / çift kayıt) Reel'de iki kez çıkmasın — birebir id eşleşmesinin
      * yanında {@link EventIdentity} ile siteler arası (farklı isimli) aynı etkinlik de eşlenir.
      */
-    /**
-     * Amatör/açık sahne geceleri: haftalık tekrarlandıkları için başlık-tekrar puanı + tarih yakınlığıyla
-     * skor alıyorlar (2026-09-16: "Kadıköy Açık Mikrofon Stand Up" 15, Kaan Sekban'lı gösteri 11) ama
-     * "haftanın öne çıkanları" Reel'inde yer almamalı.
-     */
-    private static final Pattern AMATEUR_NIGHT = Pattern.compile("\\b(acik mikrofon|open mic|stand ?up gecesi)\\b");
-
-    /** Türkçe küçük harf "MIC"i "mıc" yapar — ASCII'ye katlanmış başlıkta aranır. */
-    static boolean isAmateurNight(String title) {
-        return title != null && AMATEUR_NIGHT.matcher(PopularityCatalog.fold(title)).find();
-    }
-
     private void addUpTo(List<SelectedEvent> target, List<EventSummaryDTO> source, int max, List<EventSummaryDTO> seen,
                          LocalDate today) {
         if (source == null) {
@@ -136,9 +122,6 @@ public class WeeklyVideoService {
             }
             // Hafta penceresi Pazartesiden başlıyor; Reel Salı/Çarşamba yayınlandığında geçmiş günler çıkmasın.
             if (e.getStartDate() != null && e.getStartDate().isBefore(today)) {
-                continue;
-            }
-            if (isAmateurNight(e.getTitle())) {
                 continue;
             }
             // Kategori liderinden sonra hiçbir popülerlik sinyali olmayan etkinlik (skor 0) Reel'e girmez:

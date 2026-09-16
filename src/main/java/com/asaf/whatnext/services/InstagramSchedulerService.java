@@ -5,6 +5,7 @@ import com.asaf.whatnext.models.InstagramImage;
 import com.asaf.whatnext.repository.InstagramImageRepository;
 import com.asaf.whatnext.services.scoring.EventScoringStrategy;
 import com.asaf.whatnext.utils.EventAudience;
+import com.asaf.whatnext.utils.EventQuality;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -260,6 +261,7 @@ public class InstagramSchedulerService {
         List<Event> events = eventService.findByDate(targetDate.toString()).stream()
                 .filter(e -> "istanbul".equalsIgnoreCase(e.getCity()))
                 .filter(e -> !EventAudience.isChildrensEvent(e))
+                .filter(e -> !EventQuality.isAmateurNight(e))
                 .sorted(Comparator.comparingInt(scoringStrategy::calculateScore).reversed())
                 .limit(CAPTION_MAX_EVENTS)
                 .toList();

@@ -9,6 +9,7 @@ import com.asaf.whatnext.models.PerformingArt;
 import com.asaf.whatnext.repository.EventRepository;
 import com.asaf.whatnext.services.scoring.EventScoringStrategy;
 import com.asaf.whatnext.utils.EventAudience;
+import com.asaf.whatnext.utils.EventQuality;
 import com.asaf.whatnext.utils.EventDuplicateKeys;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -68,6 +69,7 @@ public class PopularEventService {
         List<Event> sorted = allEvents.stream()
                 .filter(e -> matchesEventType(e, type))
                 .filter(e -> !EventAudience.isChildrensEvent(e))
+                .filter(e -> !EventQuality.isAmateurNight(e))
                 .sorted(Comparator.comparingInt(scoringStrategy::calculateScore).reversed())
                 .toList();
         List<Event> deduped = EventDuplicateKeys.dedupeByTitleAndDateKeepOrder(sorted);

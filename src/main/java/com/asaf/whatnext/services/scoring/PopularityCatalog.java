@@ -1,6 +1,6 @@
 package com.asaf.whatnext.services.scoring;
 
-import com.asaf.whatnext.utils.EventDuplicateKeys;
+import com.asaf.whatnext.utils.EventQuality;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.core.io.ClassPathResource;
@@ -106,10 +106,8 @@ public class PopularityCatalog {
     }
 
     /** Küçük harf + noktalama → boşluk + Türkçe harfler ASCII'ye (kaynaklar arası "Sener Sen" yazımı da eşleşsin). */
-    public static String fold(String s) {
-        return EventDuplicateKeys.normalizeTitle(s)
-                .replace('ı', 'i').replace('ğ', 'g').replace('ü', 'u')
-                .replace('ş', 's').replace('ö', 'o').replace('ç', 'c');
+    static String fold(String s) {
+        return EventQuality.fold(s);
     }
 
     private static JsonNode loadConfig() {

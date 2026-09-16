@@ -106,31 +106,25 @@ class WeeklyVideoServiceTest {
                 .containsExactlyInAnyOrder("Anlatanadam", "Gömercin Kuşları - Kaan Sekban");
     }
 
-    /** 2026-09-16 canlı liste: açık mikrofonlar 15 puan almıştı, dünkü etkinlik de haftalık listedeydi. */
+    /** 2026-09-16: hafta penceresi Pazartesiden başladığı için dünkü etkinlik (lider bile olsa) Reel'e giriyordu. */
     @Test
-    void collectEventsForVideo_skipsPastEventsAndAmateurNights_evenAsLeader() {
+    void collectEventsForVideo_skipsPastEvents_evenAsLeader() {
         LocalDate today = LocalDate.of(2026, 9, 16);
         WeeklyPopularEventsDTO weekly = new WeeklyPopularEventsDTO();
-        EventSummaryDTO openMic = event(1L, "Kadıköy Açık Mikrofon Stand Up", "Corner Kadıköy", today, LocalTime.of(20, 15));
-        openMic.setPopularityScore(15);
-        EventSummaryDTO barNight = event(2L, "Kadıköy Stand up Gecesi Çarşamba 20:30", "ada bar", today, null);
-        barNight.setPopularityScore(15);
-        EventSummaryDTO comedian = event(3L, "Pınar Fidan Stand Up", "Moda Sahnesi", today.plusDays(4), LocalTime.of(20, 30));
-        comedian.setPopularityScore(12);
         EventSummaryDTO yesterday = event(4L, "Meçhul Paşa", "Sahne Dragos", today.minusDays(1), LocalTime.of(20, 30));
         yesterday.setPopularityScore(24);
         EventSummaryDTO tonight = event(5L, "Zengin Mutfağı", "Maximum UNIQ Hall", today, LocalTime.of(20, 30));
         tonight.setPopularityScore(50);
+        EventSummaryDTO comedian = event(3L, "Pınar Fidan Stand Up", "Moda Sahnesi", today.plusDays(4), LocalTime.of(20, 30));
+        comedian.setPopularityScore(12);
         weekly.setConcerts(List.of());
         weekly.setTheaters(List.of(yesterday, tonight));
-        weekly.setStandups(List.of(openMic, barNight, comedian));
+        weekly.setStandups(List.of(comedian));
 
         List<WeeklyVideoService.SelectedEvent> result = service.collectEventsForVideo(weekly, today);
 
         assertThat(result).extracting(se -> se.event().getTitle())
                 .containsExactly("Zengin Mutfağı", "Pınar Fidan Stand Up");
-        assertThat(WeeklyVideoService.isAmateurNight("OPEN MIC Night")).isTrue();
-        assertThat(WeeklyVideoService.isAmateurNight("Cem Yılmaz - Diamond Elite")).isFalse();
     }
 
     @Test

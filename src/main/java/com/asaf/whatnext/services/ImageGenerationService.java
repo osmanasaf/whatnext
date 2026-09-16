@@ -10,6 +10,7 @@ import com.asaf.whatnext.services.scoring.EventScoringStrategy;
 import com.asaf.whatnext.services.templates.TemplateAssets;
 import com.asaf.whatnext.services.templates.TemplateProvider;
 import com.asaf.whatnext.utils.EventAudience;
+import com.asaf.whatnext.utils.EventQuality;
 import com.asaf.whatnext.utils.EventDuplicateKeys;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -120,6 +121,7 @@ public class ImageGenerationService {
         EventType eventTypeEnum = EventType.valueOf(eventType.toUpperCase(Locale.ROOT));
         List<Event> events = eventService.findTopNEventsForDateAndCity(date, eventTypeEnum, city, 18).stream()
                 .filter(event -> !EventAudience.isChildrensEvent(event))
+                .filter(event -> !EventQuality.isAmateurNight(event))
                 .limit(6)
                 .toList();
 
@@ -196,6 +198,7 @@ public class ImageGenerationService {
         return (int) eventService.findByDate(date.toString()).stream()
                 .filter(e -> "istanbul".equalsIgnoreCase(e.getCity()))
                 .filter(e -> !EventAudience.isChildrensEvent(e))
+                .filter(e -> !EventQuality.isAmateurNight(e))
                 .count();
     }
 
@@ -266,7 +269,7 @@ public class ImageGenerationService {
     /** Türün skora göre ilk {@code STORY_FETCH_LIMIT} etkinliği, çocuk etkinlikleri hariç. */
     private List<Event> topForStory(LocalDate date, EventType type) {
         List<Event> events = new ArrayList<>(eventService.findTopNEventsForDateAndCity(date, type, "istanbul", STORY_FETCH_LIMIT));
-        events.removeIf(EventAudience::isChildrensEvent);
+        events.removeIf(e -> EventAudience.isChildrensEvent(e) || EventQuality.isAmateurNight(e));
         return events;
     }
 
