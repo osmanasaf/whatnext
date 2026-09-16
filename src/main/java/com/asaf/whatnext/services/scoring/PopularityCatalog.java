@@ -106,7 +106,7 @@ public class PopularityCatalog {
     }
 
     /** Küçük harf + noktalama → boşluk + Türkçe harfler ASCII'ye (kaynaklar arası "Sener Sen" yazımı da eşleşsin). */
-    static String fold(String s) {
+    public static String fold(String s) {
         return EventDuplicateKeys.normalizeTitle(s)
                 .replace('ı', 'i').replace('ğ', 'g').replace('ü', 'u')
                 .replace('ş', 's').replace('ö', 'o').replace('ç', 'c');

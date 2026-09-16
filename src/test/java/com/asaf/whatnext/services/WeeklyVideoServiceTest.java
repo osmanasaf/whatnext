@@ -14,6 +14,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class WeeklyVideoServiceTest {
 
+    /** Test tarihleri (Temmuz) bugünden önce; geçmiş-etkinlik filtresi sabit "bugün" ile test edilir. */
+    private static final LocalDate TODAY = LocalDate.of(2026, 7, 13);
+
     private WeeklyVideoService service;
 
     @BeforeEach
@@ -43,7 +46,7 @@ class WeeklyVideoServiceTest {
         weekly.setStandups(List.of(
                 event(3L, "Cuma Standup", "Kadıköy Sahne", LocalDate.of(2026, 7, 17), null)));
 
-        List<WeeklyVideoService.SelectedEvent> result = service.collectEventsForVideo(weekly);
+        List<WeeklyVideoService.SelectedEvent> result = service.collectEventsForVideo(weekly, TODAY);
 
         assertThat(result).extracting(se -> se.event().getTitle())
                 .containsExactly("Salı Oyunu", "Cuma Standup", "Pazar Konseri");
@@ -60,7 +63,7 @@ class WeeklyVideoServiceTest {
                 event(2L, "Foodiefest İstanbul", "Zorlu PSM", date, LocalTime.of(21, 0))));
         weekly.setStandups(List.of());
 
-        List<WeeklyVideoService.SelectedEvent> result = service.collectEventsForVideo(weekly);
+        List<WeeklyVideoService.SelectedEvent> result = service.collectEventsForVideo(weekly, TODAY);
 
         assertThat(result).hasSize(1);
     }
@@ -75,7 +78,7 @@ class WeeklyVideoServiceTest {
         weekly.setTheaters(List.of());
         weekly.setStandups(List.of());
 
-        List<WeeklyVideoService.SelectedEvent> result = service.collectEventsForVideo(weekly);
+        List<WeeklyVideoService.SelectedEvent> result = service.collectEventsForVideo(weekly, TODAY);
 
         assertThat(result).hasSize(2);
         assertThat(result.stream().filter(WeeklyVideoService.SelectedEvent::featured)).hasSize(1);
@@ -89,18 +92,45 @@ class WeeklyVideoServiceTest {
         LocalDate date = LocalDate.of(2026, 9, 19);
         EventSummaryDTO leader = event(1L, "Anlatanadam", "Torium Sahne", date, LocalTime.of(20, 30));
         leader.setPopularityScore(20);
-        EventSummaryDTO openMic = event(2L, "Kadıköy Açık Mikrofon Stand Up", "Corner Kadıköy", date, LocalTime.of(20, 15));
-        openMic.setPopularityScore(0);
+        EventSummaryDTO unknown = event(2L, "Mahalle Komedi Akşamı", "Kafe Sahne", date, LocalTime.of(20, 15));
+        unknown.setPopularityScore(0);
         EventSummaryDTO known = event(3L, "Gömercin Kuşları - Kaan Sekban", "Habitat Hilltown", date, LocalTime.of(20, 30));
         known.setPopularityScore(10);
         weekly.setConcerts(List.of());
         weekly.setTheaters(List.of());
-        weekly.setStandups(List.of(leader, openMic, known));
+        weekly.setStandups(List.of(leader, unknown, known));
 
-        List<WeeklyVideoService.SelectedEvent> result = service.collectEventsForVideo(weekly);
+        List<WeeklyVideoService.SelectedEvent> result = service.collectEventsForVideo(weekly, TODAY);
 
         assertThat(result).extracting(se -> se.event().getTitle())
                 .containsExactlyInAnyOrder("Anlatanadam", "Gömercin Kuşları - Kaan Sekban");
+    }
+
+    /** 2026-09-16 canlı liste: açık mikrofonlar 15 puan almıştı, dünkü etkinlik de haftalık listedeydi. */
+    @Test
+    void collectEventsForVideo_skipsPastEventsAndAmateurNights_evenAsLeader() {
+        LocalDate today = LocalDate.of(2026, 9, 16);
+        WeeklyPopularEventsDTO weekly = new WeeklyPopularEventsDTO();
+        EventSummaryDTO openMic = event(1L, "Kadıköy Açık Mikrofon Stand Up", "Corner Kadıköy", today, LocalTime.of(20, 15));
+        openMic.setPopularityScore(15);
+        EventSummaryDTO barNight = event(2L, "Kadıköy Stand up Gecesi Çarşamba 20:30", "ada bar", today, null);
+        barNight.setPopularityScore(15);
+        EventSummaryDTO comedian = event(3L, "Pınar Fidan Stand Up", "Moda Sahnesi", today.plusDays(4), LocalTime.of(20, 30));
+        comedian.setPopularityScore(12);
+        EventSummaryDTO yesterday = event(4L, "Meçhul Paşa", "Sahne Dragos", today.minusDays(1), LocalTime.of(20, 30));
+        yesterday.setPopularityScore(24);
+        EventSummaryDTO tonight = event(5L, "Zengin Mutfağı", "Maximum UNIQ Hall", today, LocalTime.of(20, 30));
+        tonight.setPopularityScore(50);
+        weekly.setConcerts(List.of());
+        weekly.setTheaters(List.of(yesterday, tonight));
+        weekly.setStandups(List.of(openMic, barNight, comedian));
+
+        List<WeeklyVideoService.SelectedEvent> result = service.collectEventsForVideo(weekly, today);
+
+        assertThat(result).extracting(se -> se.event().getTitle())
+                .containsExactly("Zengin Mutfağı", "Pınar Fidan Stand Up");
+        assertThat(WeeklyVideoService.isAmateurNight("OPEN MIC Night")).isTrue();
+        assertThat(WeeklyVideoService.isAmateurNight("Cem Yılmaz - Diamond Elite")).isFalse();
     }
 
     @Test
