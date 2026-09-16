@@ -20,7 +20,9 @@ class InstagramApiExceptionTest {
         assertThat(e.isRateLimitError()).isFalse();
         assertThat(e.isActionBlockedError()).isFalse();
         assertThat(e.isExpiredOrInvalidToken()).isFalse();
+        assertThat(e.isMediaFetchError()).isTrue();
         assertThat(e.getMessage()).contains("code=9004").contains("subcode=2207052");
+        assertThat(error("{\"error\":{\"code\":4}}").isMediaFetchError()).isFalse();
     }
 
     @Test

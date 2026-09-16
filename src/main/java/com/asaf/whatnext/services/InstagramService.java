@@ -187,7 +187,35 @@ public class InstagramService {
         return createContainerFromUrl(imageUrl, isStory, null);
     }
 
+    private static final int MEDIA_FETCH_ATTEMPTS = 4;
+    private static final long MEDIA_FETCH_RETRY_MS = 20_000L;
+
+    /**
+     * Instagram'ın görseli indirmesi aralıklı başarısız oluyor (9004/2207052): 2026-09-15'te aynı carousel'in
+     * 4 JPEG'inden 2'si container'a dönüştü, 3.'sü "Medya indirilemedi" ile düştü — adres elle hep 200/image/jpeg.
+     * Tüm görevi düşürmek yerine yalnız o görsel kısa aralıkla yeniden denenir.
+     */
     private String createContainerFromUrl(String imageUrl, boolean isStory, String caption) throws IOException, InstagramApiException {
+        for (int attempt = 1; ; attempt++) {
+            try {
+                return createContainerOnce(imageUrl, isStory, caption);
+            } catch (InstagramApiException e) {
+                if (!e.isMediaFetchError() || attempt >= MEDIA_FETCH_ATTEMPTS) {
+                    throw e;
+                }
+                System.err.println("[Publisher] Medya indirilemedi (9004), " + (MEDIA_FETCH_RETRY_MS / 1000)
+                        + " sn sonra yeniden deneniyor (" + attempt + "/" + MEDIA_FETCH_ATTEMPTS + "): " + imageUrl);
+                try {
+                    Thread.sleep(MEDIA_FETCH_RETRY_MS);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw e;
+                }
+            }
+        }
+    }
+
+    private String createContainerOnce(String imageUrl, boolean isStory, String caption) throws IOException, InstagramApiException {
         String endpoint = GRAPH_API_BASE + userId + "/media";
         // Görseller Cloudinary'de webp; Instagram image_url'de yalnızca JPEG'i destekliyor ("Only photo or video can be
         // accepted" reddi). Cloudinary uzantı değişince aynı görseli JPEG olarak sunar — eski kayıtlar da kapsanır.
@@ -608,6 +636,11 @@ public class InstagramService {
 
         public boolean isActionBlockedError() {
             return subcode == 2207051;
+        }
+
+        /** Instagram medya adresini indiremedi ("Only photo or video can be accepted") — aralıklı, yeniden denenebilir. */
+        public boolean isMediaFetchError() {
+            return code == 9004 || subcode == 2207052;
         }
 
         public boolean isExpiredOrInvalidToken() {
