@@ -63,7 +63,7 @@ public class BiletixSolrClient {
                 .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
                 .build();
 
-        HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        HttpResponse<String> response = HtmlFetcher.send(http, request);
         if (response.statusCode() != 200) {
             throw new IOException("Biletix solr HTTP " + response.statusCode());
         }
@@ -80,7 +80,7 @@ public class BiletixSolrClient {
                 .timeout(timeout)
                 .GET()
                 .build();
-        HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        HttpResponse<String> response = HtmlFetcher.send(http, request);
         if (response.statusCode() != 200) {
             throw new IOException("Biletix HTTP " + response.statusCode() + " — " + url);
         }

@@ -10,6 +10,10 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Sunucuda render edilen scraper sayfalarını düz HTTP ile çeker; tarayıcı gerekmez.
@@ -45,12 +49,35 @@ public final class HtmlFetcher {
                 .GET()
                 .build();
 
-        HttpResponse<String> response = CLIENT.send(request,
-                HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        HttpResponse<String> response = send(CLIENT, request);
         if (response.statusCode() != 200) {
             throw new IOException("HTTP " + response.statusCode() + " — " + url);
         }
         return Jsoup.parse(response.body(), url);
+    }
+
+    /**
+     * {@code HttpClient.send} gibi, ama isteğin {@code timeout}'u gövde dahil toplam süreye uygulanır.
+     * JDK'nın timeout'u yalnızca yanıt başlıklarına kadar geçerli; başlığı gönderip gövdede susan
+     * sunucu {@code send}'i sonsuza dek bekletir. 2026-09-20'de Biletinial taramasında böyle takıldı,
+     * tek scheduler thread'i kilitlendi ve bir hafta boyunca hiçbir paylaşım görevi çalışmadı.
+     */
+    public static HttpResponse<String> send(HttpClient client, HttpRequest request)
+            throws IOException, InterruptedException {
+        long deadlineMs = request.timeout().orElse(Duration.ofSeconds(30)).toMillis();
+        CompletableFuture<HttpResponse<String>> future =
+                client.sendAsync(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+        try {
+            return future.get(deadlineMs, TimeUnit.MILLISECONDS);
+        } catch (TimeoutException e) {
+            future.cancel(true);
+            throw new IOException("Toplam süre aşıldı (" + deadlineMs + " ms) — " + request.uri(), e);
+        } catch (InterruptedException e) {
+            future.cancel(true);
+            throw e;
+        } catch (ExecutionException e) {
+            throw e.getCause() instanceof IOException io ? io : new IOException(e.getCause());
+        }
     }
 
     /** Hata durumunda {@code null} — çağıran mevcut değerini korumak istediğinde. */
