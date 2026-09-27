@@ -14,8 +14,6 @@ const STILL_WIDTH = 1080;
 const STILL_HEIGHT = 1350; // 4:5 — el yapımı şablonların 1:1 kısıtı (kırpma sorunu) burada geçerli değil
 const STORY_STILL_HEIGHT = 1920; // 9:16, statik story şablonlarıyla aynı oran (Faz 3.1)
 
-const DEFAULT_PALETTE = { bg1: '#0f0c29', bg2: '#302b63', accent: '#a78bfa', text: '#f8fafc' };
-
 // Stüdyo önizlemesinde calculateMetadata henüz gerçek props'u görmeden önceki tahmini süre
 // (tipik kullanım: 3 featured + 6 quick). Gerçek render'da her zaman calculateMetadata geçerli olur.
 const PREVIEW_EVENTS: Pick<EventData, 'featured'>[] = [
@@ -33,21 +31,18 @@ export const RemotionRoot: React.FC = () => {
   const dailyPostDefaults: DailyPostStillProps = {
     eventType: 'concert',
     monthName: 'july',
-    palette: DEFAULT_PALETTE,
     date: '2026-07-17',
     events: [],
   };
 
   const smartStoryDefaults: SmartStoryStillProps = {
     monthName: 'july',
-    palette: DEFAULT_PALETTE,
     date: '2026-07-17',
     events: [],
   };
 
   const coverDefaults: CoverStillProps = {
     monthName: 'july',
-    palette: DEFAULT_PALETTE,
     date: '2026-07-17',
     eventCount: 0,
   };

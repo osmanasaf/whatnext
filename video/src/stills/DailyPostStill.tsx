@@ -5,7 +5,6 @@ import {
   DateStamp,
   EventRow,
   MetaLine,
-  Palette,
   Poster,
   SaveCta,
   StillBackground,
@@ -13,11 +12,11 @@ import {
   TypeRail,
   firstImage,
 } from './shared';
+import { ThemeContext, themeFor } from '../theme';
 
 export interface DailyPostStillProps {
   eventType: string;
   monthName: string;
-  palette: Palette;
   date: string;
   events: StillEventData[];
   backgroundImageUrl?: string;
@@ -43,19 +42,19 @@ const layoutFor = (count: number, canvasHeight: number) => {
 
 export const DailyPostStill: React.FC<DailyPostStillProps> = ({
   eventType,
-  palette,
   date,
   events,
   backgroundImageUrl,
 }) => {
   useBrandFonts();
-  const shown = events.slice(0, 6);
+  const shown = events.slice(0, 8);
   const ambient = firstImage(shown);
   const subtitle = shown.length > 1 ? `İstanbul • ${shown.length} etkinlik` : 'İstanbul';
 
   return (
+    <ThemeContext.Provider value={themeFor(date)}>
     <AbsoluteFill>
-      <StillBackground backgroundImageUrl={backgroundImageUrl} palette={palette} ambientImageUrl={ambient} />
+      <StillBackground backgroundImageUrl={backgroundImageUrl} ambientImageUrl={ambient} />
 
       <AbsoluteFill
         style={{ padding: `${PAD}px ${PAD}px ${CTA_ZONE}px ${PAD}px`, display: 'flex', flexDirection: 'column' }}
@@ -76,6 +75,7 @@ export const DailyPostStill: React.FC<DailyPostStillProps> = ({
 
       <SaveCta bottom={CTA_BOTTOM} />
     </AbsoluteFill>
+    </ThemeContext.Provider>
   );
 };
 

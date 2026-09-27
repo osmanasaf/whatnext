@@ -1,7 +1,7 @@
 import React from 'react';
 import { AbsoluteFill, Img, interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import { FONT_TITLE } from './fonts';
-import { DateStamp, MetaLine, Palette, Poster, StillBackground, TypeBadge } from './stills/shared';
+import { DateStamp, MetaLine, Poster, StillBackground, TypeBadge } from './stills/shared';
 
 export interface EventData {
   id: number;
@@ -15,8 +15,6 @@ export interface EventData {
   imageUrl?: string | null;
   featured?: boolean;
 }
-
-const REEL_PALETTE: Palette = { bg1: '#302b63', bg2: '#24243e', accent: '#a78bfa', text: '#f8fafc' };
 
 /** Instagram Reels arayüzü üst ~200px ve alt ~380px'i (açıklama, butonlar) kapatır — bilgi bu bölgelerin dışında. */
 const SAFE_TOP = 210;
@@ -55,7 +53,7 @@ export const EventCard: React.FC<{ event: EventData; durationInFrames: number }>
 
   return (
     <AbsoluteFill>
-      <StillBackground palette={REEL_PALETTE} ambientImageUrl={event.imageUrl || undefined} />
+      <StillBackground ambientImageUrl={event.imageUrl || undefined} />
 
       <AbsoluteFill
         style={{

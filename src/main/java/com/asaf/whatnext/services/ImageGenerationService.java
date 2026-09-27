@@ -53,7 +53,8 @@ public class ImageGenerationService {
     private static final Logger LOGGER = LoggerFactory.getLogger(ImageGenerationService.class);
 
     /** Story'de en çok 8 satır — 10 kalabalık bulundu (2026-09-07 kullanıcı kararı). */
-    private static final int STORY_EVENT_TARGET = 8;
+    private static final int STORY_EVENT_TARGET = 9;
+    private static final int POST_EVENT_LIMIT = 8;
     private static final int STORY_FETCH_LIMIT = 14;
     private static final int MAX_TITLE_ANNOTATE_LINES = 3;
     private static final int MAX_VENUE_ANNOTATE_LINES = 2;
@@ -111,7 +112,7 @@ public class ImageGenerationService {
     }
 
     /**
-     * Bir tür (concert/theater/standup) için o günün İstanbul'daki en iyi (en çok 6) etkinliği —
+     * Bir tür (concert/theater/standup) için o günün İstanbul'daki en iyi (en çok {@link #POST_EVENT_LIMIT}) etkinliği —
      * render'dan ayrı, çünkü {@code services/images/} altındaki Remotion/AI motorları da aynı seçimi
      * kullanır (tek doğruluk kaynağı).
      */
@@ -122,7 +123,7 @@ public class ImageGenerationService {
         List<Event> events = eventService.findTopNEventsForDateAndCity(date, eventTypeEnum, city, 18).stream()
                 .filter(event -> !EventAudience.isChildrensEvent(event))
                 .filter(event -> !EventQuality.isAmateurNight(event))
-                .limit(6)
+                .limit(POST_EVENT_LIMIT)
                 .toList();
 
         for (Event event : events) {

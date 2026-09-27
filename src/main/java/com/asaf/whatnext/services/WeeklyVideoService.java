@@ -49,6 +49,8 @@ public class WeeklyVideoService {
     private double jaccardStrongThreshold;
 
     /** Kategorinin ilk (en yüksek skorlu) etkinliği {@code featured=true} — Reel'de daha uzun süre gösterilir. */
+    static final int PER_CATEGORY = 4;
+
     record SelectedEvent(EventSummaryDTO event, boolean featured) {
     }
 
@@ -83,7 +85,7 @@ public class WeeklyVideoService {
     }
 
     /**
-     * Kategori başına en iyi 3 (PopularEventService zaten skora göre sıralı veriyor), sonra
+     * Kategori başına en iyi {@link #PER_CATEGORY} (PopularEventService zaten skora göre sıralı veriyor), sonra
      * {@code startDate}+{@code startTime}'a göre gün sıralı — Reel kategoriye değil haftanın
      * akışına göre ilerlesin diye ("Cuma akşamı ne var?").
      */
@@ -94,9 +96,9 @@ public class WeeklyVideoService {
     List<SelectedEvent> collectEventsForVideo(WeeklyPopularEventsDTO weekly, LocalDate today) {
         List<SelectedEvent> result = new ArrayList<>();
         List<EventSummaryDTO> seen = new ArrayList<>();
-        addUpTo(result, weekly.getConcerts(), 3, seen, today);
-        addUpTo(result, weekly.getTheaters(), 3, seen, today);
-        addUpTo(result, weekly.getStandups(), 3, seen, today);
+        addUpTo(result, weekly.getConcerts(), PER_CATEGORY, seen, today);
+        addUpTo(result, weekly.getTheaters(), PER_CATEGORY, seen, today);
+        addUpTo(result, weekly.getStandups(), PER_CATEGORY, seen, today);
         result.sort(Comparator
                 .comparing((SelectedEvent s) -> s.event().getStartDate(), Comparator.nullsLast(Comparator.naturalOrder()))
                 .thenComparing(s -> s.event().getStartTime(), Comparator.nullsLast(Comparator.naturalOrder())));

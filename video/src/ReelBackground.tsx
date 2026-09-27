@@ -1,38 +1,9 @@
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame, interpolate } from 'remotion';
+import { useTheme, withAlpha } from './theme';
 
-const VARIANTS = [
-  {
-    gradient: 'linear-gradient(145deg, #0f0c29 0%, #302b63 50%, #24243e 100%)',
-    accent: 'rgba(139,92,246,0.18)',
-    accent2: 'rgba(99,102,241,0.12)',
-    lineColor: 'rgba(167,139,250,0.07)',
-  },
-  {
-    gradient: 'linear-gradient(145deg, #0a0a1a 0%, #1a1a4e 50%, #0d0d2b 100%)',
-    accent: 'rgba(59,130,246,0.16)',
-    accent2: 'rgba(168,85,247,0.12)',
-    lineColor: 'rgba(99,102,241,0.07)',
-  },
-  {
-    gradient: 'linear-gradient(145deg, #0f0c29 0%, #1e0a3c 50%, #0a0a1a 100%)',
-    accent: 'rgba(124,58,237,0.18)',
-    accent2: 'rgba(6,182,212,0.08)',
-    lineColor: 'rgba(139,92,246,0.07)',
-  },
-  {
-    gradient: 'linear-gradient(145deg, #050510 0%, #1a1040 50%, #0f0c29 100%)',
-    accent: 'rgba(99,102,241,0.16)',
-    accent2: 'rgba(139,92,246,0.1)',
-    lineColor: 'rgba(167,139,250,0.06)',
-  },
-  {
-    gradient: 'linear-gradient(145deg, #0a0a1a 0%, #2d1b4e 50%, #1a1a2e 100%)',
-    accent: 'rgba(167,139,250,0.15)',
-    accent2: 'rgba(99,102,241,0.1)',
-    lineColor: 'rgba(139,92,246,0.07)',
-  },
-];
+/** Haftalık varyant (ISO hafta % 5) yalnız degrade açısını çevirir; renkler ay temasından. */
+const ANGLES = [145, 175, 115, 200, 90];
 
 // SVG ikonlar - emoji yerine vektörel
 const MusicNoteIcon: React.FC<{ size: number; color: string; opacity: number }> = ({ size, color, opacity }) => (
@@ -73,13 +44,20 @@ const TicketIcon: React.FC<{ size: number; color: string; opacity: number }> = (
 
 export const ReelBackground: React.FC<{ variant?: number }> = ({ variant = 0 }) => {
   const frame = useCurrentFrame();
-  const v = VARIANTS[Math.min(Math.max(0, variant), VARIANTS.length - 1)];
+  const { accent, base } = useTheme();
+  const angle = ANGLES[Math.min(Math.max(0, variant), ANGLES.length - 1)];
+  const v = {
+    gradient: `linear-gradient(${angle}deg, ${base} 0%, ${withAlpha(accent, 0.22)} 50%, ${base} 100%)`,
+    accent: withAlpha(accent, 0.2),
+    accent2: withAlpha(accent, 0.12),
+    lineColor: withAlpha(accent, 0.07),
+  };
 
   const pulse = interpolate(Math.sin(frame * 0.03), [-1, 1], [0.85, 1.0]);
   const pulse2 = interpolate(Math.sin(frame * 0.02 + 1), [-1, 1], [0.9, 1.05]);
   const rotate = interpolate(frame, [0, 300], [0, 360], { extrapolateRight: 'wrap' });
 
-  const iconColor = '#a78bfa';
+  const iconColor = accent;
 
   return (
     <AbsoluteFill style={{ background: v.gradient, overflow: 'hidden' }}>
@@ -148,14 +126,14 @@ export const ReelBackground: React.FC<{ variant?: number }> = ({ variant = 0 }) 
       <div style={{
         position: 'absolute', top: 0, left: 0,
         width: 120, height: 120,
-        borderTop: '2px solid rgba(167,139,250,0.2)',
-        borderLeft: '2px solid rgba(167,139,250,0.2)',
+        borderTop: `2px solid ${withAlpha(accent, 0.25)}`,
+        borderLeft: `2px solid ${withAlpha(accent, 0.25)}`,
       }} />
       <div style={{
         position: 'absolute', bottom: 0, right: 0,
         width: 120, height: 120,
-        borderBottom: '2px solid rgba(167,139,250,0.2)',
-        borderRight: '2px solid rgba(167,139,250,0.2)',
+        borderBottom: `2px solid ${withAlpha(accent, 0.25)}`,
+        borderRight: `2px solid ${withAlpha(accent, 0.25)}`,
       }} />
     </AbsoluteFill>
   );

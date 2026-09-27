@@ -1,13 +1,7 @@
 import React from 'react';
 import { AbsoluteFill, Img, staticFile } from 'remotion';
 import { FONT_BODY, FONT_TITLE } from '../fonts';
-
-export interface Palette {
-  bg1: string;
-  bg2: string;
-  accent: string;
-  text: string;
-}
+import { themeFor, useTheme, withAlpha } from '../theme';
 
 export interface StillEventData {
   id: number;
@@ -68,27 +62,29 @@ const DARK = '#0b0a1a';
  * Arka plan (üç kademe): 1) {@code backgroundImageUrl} (AI motoru) net görsel + koyu gradyan;
  * 2) yoksa listedeki ilk afişli etkinliğin görseli, güçlü blur + karartma ile SADECE doku/ışık
  * olarak (bulanık olduğu için "bu foto hangi etkinliğin" belirsizliği doğurmaz — asıl afişler
- * kartlarda net gösterilir); 3) o da yoksa ay paleti gradyanı.
+ * kartlarda net gösterilir); 3) o da yoksa düz ay gradyanı. Karartma ve ışıma ay temasının
+ * renginde — afiş hangi renkte olursa olsun ayın tonu görünür.
  */
 export const StillBackground: React.FC<{
   backgroundImageUrl?: string;
-  palette: Palette;
   ambientImageUrl?: string;
-}> = ({ backgroundImageUrl, palette, ambientImageUrl }) => {
+}> = ({ backgroundImageUrl, ambientImageUrl }) => {
+  const { accent, base } = useTheme();
   const src = resolveBackgroundSrc(backgroundImageUrl);
   if (src) {
     return (
-      <AbsoluteFill style={{ background: DARK }}>
+      <AbsoluteFill style={{ background: base }}>
         <Img src={src} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         <AbsoluteFill
-          style={{ background: 'linear-gradient(180deg, rgba(11,10,26,0.35) 0%, rgba(11,10,26,0.8) 100%)' }}
+          style={{ background: `linear-gradient(180deg, ${withAlpha(base, 0.35)} 0%, ${withAlpha(base, 0.8)} 100%)` }}
         />
+        <AccentGlow accent={accent} />
       </AbsoluteFill>
     );
   }
   if (ambientImageUrl) {
     return (
-      <AbsoluteFill style={{ background: DARK, overflow: 'hidden' }}>
+      <AbsoluteFill style={{ background: base, overflow: 'hidden' }}>
         <Img
           src={ambientImageUrl}
           style={{
@@ -96,46 +92,54 @@ export const StillBackground: React.FC<{
             height: '100%',
             objectFit: 'cover',
             transform: 'scale(1.25)',
-            filter: 'blur(38px) saturate(1.35) brightness(0.55)',
+            filter: 'blur(38px) saturate(0.6) brightness(0.5)',
           }}
         />
         <AbsoluteFill
           style={{
-            background: `linear-gradient(180deg, rgba(11,10,26,0.55) 0%, rgba(11,10,26,0.35) 40%, rgba(11,10,26,0.9) 100%)`,
+            background: `linear-gradient(180deg, ${withAlpha(base, 0.55)} 0%, ${withAlpha(base, 0.35)} 40%, ${withAlpha(base, 0.92)} 100%)`,
           }}
         />
+        <AccentGlow accent={accent} />
         <Vignette />
       </AbsoluteFill>
     );
   }
   return (
-    <AbsoluteFill style={{ background: `linear-gradient(160deg, ${DARK} 0%, ${palette.accent} 140%)` }}>
-      <div
-        style={{
-          position: 'absolute',
-          top: '-15%',
-          right: '-15%',
-          width: '70%',
-          height: '70%',
-          borderRadius: '50%',
-          background: `radial-gradient(circle, ${palette.bg1}99 0%, transparent 68%)`,
-        }}
-      />
-      <div
-        style={{
-          position: 'absolute',
-          bottom: '-20%',
-          left: '-20%',
-          width: '65%',
-          height: '65%',
-          borderRadius: '50%',
-          background: `radial-gradient(circle, ${palette.bg2}66 0%, transparent 68%)`,
-        }}
-      />
+    <AbsoluteFill style={{ background: `linear-gradient(160deg, ${base} 0%, ${withAlpha(accent, 0.45)} 140%)` }}>
+      <AccentGlow accent={accent} />
       <Vignette />
     </AbsoluteFill>
   );
 };
+
+/** Sağ üstten ve sol alttan ay renginde iki ışıma — temanın arka plandaki ana taşıyıcısı. */
+const AccentGlow: React.FC<{ accent: string }> = ({ accent }) => (
+  <>
+    <div
+      style={{
+        position: 'absolute',
+        top: '-25%',
+        right: '-25%',
+        width: '85%',
+        height: '75%',
+        borderRadius: '50%',
+        background: `radial-gradient(circle, ${withAlpha(accent, 0.42)} 0%, transparent 68%)`,
+      }}
+    />
+    <div
+      style={{
+        position: 'absolute',
+        bottom: '-25%',
+        left: '-25%',
+        width: '80%',
+        height: '65%',
+        borderRadius: '50%',
+        background: `radial-gradient(circle, ${withAlpha(accent, 0.24)} 0%, transparent 68%)`,
+      }}
+    />
+  </>
+);
 
 const Vignette: React.FC = () => (
   <AbsoluteFill
@@ -218,34 +222,61 @@ export const DateBlock: React.FC<{ date: string; daySize?: number; subtitle?: st
  * Takvim damgası başlık: büyük gün sayısı + yanında ay / gün adı sütunu.
  * "Cumartesi" tek başına büyük yazmak yerine tarihi bir bakışta okutur (26 | EYLÜL / Cumartesi).
  */
-export const DateStamp: React.FC<{ date: string; kicker?: string; subtitle?: string; scale?: number }> = ({
-  date,
-  kicker,
-  subtitle,
-  scale = 1,
-}) => (
+export const DateStamp: React.FC<{
+  date: string;
+  kicker?: string;
+  subtitle?: string;
+  scale?: number;
+  /** Ay renginde dolu zemin üstünde: tüm yazı bu koyu renkte, gölgesiz (kapak/Reel girişi). */
+  ink?: string;
+}> = ({ date, kicker, subtitle, scale = 1, ink }) => {
+  const theme = useTheme();
+  const accent = ink ?? theme.accent;
+  const light = ink ?? '#f8fafc';
+  const soft = ink ? withAlpha(ink, 0.75) : 'rgba(255,255,255,0.7)';
+  const shadow = (v: string) => (ink ? 'none' : v);
+  // Özel gün etiketi damganın kendi tarihinden — Reel'de her kart kendi gününü taşır.
+  const special = themeFor(date).special;
+  return (
   <div style={{ display: 'flex', alignItems: 'center', gap: Math.round(20 * scale) }}>
     <div
       style={{
         fontSize: Math.round(118 * scale),
         fontFamily: FONT_TITLE,
         lineHeight: 0.85,
-        color: '#f8fafc',
-        textShadow: '0 4px 24px rgba(0,0,0,0.6)',
+        color: light,
+        textShadow: shadow('0 4px 24px rgba(0,0,0,0.6)'),
         letterSpacing: -2,
       }}
     >
       {dayOfMonth(date)}
     </div>
-    <div style={{ width: 2, alignSelf: 'stretch', background: 'rgba(255,255,255,0.22)', borderRadius: 2 }} />
+    <div style={{ width: 3, alignSelf: 'stretch', background: accent, borderRadius: 2 }} />
     <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-      {kicker && (
+      {special ? (
+        <div
+          style={{
+            alignSelf: 'flex-start',
+            fontSize: Math.round(17 * scale),
+            fontWeight: 800,
+            letterSpacing: 3,
+            color: ink ? theme.accent : DARK,
+            background: accent,
+            borderRadius: 100,
+            padding: `${Math.round(4 * scale)}px ${Math.round(14 * scale)}px`,
+            fontFamily: FONT_BODY,
+            marginBottom: Math.round(8 * scale),
+          }}
+        >
+          {special}
+        </div>
+      ) : kicker && (
         <div
           style={{
             fontSize: Math.round(17 * scale),
             fontWeight: 700,
             letterSpacing: 4,
-            color: 'rgba(255,255,255,0.6)',
+            color: soft,
             fontFamily: FONT_BODY,
             marginBottom: Math.round(4 * scale),
           }}
@@ -258,9 +289,9 @@ export const DateStamp: React.FC<{ date: string; kicker?: string; subtitle?: str
           fontSize: Math.round(22 * scale),
           fontWeight: 700,
           letterSpacing: 5,
-          color: 'rgba(255,255,255,0.78)',
+          color: accent,
           fontFamily: FONT_BODY,
-          textShadow: '0 2px 10px rgba(0,0,0,0.6)',
+          textShadow: shadow('0 2px 10px rgba(0,0,0,0.6)'),
         }}
       >
         {monthNameTr(date).toLocaleUpperCase('tr')}
@@ -269,9 +300,9 @@ export const DateStamp: React.FC<{ date: string; kicker?: string; subtitle?: str
         style={{
           fontSize: Math.round(46 * scale),
           fontFamily: FONT_TITLE,
-          color: '#f8fafc',
+          color: light,
           lineHeight: 1.05,
-          textShadow: '0 4px 20px rgba(0,0,0,0.6)',
+          textShadow: shadow('0 4px 20px rgba(0,0,0,0.6)'),
         }}
       >
         {dayNameTr(date)}
@@ -282,7 +313,7 @@ export const DateStamp: React.FC<{ date: string; kicker?: string; subtitle?: str
             marginTop: Math.round(4 * scale),
             fontSize: Math.round(20 * scale),
             fontWeight: 600,
-            color: 'rgba(255,255,255,0.7)',
+            color: soft,
             fontFamily: FONT_BODY,
             letterSpacing: 1,
           }}
@@ -292,7 +323,8 @@ export const DateStamp: React.FC<{ date: string; kicker?: string; subtitle?: str
       )}
     </div>
   </div>
-);
+  );
+};
 
 /**
  * Sol kenarda dikey tür rayı: aşağıdan yukarıya okunan "KONSER" + üstüne doğru sönen çizgi.
@@ -469,6 +501,7 @@ export const EventRow: React.FC<{
   showType?: boolean;
 }> = ({ event, eventType, posterHeight, titleSize, showType }) => {
   const rowType = eventType ?? event.eventType;
+  const { accent } = useTheme();
   // Bilet sitelerinin afişleri ağırlıkla kare — kare küçük resim, afiş metnini kırpmaz.
   const posterWidth = posterHeight;
   return (
@@ -477,8 +510,8 @@ export const EventRow: React.FC<{
         display: 'flex',
         alignItems: 'center',
         gap: Math.round(posterHeight * 0.16),
-        background: 'rgba(255,255,255,0.07)',
-        border: '1px solid rgba(255,255,255,0.12)',
+        background: `linear-gradient(90deg, ${withAlpha(accent, 0.12)} 0%, rgba(255,255,255,0.05) 60%)`,
+        border: `1px solid ${withAlpha(accent, 0.3)}`,
         borderRadius: Math.round(posterHeight * 0.16),
         padding: Math.round(posterHeight * 0.09),
         backdropFilter: 'blur(10px)',
@@ -515,12 +548,14 @@ export const EventRow: React.FC<{
   );
 };
 
-export const SaveCta: React.FC<{ bottom: number; size?: number }> = ({ bottom, size = 22 }) => (
+export const SaveCta: React.FC<{ bottom: number; size?: number }> = ({ bottom, size = 22 }) => {
+  const { accent } = useTheme();
+  return (
   <div style={{ position: 'absolute', left: 0, right: 0, bottom, display: 'flex', justifyContent: 'center' }}>
     <div
       style={{
-        background: 'rgba(255,255,255,0.1)',
-        border: '1px solid rgba(255,255,255,0.18)',
+        background: withAlpha(accent, 0.16),
+        border: `1.5px solid ${withAlpha(accent, 0.6)}`,
         borderRadius: 100,
         padding: `${Math.round(size * 0.55)}px ${Math.round(size * 1.3)}px`,
         fontSize: size,
@@ -537,12 +572,13 @@ export const SaveCta: React.FC<{ bottom: number; size?: number }> = ({ bottom, s
       }}
     >
       <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={{ display: 'block', flexShrink: 0 }}>
-        <path d="M6 3h12v18l-6-4-6 4V3z" stroke="#ffffff" strokeWidth="2" strokeLinejoin="round" />
+        <path d="M6 3h12v18l-6-4-6 4V3z" stroke={accent} strokeWidth="2" strokeLinejoin="round" />
       </svg>
       <span style={{ display: 'block', paddingTop: 1 }}>KAYDET • whatnext.tr</span>
     </div>
   </div>
-);
+  );
+};
 
 export const Footer: React.FC<{ color?: string }> = ({ color = 'rgba(255,255,255,0.55)' }) => (
   <div

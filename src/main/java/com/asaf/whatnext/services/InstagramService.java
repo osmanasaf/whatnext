@@ -554,6 +554,9 @@ public class InstagramService {
         String endpoint = GRAPH_API_BASE + userId + "/media";
         String postData = "media_type=REELS"
             + "&video_url=" + URLEncoder.encode(videoUrl, StandardCharsets.UTF_8)
+            // Kapak karesi: giriş ekranı (afiş mozaiği + ay renkli panel) tam oturmuş hâlde. Verilmezse
+            // Instagram ilk kareyi alıyor — orada afişler/yazı henüz görünmüyor (bkz. video/src/timing.ts HOOK_FRAMES).
+            + "&thumb_offset=1200"
             + "&access_token=" + accessToken;
         if (caption != null && !caption.isEmpty()) {
             postData += "&caption=" + URLEncoder.encode(caption, StandardCharsets.UTF_8);

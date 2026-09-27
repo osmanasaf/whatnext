@@ -5,6 +5,7 @@ import { ReelBackground } from './ReelBackground';
 import { FONT_BODY, FONT_TITLE, useBrandFonts } from './fonts';
 import { HOOK_FRAMES, OUTRO_FRAMES, computeCardRanges } from './timing';
 import { SaveCta } from './stills/shared';
+import { ThemeContext, themeFor, useTheme, withAlpha } from './theme';
 
 export interface WeeklyReelProps {
   events: EventData[];
@@ -27,6 +28,7 @@ const HookScreen: React.FC<{ events: EventData[]; weekRange: string; variant: nu
   const { fps } = useVideoConfig();
   const tiles = events.filter((e) => e.imageUrl).slice(0, HOOK_SLOTS.length);
   const textIn = spring({ frame: frame - 6, fps, config: { damping: 16, stiffness: 150 } });
+  const { accent, base } = useTheme();
 
   return (
     <AbsoluteFill>
@@ -62,10 +64,16 @@ const HookScreen: React.FC<{ events: EventData[]; weekRange: string; variant: nu
         );
       })}
 
-      <AbsoluteFill
+      {/* Alt panel ay renginde DOLU (kapak görseliyle aynı dil) — Reel profil ızgarasında da ayın rengini taşır. */}
+      <div
         style={{
-          background:
-            'linear-gradient(180deg, rgba(11,10,26,0) 45%, rgba(11,10,26,0.75) 62%, rgba(11,10,26,0.97) 78%, rgba(11,10,26,1) 100%)',
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          top: 1080,
+          bottom: 0,
+          background: accent,
+          clipPath: 'polygon(0 10%, 100% 0, 100% 100%, 0 100%)',
         }}
       />
 
@@ -74,12 +82,12 @@ const HookScreen: React.FC<{ events: EventData[]; weekRange: string; variant: nu
           position: 'absolute',
           left: 72,
           right: 72,
-          top: 1180,
+          top: 1200,
           opacity: interpolate(textIn, [0, 1], [0, 1]),
           transform: `translateY(${interpolate(textIn, [0, 1], [40, 0])}px)`,
         }}
       >
-        <div style={{ fontSize: 32, fontWeight: 700, letterSpacing: 6, color: 'rgba(255,255,255,0.7)', fontFamily: FONT_BODY }}>
+        <div style={{ fontSize: 32, fontWeight: 700, letterSpacing: 6, color: withAlpha(base, 0.8), fontFamily: FONT_BODY }}>
           İSTANBUL • {weekRange.toLocaleUpperCase('tr')}
         </div>
         <div
@@ -87,16 +95,15 @@ const HookScreen: React.FC<{ events: EventData[]; weekRange: string; variant: nu
             marginTop: 18,
             fontSize: 120,
             lineHeight: 1.02,
-            color: '#f8fafc',
+            color: base,
             fontFamily: FONT_TITLE,
-            textShadow: '0 6px 36px rgba(0,0,0,0.6)',
           }}
         >
           Bu hafta
           <br />
           kaçırma
         </div>
-        <div style={{ marginTop: 22, fontSize: 40, fontWeight: 600, color: '#c4b5fd', fontFamily: FONT_BODY }}>
+        <div style={{ marginTop: 22, fontSize: 40, fontWeight: 700, color: withAlpha(base, 0.85), fontFamily: FONT_BODY }}>
           {events.length} öne çıkan etkinlik
         </div>
       </div>
@@ -108,6 +115,7 @@ const OutroScreen: React.FC<{ variant: number }> = ({ variant }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const pop = spring({ frame, fps, config: { damping: 13, stiffness: 120 } });
+  const { accent } = useTheme();
 
   return (
     <AbsoluteFill>
@@ -123,10 +131,10 @@ const OutroScreen: React.FC<{ variant: number }> = ({ variant }) => {
         }}
       >
         <svg width={120} height={120} viewBox="0 0 24 24" fill="none">
-          <polygon points="12,2 22,8.5 22,15.5 12,22 2,15.5 2,8.5" stroke="#a78bfa" strokeWidth="1.4" />
+          <polygon points="12,2 22,8.5 22,15.5 12,22 2,15.5 2,8.5" stroke={accent} strokeWidth="1.4" />
         </svg>
         <div style={{ marginTop: 28, fontSize: 110, color: '#f8fafc', fontFamily: FONT_TITLE, letterSpacing: 2 }}>whatnext</div>
-        <div style={{ marginTop: 8, fontSize: 44, color: '#c4b5fd', fontFamily: FONT_BODY, fontWeight: 600, letterSpacing: 2 }}>
+        <div style={{ marginTop: 8, fontSize: 44, color: accent, fontFamily: FONT_BODY, fontWeight: 600, letterSpacing: 2 }}>
           whatnext.tr
         </div>
         <div
@@ -155,9 +163,11 @@ export const WeeklyReel: React.FC<WeeklyReelProps> = ({ events, weekRange, backg
   const { durationInFrames } = useVideoConfig();
   const cardRanges = computeCardRanges(events);
   const outroFrom = HOOK_FRAMES + cardRanges.reduce((acc, r) => acc + r.durationInFrames, 0);
+  const theme = themeFor(events[0]?.startDate, false);
 
   return (
-    <AbsoluteFill style={{ background: '#0b0a1a' }}>
+    <ThemeContext.Provider value={theme}>
+    <AbsoluteFill style={{ background: theme.base }}>
       <Audio src={staticFile('bg-music.mp3')} loop />
 
       <Sequence from={0} durationInFrames={HOOK_FRAMES}>
@@ -174,5 +184,6 @@ export const WeeklyReel: React.FC<WeeklyReelProps> = ({ events, weekRange, backg
         <OutroScreen variant={backgroundVariant} />
       </Sequence>
     </AbsoluteFill>
+    </ThemeContext.Provider>
   );
 };
