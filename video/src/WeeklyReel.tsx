@@ -17,7 +17,13 @@ export interface WeeklyReelProps {
  * Haftalık dönen müzik: {@code backgroundVariant} (ISO hafta % 5) sırayla parça seçer. Yeni parça =
  * dosyayı {@code public/music/} altına koy + buraya ekle. Yalnız telifsiz/lisansı okunmuş parçalar (bkz. README).
  */
-const TRACKS = ['bg-music.mp3'];
+const TRACKS = [
+  'bg-music.mp3',
+  'music/indie-pop.mp3',
+  'music/party-pop.mp3',
+  'music/disco-girl.mp3',
+  'music/pop-rock.mp3',
+];
 
 /** Hook mozaiği: üst yarıya yayılan, hafif eğik afiş yuvaları (afişler kırpılmaz, kutuya sığdırılır). */
 const HOOK_SLOTS: { x: number; y: number; rot: number }[] = [
