@@ -68,16 +68,6 @@ public class CloudinaryService {
         return cloudinary.uploader().upload(file, options);
     }
 
-    /** {@code prefix} ile başlayan en az bir yüklenmiş video var mı (Admin API). */
-    public boolean hasVideoWithPrefix(String prefix) throws Exception {
-        Map<?, ?> result = cloudinary.api().resources(ObjectUtils.asMap(
-                "type", "upload",
-                "resource_type", "video",
-                "prefix", prefix,
-                "max_results", 1));
-        return !((java.util.List<?>) result.get("resources")).isEmpty();
-    }
-
     public String getImageUrl(Map<String, Object> uploadResult) {
         return (String) uploadResult.get("secure_url");
     }

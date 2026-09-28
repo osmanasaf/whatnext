@@ -28,7 +28,9 @@ class InstagramSchedulerServiceTest {
     @Mock
     private EventScoringStrategy scoringStrategy;
     @Mock
-    private CloudinaryService cloudinaryService;
+    private com.asaf.whatnext.repository.InstagramImageRepository instagramImageRepository;
+    @Mock
+    private InstagramService instagramService;
 
     @InjectMocks
     private InstagramSchedulerService instagramSchedulerService;
@@ -46,24 +48,6 @@ class InstagramSchedulerServiceTest {
             e.setVenue(v);
         }
         return e;
-    }
-
-    @Test
-    void reelAlreadyUploadedThisWeek_findsMondayReelOnTuesday() throws Exception {
-        LocalDate tuesday = LocalDate.of(2026, 9, 29);
-        when(cloudinaryService.hasVideoWithPrefix("whatnext/reels/2026-09-28/")).thenReturn(true);
-
-        assertThat(instagramSchedulerService.reelAlreadyUploadedThisWeek(tuesday)).isEqualTo(LocalDate.of(2026, 9, 28));
-    }
-
-    @Test
-    void reelAlreadyUploadedThisWeek_nullWhenNoneOrCheckFails() throws Exception {
-        LocalDate tuesday = LocalDate.of(2026, 9, 29);
-        when(cloudinaryService.hasVideoWithPrefix(anyString())).thenReturn(false);
-        assertThat(instagramSchedulerService.reelAlreadyUploadedThisWeek(tuesday)).isNull();
-
-        when(cloudinaryService.hasVideoWithPrefix(anyString())).thenThrow(new RuntimeException("api down"));
-        assertThat(instagramSchedulerService.reelAlreadyUploadedThisWeek(tuesday)).isNull();
     }
 
     @Test
@@ -96,5 +80,47 @@ class InstagramSchedulerServiceTest {
 
         assertThat(caption).contains("Kaçırma");
         assertThat(caption).doesNotContain("Kaydet, hafta içinde");
+    }
+
+    private static com.asaf.whatnext.models.InstagramImage img(long id, String date, String eventType, boolean posted) {
+        com.asaf.whatnext.models.InstagramImage im = new com.asaf.whatnext.models.InstagramImage();
+        im.setId(id);
+        im.setCreationDate(LocalDate.parse(date));
+        im.setEventType(eventType);
+        im.setPostType("cover".equals(eventType) || "weekend".equals(eventType) ? "cover" : "post");
+        im.setPostedToInstagram(posted);
+        return im;
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void shareWeekendCarousel_hookFirst_thenLatestDayPostsInDayAndTypeOrder() throws Exception {
+        LocalDate friday = LocalDate.of(2026, 10, 2);
+        var oldFriConcert = img(1, "2026-10-02", "concert", true);
+        var friConcert = img(5, "2026-10-02", "concert", true);
+        var satTheater = img(3, "2026-10-03", "theater", false);
+        var sunCover = img(4, "2026-10-04", "cover", false);
+        when(instagramImageRepository.findByCreationDateBetween(friday, friday.plusDays(2)))
+                .thenReturn(List.of(satTheater, oldFriConcert, sunCover, friConcert));
+        var hook = img(9, "2026-10-02", "weekend", false);
+        when(instagramService.createImage("weekend", "cover", null, friday)).thenReturn(hook);
+        when(eventService.findByDate(anyString())).thenReturn(List.of());
+
+        String result = instagramSchedulerService.shareWeekendCarousel(friday);
+
+        var captor = org.mockito.ArgumentCaptor.forClass(List.class);
+        org.mockito.Mockito.verify(instagramService).sharePost(captor.capture(), org.mockito.ArgumentMatchers.contains("Bu hafta sonu ne yapsak?"));
+        assertThat(captor.getValue()).containsExactly(hook, friConcert, satTheater);
+        assertThat(result).contains("3 görsel");
+    }
+
+    @Test
+    void shareWeekendCarousel_skipsWhenHookAlreadyPosted() throws Exception {
+        LocalDate friday = LocalDate.of(2026, 10, 2);
+        when(instagramImageRepository.findByCreationDateBetween(friday, friday.plusDays(2)))
+                .thenReturn(List.of(img(9, "2026-10-02", "weekend", true)));
+
+        assertThat(instagramSchedulerService.shareWeekendCarousel(friday)).contains("zaten paylaşılmış");
+        org.mockito.Mockito.verifyNoInteractions(instagramService);
     }
 }

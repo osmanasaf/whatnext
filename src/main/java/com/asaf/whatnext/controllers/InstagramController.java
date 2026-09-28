@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import com.asaf.whatnext.utils.TrClock;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -224,6 +225,22 @@ public class InstagramController {
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body("Hata: " + e.getMessage());
         }
+    }
+
+    /** Pazartesi 19:00 cron'unun elle hali. {@code monday} verilmezse bu haftanın Pazartesi'si. */
+    @PostMapping("/scheduler/share-weekly-carousel")
+    public ResponseEntity<?> shareWeeklyCarousel(@RequestParam(required = false) String monday) {
+        LocalDate d = monday != null && !monday.isBlank()
+                ? LocalDate.parse(monday) : TrClock.today().with(java.time.DayOfWeek.MONDAY);
+        return ResponseEntity.ok(instagramSchedulerService.shareWeeklyCarousel(d));
+    }
+
+    /** Perşembe 19:00 cron'unun elle hali. {@code friday} verilmezse bu haftanın Cuma'sı. */
+    @PostMapping("/scheduler/share-weekend-carousel")
+    public ResponseEntity<?> shareWeekendCarousel(@RequestParam(required = false) String friday) {
+        LocalDate d = friday != null && !friday.isBlank()
+                ? LocalDate.parse(friday) : TrClock.today().with(java.time.DayOfWeek.FRIDAY);
+        return ResponseEntity.ok(instagramSchedulerService.shareWeekendCarousel(d));
     }
 
     @PostMapping("/scheduler/generate-weekly-reel")

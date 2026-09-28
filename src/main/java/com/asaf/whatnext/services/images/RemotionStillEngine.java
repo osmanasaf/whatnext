@@ -7,6 +7,8 @@ import org.springframework.stereotype.Component;
 
 import java.io.File;
 import java.io.IOException;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.time.format.TextStyle;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -26,6 +28,9 @@ import java.util.Map;
  */
 @Component
 public class RemotionStillEngine implements ImageRenderEngine {
+
+    private static final Locale TR = Locale.forLanguageTag("tr");
+    private static final DateTimeFormatter DAY_MONTH_TR = DateTimeFormatter.ofPattern("d MMMM", TR);
 
     private final RemotionRunner remotionRunner;
     private final ImageGenerationService imageGenerationService;
@@ -93,10 +98,37 @@ public class RemotionStillEngine implements ImageRenderEngine {
 
     private File renderCover(ImageRenderRequest request, String monthName, Map<String, String> palette,
             String backgroundImageUrl) throws IOException, InterruptedException {
-        int eventCount = imageGenerationService.countIstanbulEventsForDate(request.date());
-        // Kapak = karuselin ilk karesi; günün en iyi afişlerinden mozaik (story seçimiyle aynı skor sırası).
-        List<EventSummaryDTO> topEvents = imageGenerationService.selectStoryEvents(request.date());
+        // "week" (date = Pazartesi, 7 gün) / "weekend" (date = Cuma, 3 gün): karuselin açılış kapağı.
+        int days = "week".equals(request.eventType()) ? 7 : "weekend".equals(request.eventType()) ? 3 : 1;
+        int eventCount = 0;
+        List<List<EventSummaryDTO>> perDay = new ArrayList<>();
+        for (int i = 0; i < days; i++) {
+            LocalDate d = request.date().plusDays(i);
+            eventCount += imageGenerationService.countIstanbulEventsForDate(d);
+            // Kapak mozaiği = günün en iyi afişleri (story seçimiyle aynı skor sırası).
+            perDay.add(imageGenerationService.selectStoryEvents(d));
+        }
+        // Çok günlü kapakta mozaik ilk güne yığılmasın: günlerin 1.'leri, sonra 2.'leri...
+        List<EventSummaryDTO> topEvents = new ArrayList<>();
+        for (int rank = 0; rank < 9; rank++) {
+            for (List<EventSummaryDTO> day : perDay) {
+                if (day.size() > rank) {
+                    topEvents.add(day.get(rank));
+                }
+            }
+        }
         Map<String, Object> props = new HashMap<>();
+        if (days > 1) {
+            LocalDate end = request.date().plusDays(days - 1);
+            String range = request.date().format(DAY_MONTH_TR) + " – " + end.format(DAY_MONTH_TR);
+            if (days == 7) {
+                props.put("kicker", "BU HAFTA İSTANBUL'DA");
+                props.put("headline", range);
+            } else {
+                props.put("kicker", range.toUpperCase(TR));
+                props.put("headline", "Bu hafta sonu ne yapsak?");
+            }
+        }
         props.put("monthName", monthName);
         props.put("palette", palette);
         props.put("date", request.date().toString());

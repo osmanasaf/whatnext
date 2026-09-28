@@ -7,6 +7,7 @@ import com.asaf.whatnext.services.scoring.EventScoringStrategy;
 import com.asaf.whatnext.utils.EventAudience;
 import com.asaf.whatnext.utils.EventQuality;
 import com.asaf.whatnext.utils.Hashtags;
+import com.asaf.whatnext.utils.TrClock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,9 +49,8 @@ public class InstagramSchedulerService {
     @Autowired
     private TransactionTemplate transactionTemplate;
 
-    @Autowired
-    private CloudinaryService cloudinaryService;
-
+    private static final Locale TR = Locale.forLanguageTag("tr");
+    private static final DateTimeFormatter DAY_MONTH_TR = DateTimeFormatter.ofPattern("d MMMM", TR);
     private static final DateTimeFormatter TR_DATE_YEAR_FORMAT = DateTimeFormatter.ofPattern("d MMMM yyyy", new Locale("tr"));
     private static final DateTimeFormatter HHMM = DateTimeFormatter.ofPattern("HH:mm");
     private static final int CAPTION_MAX_EVENTS = 8;
@@ -60,14 +60,15 @@ public class InstagramSchedulerService {
 
 
 
-    @Scheduled(cron = "0 0 13 ? * TUE", zone = "Europe/Istanbul")
+    /*
+     * Paylaşım takvimi (2026-09-28): Pazar 19:00 Reel (gelecek hafta — PopularEventService Perşembe'den
+     * itibaren sonraki haftayı seçer), Pazartesi 19:00 haftalık karusel, Perşembe 19:00 hafta sonu karuseli,
+     * her gün story. Eski düzen (7 günlük karusel, 3'ü art arda) erişimi bölüyordu.
+     */
+
+    @Scheduled(cron = "0 0 19 ? * SUN", zone = "Europe/Istanbul")
     public void generateAndShareWeeklyReel() {
         LOGGER.info("[Scheduler] Haftalık Reel video oluşturma ve paylaşım görevi başlatıldı.");
-        LocalDate reelDay = reelAlreadyUploadedThisWeek(com.asaf.whatnext.utils.TrClock.today());
-        if (reelDay != null) {
-            LOGGER.info("[Scheduler] Bu hafta Reel zaten yüklendi (" + reelDay + ", elle tetikleme) — atlanıyor.");
-            return;
-        }
         try {
             weeklyVideoService.generateAndShareWeeklyReel();
             LOGGER.info("[Scheduler] Haftalık Reel görevi tamamlandı.");
@@ -76,23 +77,107 @@ public class InstagramSchedulerService {
         }
     }
 
-    /**
-     * Haftanın Pazartesi'sinden bugüne Cloudinary'de {@code whatnext/reels/<gün>/} altında video varsa o gün.
-     * Reel'ler DB'ye kaydedilmiyor; yükleme klasörü tek iz. Elle tetiklenen Reel'den sonra Salı cron'u aynı
-     * haftanın ikinci Reel'ini atmasın diye. Kontrol başarısızsa null (paylaşım engellenmez).
-     */
-    LocalDate reelAlreadyUploadedThisWeek(LocalDate today) {
-        for (LocalDate d = today.with(DayOfWeek.MONDAY); !d.isAfter(today); d = d.plusDays(1)) {
-            try {
-                if (cloudinaryService.hasVideoWithPrefix("whatnext/reels/" + d + "/")) {
-                    return d;
-                }
-            } catch (Exception e) {
-                LOGGER.warn("[Scheduler] Reel geçmişi kontrol edilemedi, paylaşıma devam: " + e.getMessage());
-                return null;
+    @Scheduled(cron = "0 0 19 ? * MON", zone = "Europe/Istanbul")
+    public void scheduledWeeklyCarousel() {
+        LOGGER.info(shareWeeklyCarousel(TrClock.today().with(DayOfWeek.MONDAY)));
+    }
+
+    @Scheduled(cron = "0 0 19 ? * THU", zone = "Europe/Istanbul")
+    public void scheduledWeekendCarousel() {
+        LOGGER.info(shareWeekendCarousel(TrClock.today().with(DayOfWeek.FRIDAY)));
+    }
+
+    /** "Bu hafta İstanbul'da" kapağı + haftanın 7 gün kapağı (Pazar 16:00'da üretilenler). */
+    public String shareWeeklyCarousel(LocalDate monday) {
+        List<String[]> slides = new ArrayList<>();
+        for (int i = 0; i < 7; i++) {
+            slides.add(new String[]{monday.plusDays(i).toString(), "cover"});
+        }
+        return shareCarousel("week", monday, 7, slides, buildWeeklyCaption(monday));
+    }
+
+    /** "Bu hafta sonu ne yapsak?" kapağı + Cuma/Cumartesi/Pazar konser-tiyatro-stand-up görselleri (≤10). */
+    public String shareWeekendCarousel(LocalDate friday) {
+        List<String[]> slides = new ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            for (String type : List.of("concert", "theater", "standup")) {
+                slides.add(new String[]{friday.plusDays(i).toString(), type});
             }
         }
-        return null;
+        return shareCarousel("weekend", friday, 3, slides, buildWeekendCaption(friday));
+    }
+
+    /**
+     * Açılış kapağını ({@code hookType}) şimdi üretir, ardına mevcut gün görsellerinin en yenisini dizer.
+     * Gün görselleri daha önce başka bir karuselde paylaşılmış olsa da kullanılır. Kapak zaten paylaşıldıysa atlar.
+     */
+    private String shareCarousel(String hookType, LocalDate start, int days, List<String[]> slides, String caption) {
+        String tag = "[Scheduler] " + hookType + " karuseli " + start;
+        try {
+            List<InstagramImage> existing = instagramImageRepository.findByCreationDateBetween(start, start.plusDays(days - 1));
+            if (existing.stream().anyMatch(img -> hookType.equals(img.getEventType()) && img.isPostedToInstagram())) {
+                return tag + " zaten paylaşılmış, atlanıyor.";
+            }
+            InstagramImage hook = instagramService.createImage(hookType, "cover", null, start);
+            if (hook == null) {
+                return tag + ": kapak üretilemedi, paylaşılmadı.";
+            }
+            List<InstagramImage> images = new ArrayList<>(List.of(hook));
+            for (String[] slide : slides) {
+                existing.stream()
+                        .filter(img -> slide[0].equals(String.valueOf(img.getCreationDate())) && slide[1].equals(img.getEventType()))
+                        .max(Comparator.comparing(InstagramImage::getId))
+                        .ifPresent(images::add);
+            }
+            if (images.size() < 2) {
+                return tag + ": gün görseli yok (Pazar 16:00 üretimi çalıştı mı?), paylaşılmadı.";
+            }
+            instagramService.sharePost(images.subList(0, Math.min(images.size(), 10)), caption);
+            return tag + " kuyruğa alındı: " + images.size() + " görsel.";
+        } catch (Exception e) {
+            LOGGER.error(tag + " hatası", e);
+            return tag + " HATA: " + e.getMessage();
+        }
+    }
+
+    String buildWeeklyCaption(LocalDate monday) {
+        StringBuilder sb = new StringBuilder("📅 Bu hafta İstanbul'da · ")
+                .append(monday.format(DAY_MONTH_TR)).append(" – ").append(monday.plusDays(6).format(DAY_MONTH_TR))
+                .append("\n\n");
+        List<Event> all = new ArrayList<>();
+        for (int i = 0; i < 7; i++) {
+            LocalDate d = monday.plusDays(i);
+            List<Event> top = topEvents(d, 2);
+            all.addAll(top);
+            if (!top.isEmpty()) {
+                sb.append(dayName(d)).append(": ")
+                        .append(String.join(", ", top.stream().map(Event::getTitle).toList())).append('\n');
+            }
+        }
+        sb.append("\n👉 Kaydır, her gün ayrı\n🔖 Kaydet, hafta boyunca lazım olacak!\n\n🔗 Detaylar ve biletler profilde\n");
+        return sb.append(hashtagsFor(all)).toString();
+    }
+
+    String buildWeekendCaption(LocalDate friday) {
+        StringBuilder sb = new StringBuilder("👀 Bu hafta sonu ne yapsak?\n\n");
+        List<Event> all = new ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            LocalDate d = friday.plusDays(i);
+            List<Event> top = topEvents(d, 3);
+            all.addAll(top);
+            if (!top.isEmpty()) {
+                sb.append(dayName(d)).append('\n');
+                top.forEach(e -> sb.append(eventLine(e)));
+                sb.append('\n');
+            }
+        }
+        sb.append("👯 Kiminle gidiyorsun? Etiketle!\n🔖 Kaydet, hafta sonu lazım olacak\n\n🔗 Detaylar ve biletler profilde\n");
+        return sb.append(hashtagsFor(all)).toString();
+    }
+
+    private static String dayName(LocalDate d) {
+        String n = d.getDayOfWeek().getDisplayName(java.time.format.TextStyle.FULL, TR);
+        return n.substring(0, 1).toUpperCase(TR) + n.substring(1);
     }
 
     @Scheduled(cron = "0 50 11 * * ?", zone = "Europe/Istanbul")
@@ -223,36 +308,7 @@ public class InstagramSchedulerService {
     }
 
     /**
-     * Pazar 17:00 — Pazartesi, Salı, Çarşamba (her biri ayrı post).
-     */
-    @Scheduled(cron = "0 0 17 ? * SUN", zone = "Europe/Istanbul")
-    public List<String> shareWeeklyPostsSunday() throws InterruptedException {
-        LocalDate monday = resolveFeedWeekMonday(LocalDate.now());
-        return sharePostsForDatesSequential(
-                List.of(monday, monday.plusDays(1), monday.plusDays(2)), "Pazar (Pzt-Çar)");
-    }
-
-    /**
-     * Pazartesi 10:00 — Perşembe, Cuma, Cumartesi (her biri ayrı post).
-     */
-    @Scheduled(cron = "0 0 10 ? * MON", zone = "Europe/Istanbul")
-    public List<String> shareWeeklyPostsMonday() throws InterruptedException {
-        LocalDate monday = resolveFeedWeekMonday(LocalDate.now());
-        return sharePostsForDatesSequential(
-                List.of(monday.plusDays(3), monday.plusDays(4), monday.plusDays(5)), "Pazartesi (Per-Cum-Cts)");
-    }
-
-    /**
-     * Salı 10:00 — Haftanın Pazar günü (ayrı post). Reel öncesi feed tamamlanır.
-     */
-    @Scheduled(cron = "0 0 10 ? * TUE", zone = "Europe/Istanbul")
-    public List<String> shareWeeklyPostsTuesday() throws InterruptedException {
-        LocalDate monday = resolveFeedWeekMonday(LocalDate.now());
-        return sharePostsForDatesSequential(List.of(monday.plusDays(6)), "Salı (Paz)");
-    }
-
-    /**
-     * Manuel tetikleme: ilgili haftanın 7 günü için her gün ayrı post (sırayla).
+     * Manuel tetikleme (eski günlük karusel düzeni): ilgili haftanın 7 günü için her gün ayrı post (sırayla).
      */
     public List<String> shareFullWeekFeedPosts() throws InterruptedException {
         LocalDate monday = resolveFeedWeekMonday(LocalDate.now());
@@ -284,13 +340,7 @@ public class InstagramSchedulerService {
      * Etkinlik bulunamazsa (nadiren, görsel zaten üretilmişse olur) jenerik satıra düşer.
      */
     String buildDailyCaption(LocalDate targetDate) {
-        List<Event> events = eventService.findByDate(targetDate.toString()).stream()
-                .filter(e -> "istanbul".equalsIgnoreCase(e.getCity()))
-                .filter(e -> !EventAudience.isChildrensEvent(e))
-                .filter(e -> !EventQuality.isAmateurNight(e))
-                .sorted(Comparator.comparingInt(scoringStrategy::calculateScore).reversed())
-                .limit(CAPTION_MAX_EVENTS)
-                .toList();
+        List<Event> events = topEvents(targetDate, CAPTION_MAX_EVENTS);
 
         StringBuilder sb = new StringBuilder();
         sb.append("📅 ").append(targetDate.format(TR_DATE_YEAR_FORMAT)).append(" İstanbul Etkinlikleri 🎫\n\n");
@@ -298,24 +348,42 @@ public class InstagramSchedulerService {
         if (events.isEmpty()) {
             sb.append("🎭 Tiyatro | 🎶 Konser | 🎤 Stand-up\nBu günlerde şehirde neler var? Kaçırma!\n\n");
         } else {
-            for (Event e : events) {
-                sb.append("• ").append(e.getTitle());
-                if (e.getStartTime() != null) {
-                    sb.append(" · ").append(e.getStartTime().format(HHMM));
-                }
-                if (e.getVenue() != null && e.getVenue().getName() != null && !e.getVenue().getName().isBlank()) {
-                    sb.append(" @ ").append(e.getVenue().getName());
-                }
-                sb.append('\n');
-            }
+            events.forEach(e -> sb.append(eventLine(e)));
             sb.append("\n🔖 Kaydet, hafta içinde lazım olacak!\n\n");
         }
 
-        sb.append("🔗 Detaylar ve biletler profilde\n").append(Hashtags.build(events.stream()
-                .map(e -> new Hashtags.Item(e.getType(), e.getTitle(),
-                        e.getVenue() == null ? null : e.getVenue().getName(), targetDate))
-                .toList()));
+        sb.append("🔗 Detaylar ve biletler profilde\n").append(hashtagsFor(events));
         return sb.toString();
+    }
+
+    /** O günün İstanbul'daki en iyi {@code limit} etkinliği (çocuk ve amatör geceler hariç, skor sırası). */
+    private List<Event> topEvents(LocalDate date, int limit) {
+        return eventService.findByDate(date.toString()).stream()
+                .filter(e -> "istanbul".equalsIgnoreCase(e.getCity()))
+                .filter(e -> !EventAudience.isChildrensEvent(e))
+                .filter(e -> !EventQuality.isAmateurNight(e))
+                .sorted(Comparator.comparingInt(scoringStrategy::calculateScore).reversed())
+                .limit(limit)
+                .toList();
+    }
+
+    /** "• Başlık · 21:00 @ Mekân" satırı. */
+    private static String eventLine(Event e) {
+        StringBuilder sb = new StringBuilder("• ").append(e.getTitle());
+        if (e.getStartTime() != null) {
+            sb.append(" · ").append(e.getStartTime().format(HHMM));
+        }
+        if (e.getVenue() != null && e.getVenue().getName() != null && !e.getVenue().getName().isBlank()) {
+            sb.append(" @ ").append(e.getVenue().getName());
+        }
+        return sb.append('\n').toString();
+    }
+
+    private static String hashtagsFor(List<Event> events) {
+        return Hashtags.build(events.stream()
+                .map(e -> new Hashtags.Item(e.getType(), e.getTitle(),
+                        e.getVenue() == null ? null : e.getVenue().getName(), e.getStartDate()))
+                .toList());
     }
 
     private List<String> sharePostsForDatesSequential(List<LocalDate> dates, String batchName) throws InterruptedException {

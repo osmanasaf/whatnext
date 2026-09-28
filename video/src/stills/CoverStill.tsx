@@ -1,6 +1,6 @@
 import React from 'react';
 import { AbsoluteFill } from 'remotion';
-import { FONT_BODY, useBrandFonts } from '../fonts';
+import { FONT_BODY, FONT_TITLE, useBrandFonts } from '../fonts';
 import { DateStamp, Poster, StillBackground, StillEventData, firstImage } from './shared';
 import { ThemeContext, themeFor, withAlpha } from '../theme';
 
@@ -11,6 +11,10 @@ export interface CoverStillProps {
   /** Günün en iyi etkinlikleri (story seçimi) — afiş mozaiği için; boşsa kapak tipografik kalır. */
   events?: StillEventData[];
   backgroundImageUrl?: string;
+  /** Üst satır; verilmezse "İSTANBUL'DA" (kapaklar haftalık karuselde yan yana, "bugün" yanlış olur). */
+  kicker?: string;
+  /** Verilirse takvim damgası yerine büyük başlık — haftalık/hafta sonu karuselinin açılış kapağı. */
+  headline?: string;
 }
 
 /** 1080×1350 tuvalde üst ~%58'e yayılan, hafif eğik ve üst üste binen 6 afiş yuvası. */
@@ -23,7 +27,7 @@ const SLOTS: { x: number; y: number; rot: number; size: number }[] = [
   { x: 830, y: 540, rot: 7, size: 330 },
 ];
 
-export const CoverStill: React.FC<CoverStillProps> = ({ date, eventCount, events = [], backgroundImageUrl }) => {
+export const CoverStill: React.FC<CoverStillProps> = ({ date, eventCount, events = [], backgroundImageUrl, kicker, headline }) => {
   useBrandFonts();
   const tiles = events.filter((e) => e.imageUrl).slice(0, SLOTS.length);
   // Az afişte ortadaki yuvaları tercih et (2-3 afiş tek köşede yığılmasın).
@@ -80,9 +84,15 @@ export const CoverStill: React.FC<CoverStillProps> = ({ date, eventCount, events
             fontFamily: FONT_BODY,
           }}
         >
-          BUGÜN İSTANBUL&apos;DA
+          {kicker ?? "İSTANBUL'DA"}
         </div>
-        <DateStamp date={date} scale={1.45} ink={theme.base} />
+        {headline ? (
+          <div style={{ fontSize: headline.length > 18 ? 84 : 104, lineHeight: 1.02, color: theme.base, fontFamily: FONT_TITLE }}>
+            {headline}
+          </div>
+        ) : (
+          <DateStamp date={date} scale={1.45} ink={theme.base} />
+        )}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div
             style={{
