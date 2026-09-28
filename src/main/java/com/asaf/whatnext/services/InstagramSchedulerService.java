@@ -48,6 +48,9 @@ public class InstagramSchedulerService {
     @Autowired
     private TransactionTemplate transactionTemplate;
 
+    @Autowired
+    private CloudinaryService cloudinaryService;
+
     private static final DateTimeFormatter TR_DATE_YEAR_FORMAT = DateTimeFormatter.ofPattern("d MMMM yyyy", new Locale("tr"));
     private static final DateTimeFormatter HHMM = DateTimeFormatter.ofPattern("HH:mm");
     private static final int CAPTION_MAX_EVENTS = 8;
@@ -60,12 +63,36 @@ public class InstagramSchedulerService {
     @Scheduled(cron = "0 0 13 ? * TUE", zone = "Europe/Istanbul")
     public void generateAndShareWeeklyReel() {
         LOGGER.info("[Scheduler] Haftalık Reel video oluşturma ve paylaşım görevi başlatıldı.");
+        LocalDate reelDay = reelAlreadyUploadedThisWeek(com.asaf.whatnext.utils.TrClock.today());
+        if (reelDay != null) {
+            LOGGER.info("[Scheduler] Bu hafta Reel zaten yüklendi (" + reelDay + ", elle tetikleme) — atlanıyor.");
+            return;
+        }
         try {
             weeklyVideoService.generateAndShareWeeklyReel();
             LOGGER.info("[Scheduler] Haftalık Reel görevi tamamlandı.");
         } catch (Exception e) {
             LOGGER.error("[Scheduler] Haftalık Reel hatası", e);
         }
+    }
+
+    /**
+     * Haftanın Pazartesi'sinden bugüne Cloudinary'de {@code whatnext/reels/<gün>/} altında video varsa o gün.
+     * Reel'ler DB'ye kaydedilmiyor; yükleme klasörü tek iz. Elle tetiklenen Reel'den sonra Salı cron'u aynı
+     * haftanın ikinci Reel'ini atmasın diye. Kontrol başarısızsa null (paylaşım engellenmez).
+     */
+    LocalDate reelAlreadyUploadedThisWeek(LocalDate today) {
+        for (LocalDate d = today.with(DayOfWeek.MONDAY); !d.isAfter(today); d = d.plusDays(1)) {
+            try {
+                if (cloudinaryService.hasVideoWithPrefix("whatnext/reels/" + d + "/")) {
+                    return d;
+                }
+            } catch (Exception e) {
+                LOGGER.warn("[Scheduler] Reel geçmişi kontrol edilemedi, paylaşıma devam: " + e.getMessage());
+                return null;
+            }
+        }
+        return null;
     }
 
     @Scheduled(cron = "0 50 11 * * ?", zone = "Europe/Istanbul")

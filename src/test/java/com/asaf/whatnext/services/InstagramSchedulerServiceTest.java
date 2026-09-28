@@ -27,6 +27,8 @@ class InstagramSchedulerServiceTest {
     private EventService eventService;
     @Mock
     private EventScoringStrategy scoringStrategy;
+    @Mock
+    private CloudinaryService cloudinaryService;
 
     @InjectMocks
     private InstagramSchedulerService instagramSchedulerService;
@@ -44,6 +46,24 @@ class InstagramSchedulerServiceTest {
             e.setVenue(v);
         }
         return e;
+    }
+
+    @Test
+    void reelAlreadyUploadedThisWeek_findsMondayReelOnTuesday() throws Exception {
+        LocalDate tuesday = LocalDate.of(2026, 9, 29);
+        when(cloudinaryService.hasVideoWithPrefix("whatnext/reels/2026-09-28/")).thenReturn(true);
+
+        assertThat(instagramSchedulerService.reelAlreadyUploadedThisWeek(tuesday)).isEqualTo(LocalDate.of(2026, 9, 28));
+    }
+
+    @Test
+    void reelAlreadyUploadedThisWeek_nullWhenNoneOrCheckFails() throws Exception {
+        LocalDate tuesday = LocalDate.of(2026, 9, 29);
+        when(cloudinaryService.hasVideoWithPrefix(anyString())).thenReturn(false);
+        assertThat(instagramSchedulerService.reelAlreadyUploadedThisWeek(tuesday)).isNull();
+
+        when(cloudinaryService.hasVideoWithPrefix(anyString())).thenThrow(new RuntimeException("api down"));
+        assertThat(instagramSchedulerService.reelAlreadyUploadedThisWeek(tuesday)).isNull();
     }
 
     @Test

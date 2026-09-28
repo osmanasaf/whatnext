@@ -13,6 +13,12 @@ export interface WeeklyReelProps {
   backgroundVariant?: number;
 }
 
+/**
+ * Haftalık dönen müzik: {@code backgroundVariant} (ISO hafta % 5) sırayla parça seçer. Yeni parça =
+ * dosyayı {@code public/music/} altına koy + buraya ekle. Yalnız telifsiz/lisansı okunmuş parçalar (bkz. README).
+ */
+const TRACKS = ['bg-music.mp3'];
+
 /** Hook mozaiği: üst yarıya yayılan, hafif eğik afiş yuvaları (afişler kırpılmaz, kutuya sığdırılır). */
 const HOOK_SLOTS: { x: number; y: number; rot: number }[] = [
   { x: 300, y: 250, rot: 4 },
@@ -168,7 +174,7 @@ export const WeeklyReel: React.FC<WeeklyReelProps> = ({ events, weekRange, backg
   return (
     <ThemeContext.Provider value={theme}>
     <AbsoluteFill style={{ background: theme.base }}>
-      <Audio src={staticFile('bg-music.mp3')} loop />
+      <Audio src={staticFile(TRACKS[backgroundVariant % TRACKS.length])} loop />
 
       <Sequence from={0} durationInFrames={HOOK_FRAMES}>
         <HookScreen events={events} weekRange={weekRange} variant={backgroundVariant} />
