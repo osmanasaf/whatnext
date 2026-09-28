@@ -33,6 +33,17 @@ public class InstagramService {
     @Value("${instagram.user.id}")
     private String userId;
 
+    /**
+     * Feed post, carousel ve Reel'e eklenen konum (Graph API {@code location_id} = konumun Facebook sayfa
+     * ID'si). Boşsa konum eklenmez. Story'ler konum parametresini desteklemiyor.
+     */
+    @Value("${instagram.location-id:}")
+    private String locationId;
+
+    private String locationParam() {
+        return locationId == null || locationId.isBlank() ? "" : "&location_id=" + locationId.trim();
+    }
+
     @Autowired
     private InstagramImageRepository instagramImageRepository;
     @Autowired
@@ -226,9 +237,10 @@ public class InstagramService {
             postData += "&media_type=STORIES";
         }
         if (caption != null && !caption.isEmpty()) {
-            postData += "&caption=" + URLEncoder.encode(caption, StandardCharsets.UTF_8);
+            // Caption'lı görsel = tek görselli feed post (carousel çocukları caption'sız gelir).
+            postData += "&caption=" + URLEncoder.encode(caption, StandardCharsets.UTF_8) + (isStory ? "" : locationParam());
         }
-        
+
         URL url = new URL(endpoint);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setRequestMethod("POST");
@@ -272,7 +284,7 @@ public class InstagramService {
     private String createCarouselContainer(List<String> children, String caption) throws IOException, InstagramApiException {
         String endpoint = GRAPH_API_BASE + userId + "/media";
         String childrenIds = String.join(",", children);
-        String postData = "media_type=CAROUSEL&children=" + childrenIds + "&caption=" + URLEncoder.encode(caption, StandardCharsets.UTF_8) + "&access_token=" + accessToken;
+        String postData = "media_type=CAROUSEL&children=" + childrenIds + "&caption=" + URLEncoder.encode(caption, StandardCharsets.UTF_8) + locationParam() + "&access_token=" + accessToken;
         
         URL url = new URL(endpoint);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -557,6 +569,7 @@ public class InstagramService {
             // Kapak karesi: giriş ekranı (afiş mozaiği + ay renkli panel) tam oturmuş hâlde. Verilmezse
             // Instagram ilk kareyi alıyor — orada afişler/yazı henüz görünmüyor (bkz. video/src/timing.ts HOOK_FRAMES).
             + "&thumb_offset=1200"
+            + locationParam()
             + "&access_token=" + accessToken;
         if (caption != null && !caption.isEmpty()) {
             postData += "&caption=" + URLEncoder.encode(caption, StandardCharsets.UTF_8);

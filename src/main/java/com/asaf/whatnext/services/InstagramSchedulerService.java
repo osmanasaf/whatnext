@@ -6,6 +6,7 @@ import com.asaf.whatnext.repository.InstagramImageRepository;
 import com.asaf.whatnext.services.scoring.EventScoringStrategy;
 import com.asaf.whatnext.utils.EventAudience;
 import com.asaf.whatnext.utils.EventQuality;
+import com.asaf.whatnext.utils.Hashtags;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -50,8 +51,6 @@ public class InstagramSchedulerService {
     private static final DateTimeFormatter TR_DATE_YEAR_FORMAT = DateTimeFormatter.ofPattern("d MMMM yyyy", new Locale("tr"));
     private static final DateTimeFormatter HHMM = DateTimeFormatter.ofPattern("HH:mm");
     private static final int CAPTION_MAX_EVENTS = 8;
-    private static final String CAPTION_HASHTAGS =
-        "#istanbul #istanbuletkinlikleri #etkinlik #konser #tiyatro #sanat #istanbullife #istanbuldayasam #igersistanbul #istanbulnightlife #istanbulbosphorus #galatatower";
 
     /** Aynı gün içinde arka arkaya postlar arası (Instagram kuyruğu / limit) */
     private static final long DELAY_BETWEEN_DAILY_POSTS_MS = 90_000L;
@@ -285,7 +284,10 @@ public class InstagramSchedulerService {
             sb.append("\n🔖 Kaydet, hafta içinde lazım olacak!\n\n");
         }
 
-        sb.append("🔗 Detaylar ve biletler profilde\n").append(CAPTION_HASHTAGS);
+        sb.append("🔗 Detaylar ve biletler profilde\n").append(Hashtags.build(events.stream()
+                .map(e -> new Hashtags.Item(e.getType(), e.getTitle(),
+                        e.getVenue() == null ? null : e.getVenue().getName(), targetDate))
+                .toList()));
         return sb.toString();
     }
 

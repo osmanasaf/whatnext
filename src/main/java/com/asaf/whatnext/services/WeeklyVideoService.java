@@ -4,6 +4,7 @@ import com.asaf.whatnext.dto.EventSummaryDTO;
 import com.asaf.whatnext.dto.WeeklyPopularEventsDTO;
 import com.asaf.whatnext.services.images.RemotionRunner;
 import com.asaf.whatnext.utils.EventIdentity;
+import com.asaf.whatnext.utils.Hashtags;
 import com.asaf.whatnext.utils.TrClock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -204,8 +205,6 @@ public class WeeklyVideoService {
         }
     }
 
-    private static final String REELS_HASHTAGS = " #istanbul #istanbuletkinlik #etkinlik #konser #tiyatro #müzik #music #concert #festival #istanbulnight #istanbulnights #istanbullife #istanbuldayasam #igersistanbul #sanat #eğlence #eglence #standupistanbul #taksim #kadikoy";
-
     private static final DateTimeFormatter HHMM = DateTimeFormatter.ofPattern("HH:mm");
 
     private void shareReelToInstagram(String videoUrl, String weekRange, List<SelectedEvent> events) {
@@ -233,7 +232,10 @@ public class WeeklyVideoService {
             }
             sb.append('\n');
         }
-        sb.append("\n🔖 Kaydet, hafta içinde lazım olacak!\n\n🔗 Detaylar profilde").append(REELS_HASHTAGS);
+        sb.append("\n🔖 Kaydet, hafta içinde lazım olacak!\n\n🔗 Detaylar profilde\n").append(Hashtags.build(events.stream()
+                .map(se -> new Hashtags.Item(se.event().getType(), se.event().getTitle(),
+                        se.event().getVenueName(), se.event().getStartDate()))
+                .toList()));
         return sb.toString();
     }
 }
