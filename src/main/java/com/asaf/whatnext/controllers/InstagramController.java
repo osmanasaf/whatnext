@@ -229,18 +229,20 @@ public class InstagramController {
 
     /** Pazartesi 19:00 cron'unun elle hali. {@code monday} verilmezse bu haftanın Pazartesi'si. */
     @PostMapping("/scheduler/share-weekly-carousel")
-    public ResponseEntity<?> shareWeeklyCarousel(@RequestParam(required = false) String monday) {
+    public ResponseEntity<?> shareWeeklyCarousel(@RequestParam(required = false) String monday,
+                                                 @RequestParam(defaultValue = "false") boolean force) {
         LocalDate d = monday != null && !monday.isBlank()
                 ? LocalDate.parse(monday) : TrClock.today().with(java.time.DayOfWeek.MONDAY);
-        return ResponseEntity.ok(instagramSchedulerService.shareWeeklyCarousel(d));
+        return ResponseEntity.ok(instagramSchedulerService.shareWeeklyCarousel(d, force));
     }
 
     /** Perşembe 19:00 cron'unun elle hali. {@code friday} verilmezse bu haftanın Cuma'sı. */
     @PostMapping("/scheduler/share-weekend-carousel")
-    public ResponseEntity<?> shareWeekendCarousel(@RequestParam(required = false) String friday) {
+    public ResponseEntity<?> shareWeekendCarousel(@RequestParam(required = false) String friday,
+                                                  @RequestParam(defaultValue = "false") boolean force) {
         LocalDate d = friday != null && !friday.isBlank()
                 ? LocalDate.parse(friday) : TrClock.today().with(java.time.DayOfWeek.FRIDAY);
-        return ResponseEntity.ok(instagramSchedulerService.shareWeekendCarousel(d));
+        return ResponseEntity.ok(instagramSchedulerService.shareWeekendCarousel(d, force));
     }
 
     @PostMapping("/scheduler/generate-weekly-reel")

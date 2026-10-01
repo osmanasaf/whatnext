@@ -89,34 +89,44 @@ public class InstagramSchedulerService {
 
     /** "Bu hafta İstanbul'da" kapağı + haftanın 7 gün kapağı (Pazar 16:00'da üretilenler). */
     public String shareWeeklyCarousel(LocalDate monday) {
+        return shareWeeklyCarousel(monday, false);
+    }
+
+    /** {@code force}: kapak daha önce paylaşılmış olsa da yeniden paylaş (elle düzeltme; eski gönderi elle silinir). */
+    public String shareWeeklyCarousel(LocalDate monday, boolean force) {
         List<String[]> slides = new ArrayList<>();
         for (int i = 0; i < 7; i++) {
             slides.add(new String[]{monday.plusDays(i).toString(), "cover"});
         }
         // Caption Event.venue (LAZY) okur; cron thread'inde Hibernate oturumu yok — kendi transaction'ında.
-        return shareCarousel("week", monday, 7, slides, transactionTemplate.execute(s -> buildWeeklyCaption(monday)));
+        return shareCarousel("week", monday, 7, slides, transactionTemplate.execute(s -> buildWeeklyCaption(monday)), force);
     }
 
     /** "Bu hafta sonu ne yapsak?" kapağı + Cuma/Cumartesi/Pazar konser-tiyatro-stand-up görselleri (≤10). */
     public String shareWeekendCarousel(LocalDate friday) {
+        return shareWeekendCarousel(friday, false);
+    }
+
+    public String shareWeekendCarousel(LocalDate friday, boolean force) {
         List<String[]> slides = new ArrayList<>();
         for (int i = 0; i < 3; i++) {
             for (String type : List.of("concert", "theater", "standup")) {
                 slides.add(new String[]{friday.plusDays(i).toString(), type});
             }
         }
-        return shareCarousel("weekend", friday, 3, slides, transactionTemplate.execute(s -> buildWeekendCaption(friday)));
+        return shareCarousel("weekend", friday, 3, slides, transactionTemplate.execute(s -> buildWeekendCaption(friday)), force);
     }
 
     /**
      * Açılış kapağını ({@code hookType}) şimdi üretir, ardına mevcut gün görsellerinin en yenisini dizer.
      * Gün görselleri daha önce başka bir karuselde paylaşılmış olsa da kullanılır. Kapak zaten paylaşıldıysa atlar.
      */
-    private String shareCarousel(String hookType, LocalDate start, int days, List<String[]> slides, String caption) {
+    private String shareCarousel(String hookType, LocalDate start, int days, List<String[]> slides, String caption,
+                                 boolean force) {
         String tag = "[Scheduler] " + hookType + " karuseli " + start;
         try {
             List<InstagramImage> existing = instagramImageRepository.findByCreationDateBetween(start, start.plusDays(days - 1));
-            if (existing.stream().anyMatch(img -> hookType.equals(img.getEventType()) && img.isPostedToInstagram())) {
+            if (!force && existing.stream().anyMatch(img -> hookType.equals(img.getEventType()) && img.isPostedToInstagram())) {
                 return tag + " zaten paylaşılmış, atlanıyor.";
             }
             InstagramImage hook = instagramService.createImage(hookType, "cover", null, start);
