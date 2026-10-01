@@ -105,6 +105,7 @@ public class RemotionStillEngine implements ImageRenderEngine {
         props.put("palette", palette);
         props.put("date", request.date().toString());
         props.put("events", toEventMaps(events));
+        props.put("moreCount", Math.max(0, imageGenerationService.countIstanbulEventsForDate(request.date()) - events.size()));
         putIfPresent(props, "backgroundImageUrl", backgroundImageUrl);
         return remotionRunner.run("still", "SmartStoryStill", props, "png");
     }
@@ -118,8 +119,8 @@ public class RemotionStillEngine implements ImageRenderEngine {
         for (int i = 0; i < days; i++) {
             LocalDate d = request.date().plusDays(i);
             eventCount += imageGenerationService.countIstanbulEventsForDate(d);
-            // Kapak mozaiği = günün en iyi afişleri (story seçimiyle aynı skor sırası).
-            perDay.add(imageGenerationService.selectStoryEvents(d));
+            // Kapak mozaiği = günün en iyi afişleri (puan sırası; story saat sırasında, o yüzden ayrı metot).
+            perDay.add(imageGenerationService.selectTopEvents(d));
         }
         // Çok günlü kapakta mozaik ilk güne yığılmasın: günlerin 1.'leri, sonra 2.'leri...
         List<EventSummaryDTO> topEvents = new ArrayList<>();
@@ -152,28 +153,26 @@ public class RemotionStillEngine implements ImageRenderEngine {
     }
 
     /**
-     * "Kaçırma": Cuma–Pazar gün seçimlerinden afişli 4 farklı etkinlik — önce her günün en popüleri (dördü aynı
-     * güne yığılmasın), sonra kalanların en popüleri.
+     * "Kaçırma": Cuma–Pazar seçkilerinden afişli 4 farklı etkinlik — önce her günün en iyisi (dördü aynı güne
+     * yığılmasın), sonra kalan günlerin sıradaki en iyileri. Sıra puan sırası ({@code selectTopEvents}); DTO'daki
+     * popularityScore prod'da boş geldiği için ona göre sıralamak en erken etkinliği seçiyordu.
      */
     private File renderPicks(ImageRenderRequest request) throws IOException, InterruptedException {
-        java.util.Comparator<EventSummaryDTO> byPopularity = java.util.Comparator.comparing(
-                (EventSummaryDTO e) -> e.getPopularityScore() == null ? 0 : e.getPopularityScore()).reversed();
         List<List<EventSummaryDTO>> days = new ArrayList<>();
         for (int i = 0; i < 3; i++) {
-            days.add(imageGenerationService.selectWeekendDayEvents(request.date().plusDays(i)).stream()
+            days.add(imageGenerationService.selectTopEvents(request.date().plusDays(i)).stream()
                     .filter(e -> e.getImageUrl() != null && !e.getImageUrl().isBlank())
-                    .sorted(byPopularity)
                     .toList());
         }
         List<EventSummaryDTO> picks = new ArrayList<>();
         java.util.Set<String> titles = new java.util.HashSet<>();
-        for (List<EventSummaryDTO> day : days) {
-            day.stream().filter(e -> titles.add(e.getTitle())).findFirst().ifPresent(picks::add);
+        for (int rank = 0; picks.size() < 4 && rank < 10; rank++) {
+            for (List<EventSummaryDTO> day : days) {
+                if (picks.size() < 4 && day.size() > rank && titles.add(day.get(rank).getTitle())) {
+                    picks.add(day.get(rank));
+                }
+            }
         }
-        days.stream().flatMap(List::stream).sorted(byPopularity)
-                .filter(e -> titles.add(e.getTitle()))
-                .limit(Math.max(0, 4 - picks.size()))
-                .forEach(picks::add);
         if (picks.size() < 2) {
             return null;
         }

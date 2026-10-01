@@ -558,7 +558,12 @@ export const EventRow: React.FC<{
  * geri kalanı günlük story'lere yönlendirir (2026-10-01 kullanıcı: "çok etkinlik kaçmış gibi"; whatnext.tr
  * şimdilik kapalı olduğu için siteye yönlendirme yok).
  */
-export const MoreCta: React.FC<{ bottom: number; count: number; size?: number }> = ({ bottom, count, size = 26 }) => {
+export const MoreCta: React.FC<{ bottom: number; count: number; size?: number; suffix?: string }> = ({
+  bottom,
+  count,
+  size = 26,
+  suffix = "her gün story'lerde",
+}) => {
   const { accent, base } = useTheme();
   return (
     <div style={{ position: 'absolute', left: 0, right: 0, bottom, display: 'flex', justifyContent: 'center' }}>
@@ -581,7 +586,7 @@ export const MoreCta: React.FC<{ bottom: number; count: number; size?: number }>
         <span style={{ fontFamily: FONT_TITLE, fontSize: Math.round(size * 1.15) }}>+{count}</span>
         <span>etkinlik daha</span>
         <span style={{ opacity: 0.6 }}>•</span>
-        <span>her gün story'lerde</span>
+        <span>{suffix}</span>
       </div>
     </div>
   );

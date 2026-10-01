@@ -54,7 +54,7 @@ public class ImageGenerationService {
     private static final Logger LOGGER = LoggerFactory.getLogger(ImageGenerationService.class);
 
     /** Story'de en çok 8 satır — 10 kalabalık bulundu (2026-09-07 kullanıcı kararı). */
-    private static final int STORY_EVENT_TARGET = 9;
+    private static final int STORY_EVENT_TARGET = 10;
     private static final int POST_EVENT_LIMIT = 10;
     private static final int STORY_FETCH_LIMIT = 14;
     private static final int MAX_TITLE_ANNOTATE_LINES = 3;
@@ -241,12 +241,12 @@ public class ImageGenerationService {
     }
 
     /**
-     * Story için karışık türde (3 konser + 3 tiyatro + 2 stand-up, skor sıralı, dolgu ile
-     * {@link #STORY_EVENT_TARGET}'e tamamlanır) etkinlik seçimi — {@code services/images/} motorları da kullanır.
+     * Günün story'si: hafta sonu gün slaytıyla aynı seçki (4 konser + 4 tiyatro + 2 stand-up, dolgu ile
+     * {@link #STORY_EVENT_TARGET}'e tamamlanır, saat sırasında) — {@code services/images/} motorları da kullanır.
      */
     @Transactional(readOnly = true)
     public List<EventSummaryDTO> selectStoryEvents(LocalDate date) {
-        return selectMixed(date, 3, 3, 2, STORY_EVENT_TARGET).stream().map(eventMapper::toSummaryDTO).toList();
+        return selectWeekendDayEvents(date);
     }
 
     /**
@@ -255,10 +255,16 @@ public class ImageGenerationService {
      */
     @Transactional(readOnly = true)
     public List<EventSummaryDTO> selectWeekendDayEvents(LocalDate date) {
-        return selectMixed(date, 4, 4, 2, 10).stream()
+        return selectMixed(date, 4, 4, 2, STORY_EVENT_TARGET).stream()
                 .sorted(Comparator.comparing(Event::getStartTime, Comparator.nullsLast(Comparator.naturalOrder())))
                 .map(eventMapper::toSummaryDTO)
                 .toList();
+    }
+
+    /** Aynı seçki, puan sırasında (en iyi önce) — kapak mozaiği ve "Kaçırma" için. */
+    @Transactional(readOnly = true)
+    public List<EventSummaryDTO> selectTopEvents(LocalDate date) {
+        return selectMixed(date, 4, 4, 2, STORY_EVENT_TARGET).stream().map(eventMapper::toSummaryDTO).toList();
     }
 
     private List<Event> selectMixed(LocalDate date, int concertQuota, int theaterQuota, int standupQuota, int target) {
