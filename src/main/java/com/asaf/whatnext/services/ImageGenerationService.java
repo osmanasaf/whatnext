@@ -54,7 +54,7 @@ public class ImageGenerationService {
 
     /** Story'de en çok 8 satır — 10 kalabalık bulundu (2026-09-07 kullanıcı kararı). */
     private static final int STORY_EVENT_TARGET = 9;
-    private static final int POST_EVENT_LIMIT = 8;
+    private static final int POST_EVENT_LIMIT = 10;
     private static final int STORY_FETCH_LIMIT = 14;
     private static final int MAX_TITLE_ANNOTATE_LINES = 3;
     private static final int MAX_VENUE_ANNOTATE_LINES = 2;

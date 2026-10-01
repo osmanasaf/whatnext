@@ -486,10 +486,11 @@ public class InstagramService {
     }
 
     private String executeSharePost(List<InstagramImage> images, String caption) throws IOException, InstagramApiException, InterruptedException {
-        List<InstagramImage> imagesToPost = images.stream()
-            .filter(img -> !img.isPostedToInstagram())
-            .collect(java.util.stream.Collectors.toList());
-        
+        // Önceden paylaşılmış görseller ELENMEZ: haftalık/hafta sonu karuseli gün görsellerini bilerek yeniden
+        // kullanır (2026-10-01: Cuma/Cumartesi elendi, karusel yalnız Pazar'la çıktı). Çift paylaşımı çağıranlar
+        // önler — günlük akış yalnız paylaşılmamışları seçer, karusel kapağın paylaşılıp paylaşılmadığına bakar.
+        List<InstagramImage> imagesToPost = new ArrayList<>(images);
+
         if (imagesToPost.isEmpty()) {
             throw new IOException("Paylaşılacak görsel bulunamadı.");
         }

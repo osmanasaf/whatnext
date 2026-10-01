@@ -33,11 +33,13 @@ const RAIL_W = 62;
 
 /** Satır yüksekliği — listedeki kart sayısına göre, kullanılabilir alana tam oturacak şekilde. */
 const layoutFor = (count: number, canvasHeight: number) => {
+  // 9-10 satırda boşluk daralır, afiş okunur boyda kalır.
+  const gap = count > 8 ? 12 : ROW_GAP;
   const available = canvasHeight - PAD - HEADER_H - 24 - CTA_ZONE;
-  const rowH = Math.floor((available - (count - 1) * ROW_GAP) / count);
+  const rowH = Math.floor((available - (count - 1) * gap) / count);
   const posterHeight = Math.min(240, Math.round(rowH * 0.82));
   const titleSize = count <= 3 ? 40 : count <= 4 ? 36 : count <= 5 ? 32 : 28;
-  return { posterHeight, titleSize };
+  return { posterHeight, titleSize, gap };
 };
 
 export const DailyPostStill: React.FC<DailyPostStillProps> = ({
@@ -47,7 +49,7 @@ export const DailyPostStill: React.FC<DailyPostStillProps> = ({
   backgroundImageUrl,
 }) => {
   useBrandFonts();
-  const shown = events.slice(0, 8);
+  const shown = events.slice(0, 10);
   const ambient = firstImage(shown);
   const subtitle = shown.length > 1 ? `İstanbul • ${shown.length} etkinlik` : 'İstanbul';
 
@@ -117,7 +119,7 @@ const Hero: React.FC<{ event: StillEventData; eventType: string }> = ({ event, e
 );
 
 const List: React.FC<{ events: StillEventData[]; eventType: string }> = ({ events, eventType }) => {
-  const { posterHeight, titleSize } = layoutFor(events.length, 1350);
+  const { posterHeight, titleSize, gap } = layoutFor(events.length, 1350);
   return (
     <div
       style={{
@@ -125,7 +127,7 @@ const List: React.FC<{ events: StillEventData[]; eventType: string }> = ({ event
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
-        gap: ROW_GAP,
+        gap,
         paddingTop: 12,
         paddingLeft: RAIL_W,
       }}
