@@ -6,6 +6,7 @@ import { FPS, computeTotalDuration } from './timing';
 import { DailyPostStill, DailyPostStillProps } from './stills/DailyPostStill';
 import { SmartStoryStill, SmartStoryStillProps } from './stills/SmartStoryStill';
 import { CoverStill, CoverStillProps } from './stills/CoverStill';
+import { CtaStill, PicksStill } from './stills/WeekendSlides';
 
 const WIDTH = 1080;
 const HEIGHT = 1920;
@@ -79,6 +80,22 @@ export const RemotionRoot: React.FC = () => {
         width={STILL_WIDTH}
         height={STORY_STILL_HEIGHT}
         defaultProps={smartStoryDefaults}
+      />
+
+      <Still
+        id="PicksStill"
+        component={PicksStill as unknown as React.ComponentType<Record<string, unknown>>}
+        width={STILL_WIDTH}
+        height={STILL_HEIGHT}
+        defaultProps={{ date: '2026-10-02', events: [] }}
+      />
+
+      <Still
+        id="CtaStill"
+        component={CtaStill as unknown as React.ComponentType<Record<string, unknown>>}
+        width={STILL_WIDTH}
+        height={STILL_HEIGHT}
+        defaultProps={{ date: '2026-10-02' }}
       />
 
       <Still

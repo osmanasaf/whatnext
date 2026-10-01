@@ -504,6 +504,8 @@ export const EventRow: React.FC<{
   const { accent } = useTheme();
   // Bilet sitelerinin afişleri ağırlıkla kare — kare küçük resim, afiş metnini kırpmaz.
   const posterWidth = posterHeight;
+  // Kalabalık liste (10 satırlık post): başlık tek satır, tür etiketi saat/mekân satırına iner — taşmaz.
+  const compact = posterHeight < 90;
   return (
     <div
       style={{
@@ -526,7 +528,7 @@ export const EventRow: React.FC<{
         radius={Math.round(posterHeight * 0.1)}
       />
       <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0, flex: 1, gap: Math.round(titleSize * 0.3) }}>
-        {showType && <TypeTag eventType={rowType} size={Math.round(titleSize * 0.5)} />}
+        {showType && !compact && <TypeTag eventType={rowType} size={Math.round(titleSize * 0.5)} />}
         <div
           style={{
             fontSize: titleSize,
@@ -535,14 +537,17 @@ export const EventRow: React.FC<{
             lineHeight: 1.18,
             textShadow: '0 2px 18px rgba(0,0,0,0.6)',
             display: '-webkit-box',
-            WebkitLineClamp: 2,
+            WebkitLineClamp: compact ? 1 : 2,
             WebkitBoxOrient: 'vertical' as const,
             overflow: 'hidden',
           }}
         >
           {event.title}
         </div>
-        <MetaLine startTime={event.startTime} venueName={event.venueName} size={Math.round(titleSize * 0.58)} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: Math.round(titleSize * 0.35), minWidth: 0 }}>
+          {showType && compact && <TypeTag eventType={rowType} size={Math.round(titleSize * 0.55)} />}
+          <MetaLine startTime={event.startTime} venueName={event.venueName} size={Math.round(titleSize * 0.58)} />
+        </div>
       </div>
     </div>
   );

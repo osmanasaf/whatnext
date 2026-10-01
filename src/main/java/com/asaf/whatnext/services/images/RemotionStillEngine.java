@@ -57,6 +57,13 @@ public class RemotionStillEngine implements ImageRenderEngine {
         String monthName = request.date().getMonth().getDisplayName(TextStyle.FULL, Locale.ENGLISH).toLowerCase();
         Map<String, String> palette = paletteSource.paletteHex(monthName);
 
+        // Hafta sonu karuselinin son iki slaytı (date = Cuma).
+        if ("picks".equals(request.eventType())) {
+            return renderPicks(request);
+        }
+        if ("cta".equals(request.eventType())) {
+            return remotionRunner.run("still", "CtaStill", Map.of("date", request.date().toString()), "png");
+        }
         return switch (request.postType()) {
             case "cover" -> renderCover(request, monthName, palette, backgroundImageUrl);
             case "story" -> renderStory(request, monthName, palette, backgroundImageUrl);
@@ -66,8 +73,10 @@ public class RemotionStillEngine implements ImageRenderEngine {
 
     private File renderPost(ImageRenderRequest request, String monthName, Map<String, String> palette,
             String backgroundImageUrl) throws IOException, InterruptedException {
-        List<EventSummaryDTO> events = imageGenerationService.selectPostEvents(
-                request.eventType(), request.city(), request.date());
+        // "mixed" = hafta sonu karuselinin gün slaytı (4 konser + 4 tiyatro + 2 stand-up, saat sırası).
+        List<EventSummaryDTO> events = "mixed".equals(request.eventType())
+                ? imageGenerationService.selectWeekendDayEvents(request.date())
+                : imageGenerationService.selectPostEvents(request.eventType(), request.city(), request.date());
         if (events.isEmpty()) {
             return null;
         }
@@ -136,6 +145,43 @@ public class RemotionStillEngine implements ImageRenderEngine {
         props.put("events", toEventMaps(topEvents));
         putIfPresent(props, "backgroundImageUrl", backgroundImageUrl);
         return remotionRunner.run("still", "CoverStill", props, "png");
+    }
+
+    /**
+     * "Kaçırma": Cuma–Pazar gün seçimlerinden afişli 4 farklı etkinlik — önce her günün en popüleri (dördü aynı
+     * güne yığılmasın), sonra kalanların en popüleri.
+     */
+    private File renderPicks(ImageRenderRequest request) throws IOException, InterruptedException {
+        java.util.Comparator<EventSummaryDTO> byPopularity = java.util.Comparator.comparing(
+                (EventSummaryDTO e) -> e.getPopularityScore() == null ? 0 : e.getPopularityScore()).reversed();
+        List<List<EventSummaryDTO>> days = new ArrayList<>();
+        for (int i = 0; i < 3; i++) {
+            days.add(imageGenerationService.selectWeekendDayEvents(request.date().plusDays(i)).stream()
+                    .filter(e -> e.getImageUrl() != null && !e.getImageUrl().isBlank())
+                    .sorted(byPopularity)
+                    .toList());
+        }
+        List<EventSummaryDTO> picks = new ArrayList<>();
+        java.util.Set<String> titles = new java.util.HashSet<>();
+        for (List<EventSummaryDTO> day : days) {
+            day.stream().filter(e -> titles.add(e.getTitle())).findFirst().ifPresent(picks::add);
+        }
+        days.stream().flatMap(List::stream).sorted(byPopularity)
+                .filter(e -> titles.add(e.getTitle()))
+                .limit(Math.max(0, 4 - picks.size()))
+                .forEach(picks::add);
+        if (picks.size() < 2) {
+            return null;
+        }
+        Map<String, Object> props = new HashMap<>();
+        props.put("date", request.date().toString());
+        List<Map<String, Object>> maps = toEventMaps(picks);
+        for (int i = 0; i < picks.size(); i++) {
+            maps.get(i).put("dayName", picks.get(i).getStartDate() == null ? ""
+                    : picks.get(i).getStartDate().getDayOfWeek().getDisplayName(TextStyle.FULL, TR));
+        }
+        props.put("events", maps);
+        return remotionRunner.run("still", "PicksStill", props, "png");
     }
 
     private static void putIfPresent(Map<String, Object> props, String key, String value) {

@@ -240,31 +240,47 @@ public class ImageGenerationService {
     }
 
     /**
-     * Story için karışık türde (4 konser + 4 tiyatro + 2 stand-up, skor sıralı, dolgu ile 10'a
-     * tamamlanır) etkinlik seçimi — render'dan ayrı, {@code services/images/} motorları da kullanır.
+     * Story için karışık türde (3 konser + 3 tiyatro + 2 stand-up, skor sıralı, dolgu ile
+     * {@link #STORY_EVENT_TARGET}'e tamamlanır) etkinlik seçimi — {@code services/images/} motorları da kullanır.
      */
     @Transactional(readOnly = true)
     public List<EventSummaryDTO> selectStoryEvents(LocalDate date) {
+        return selectMixed(date, 3, 3, 2, STORY_EVENT_TARGET).stream().map(eventMapper::toSummaryDTO).toList();
+    }
+
+    /**
+     * "Bu hafta sonu ne yapsak?" gün slaytı: günün en iyi 10 etkinliği — 4 konser + 4 tiyatro + 2 stand-up
+     * (bir tür eksikse diğerlerinden skorla tamamlanır), gün planı gibi okunsun diye saat sırasında.
+     */
+    @Transactional(readOnly = true)
+    public List<EventSummaryDTO> selectWeekendDayEvents(LocalDate date) {
+        return selectMixed(date, 4, 4, 2, 10).stream()
+                .sorted(Comparator.comparing(Event::getStartTime, Comparator.nullsLast(Comparator.naturalOrder())))
+                .map(eventMapper::toSummaryDTO)
+                .toList();
+    }
+
+    private List<Event> selectMixed(LocalDate date, int concertQuota, int theaterQuota, int standupQuota, int target) {
         List<Event> concerts = topForStory(date, EventType.CONCERT);
         List<Event> theaters = topForStory(date, EventType.THEATER);
         List<Event> standups = topForStory(date, EventType.STANDUP);
         Set<Event> selected = new LinkedHashSet<>();
-        addUpTo(selected, concerts, 3);
-        addUpTo(selected, theaters, 3);
-        addUpTo(selected, standups, 2);
-        if (selected.size() < STORY_EVENT_TARGET) {
+        addUpTo(selected, concerts, concertQuota);
+        addUpTo(selected, theaters, theaterQuota);
+        addUpTo(selected, standups, standupQuota);
+        if (selected.size() < target) {
             List<Event> filler = Stream.of(concerts, theaters, standups)
                     .flatMap(List::stream)
                     .filter(e -> !selected.contains(e))
                     .distinct()
                     .collect(Collectors.toList());
             sortByScoreDescending(filler);
-            addUpTo(selected, filler, STORY_EVENT_TARGET - selected.size());
+            addUpTo(selected, filler, target - selected.size());
         }
 
         EventDuplicateKeys.dedupeSetByTitleAndDate(selected);
 
-        return selected.stream().limit(STORY_EVENT_TARGET).map(eventMapper::toSummaryDTO).toList();
+        return selected.stream().limit(target).toList();
     }
 
     /** Türün skora göre ilk {@code STORY_FETCH_LIMIT} etkinliği, çocuk etkinlikleri hariç. */

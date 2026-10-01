@@ -52,6 +52,8 @@ export const DailyPostStill: React.FC<DailyPostStillProps> = ({
   const shown = events.slice(0, 10);
   const ambient = firstImage(shown);
   const subtitle = shown.length > 1 ? `İstanbul • ${shown.length} etkinlik` : 'İstanbul';
+  // "mixed": hafta sonu karuselinin gün slaytı — tür rayı yok, her satırda kendi tür etiketi.
+  const mixed = eventType === 'mixed';
 
   return (
     <ThemeContext.Provider value={themeFor(date)}>
@@ -66,14 +68,14 @@ export const DailyPostStill: React.FC<DailyPostStillProps> = ({
         </div>
 
         {shown.length === 1 ? (
-          <Hero event={shown[0]} eventType={eventType} />
+          <Hero event={shown[0]} eventType={mixed ? shown[0].eventType ?? 'concert' : eventType} />
         ) : (
-          <List events={shown} eventType={eventType} />
+          <List events={shown} eventType={mixed ? undefined : eventType} />
         )}
       </AbsoluteFill>
 
       {/* Sol kenar: aşağıdan yukarı "KONSER" rayı — kart listesiyle aynı dikey aralık */}
-      <TypeRail eventType={eventType} left={PAD - 10} top={PAD + HEADER_H + 24} bottom={CTA_ZONE} />
+      {!mixed && <TypeRail eventType={eventType} left={PAD - 10} top={PAD + HEADER_H + 24} bottom={CTA_ZONE} />}
 
       <SaveCta bottom={CTA_BOTTOM} />
     </AbsoluteFill>
@@ -118,7 +120,7 @@ const Hero: React.FC<{ event: StillEventData; eventType: string }> = ({ event, e
   </div>
 );
 
-const List: React.FC<{ events: StillEventData[]; eventType: string }> = ({ events, eventType }) => {
+const List: React.FC<{ events: StillEventData[]; eventType?: string }> = ({ events, eventType }) => {
   const { posterHeight, titleSize, gap } = layoutFor(events.length, 1350);
   return (
     <div
@@ -129,11 +131,18 @@ const List: React.FC<{ events: StillEventData[]; eventType: string }> = ({ event
         justifyContent: 'center',
         gap,
         paddingTop: 12,
-        paddingLeft: RAIL_W,
+        paddingLeft: eventType ? RAIL_W : 0,
       }}
     >
       {events.map((e) => (
-        <EventRow key={e.id} event={e} eventType={eventType} posterHeight={posterHeight} titleSize={titleSize} />
+        <EventRow
+          key={e.id}
+          event={e}
+          eventType={eventType}
+          posterHeight={posterHeight}
+          titleSize={titleSize}
+          showType={!eventType}
+        />
       ))}
     </div>
   );
