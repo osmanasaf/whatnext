@@ -93,7 +93,8 @@ public class InstagramSchedulerService {
         for (int i = 0; i < 7; i++) {
             slides.add(new String[]{monday.plusDays(i).toString(), "cover"});
         }
-        return shareCarousel("week", monday, 7, slides, buildWeeklyCaption(monday));
+        // Caption Event.venue (LAZY) okur; cron thread'inde Hibernate oturumu yok — kendi transaction'ında.
+        return shareCarousel("week", monday, 7, slides, transactionTemplate.execute(s -> buildWeeklyCaption(monday)));
     }
 
     /** "Bu hafta sonu ne yapsak?" kapağı + Cuma/Cumartesi/Pazar konser-tiyatro-stand-up görselleri (≤10). */
@@ -104,7 +105,7 @@ public class InstagramSchedulerService {
                 slides.add(new String[]{friday.plusDays(i).toString(), type});
             }
         }
-        return shareCarousel("weekend", friday, 3, slides, buildWeekendCaption(friday));
+        return shareCarousel("weekend", friday, 3, slides, transactionTemplate.execute(s -> buildWeekendCaption(friday)));
     }
 
     /**

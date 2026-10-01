@@ -31,6 +31,8 @@ class InstagramSchedulerServiceTest {
     private com.asaf.whatnext.repository.InstagramImageRepository instagramImageRepository;
     @Mock
     private InstagramService instagramService;
+    @Mock
+    private org.springframework.transaction.support.TransactionTemplate transactionTemplate;
 
     @InjectMocks
     private InstagramSchedulerService instagramSchedulerService;
@@ -105,8 +107,13 @@ class InstagramSchedulerServiceTest {
         var hook = img(9, "2026-10-02", "weekend", false);
         when(instagramService.createImage("weekend", "cover", null, friday)).thenReturn(hook);
         when(eventService.findByDate(anyString())).thenReturn(List.of());
+        when(transactionTemplate.execute(org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(inv -> ((org.springframework.transaction.support.TransactionCallback<?>) inv.getArgument(0)).doInTransaction(null));
 
         String result = instagramSchedulerService.shareWeekendCarousel(friday);
+
+        // 2026-10-01: caption cron thread'inde oturumsuz kuruluyordu (LazyInitializationException, Venue).
+        org.mockito.Mockito.verify(transactionTemplate).execute(org.mockito.ArgumentMatchers.any());
 
         var captor = org.mockito.ArgumentCaptor.forClass(List.class);
         org.mockito.Mockito.verify(instagramService).sharePost(captor.capture(), org.mockito.ArgumentMatchers.contains("Bu hafta sonu ne yapsak?"));
