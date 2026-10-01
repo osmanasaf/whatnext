@@ -32,7 +32,11 @@ public final class EventAudience {
     /** Bubilet {@code cocuk-aktiviteleri} etiketinde görülen bilinen çocuk oyunu/gösteri adları (statik seed). */
     private static final List<String> KNOWN_KIDS_TITLES = List.of(
             "pinokyo", "rapunzel", "karlar ulkesi", "kaptan pengu",
-            "kirmizi baslikli kiz", "pamuk prenses");
+            "kirmizi baslikli kiz", "pamuk prenses",
+            // 2026-10-01: Biletix'ten gelen, anahtar kelime taşımayan çocuk gösterileri hafta sonu seçkisine giriyordu.
+            "masa ile koca ayi", "cizmeli kedi", "paw patrol", "minecraft", "pepee", "kral sakir",
+            "rafadan tayfa", "keloglan", "bremen mizikacilari", "susam sokagi", "nickelodeon", "sirinler",
+            "pijamaskeliler", "kucuk prens", "on ice", "hologram sirki");
 
     public static AudienceType classify(String title, String venueName) {
         String t = normalize(title);

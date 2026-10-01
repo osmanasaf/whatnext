@@ -26,12 +26,14 @@ import java.util.Set;
 public class PopularityCatalog {
 
     static final int CATALOG_SCORE = 10;
+    static final int BIG_VENUE_SCORE = 20;
 
     /** Parantez içi tür ekleri ("Kuğu Gölü (Bale)") takma ad olarak kullanılmaz — her balede eşleşirdi. */
     private static final Set<String> GENERIC_WORDS = Set.of(
             "bale", "muzikal", "opera", "konser", "tiyatro", "stand up", "standup", "gosteri", "oyun");
 
     private final List<String> venueKeys = new ArrayList<>();
+    private final List<String> bigVenueKeys = new ArrayList<>();
     private final List<String> multiWordPerformers = new ArrayList<>();
     private final List<String> singleWordPerformers = new ArrayList<>();
 
@@ -40,6 +42,12 @@ public class PopularityCatalog {
     }
 
     PopularityCatalog(JsonNode config) {
+        for (JsonNode venue : config.path("bigVenues")) {
+            String key = fold(venue.asText("")).replace(" ", "");
+            if (!key.isEmpty()) {
+                bigVenueKeys.add(key);
+            }
+        }
         for (JsonNode venue : config.path("topVenues")) {
             String key = fold(venue.asText("")).replace(" ", "");
             if (!key.isEmpty()) {
@@ -53,11 +61,20 @@ public class PopularityCatalog {
         }
     }
 
-    /** Mekân adında listedeki bir mekân geçiyorsa (boşluk/Türkçe harf farkı gözetmeden) 10. */
+    /**
+     * Büyük salon (arena/açıkhava, {@code bigVenues}) 20, listedeki diğer mekân 10 (boşluk/Türkçe harf farkı
+     * gözetmeden). Büyük salon = büyük isim: turneye çıkmayan yıldızları (Gülşen, Murat Dalkılıç) yakalar;
+     * önceden 25 bin kişilik açıkhava ile küçük caz kulübü aynı 10'u alıyordu.
+     */
     public int venueScore(String venueName) {
         String key = fold(venueName).replace(" ", "");
         if (key.isEmpty()) {
             return 0;
+        }
+        for (String venue : bigVenueKeys) {
+            if (key.contains(venue)) {
+                return BIG_VENUE_SCORE;
+            }
         }
         for (String venue : venueKeys) {
             if (key.contains(venue)) {

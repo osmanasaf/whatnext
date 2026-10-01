@@ -5,6 +5,7 @@ import {
   DateStamp,
   EventRow,
   MetaLine,
+  MoreCta,
   Poster,
   SaveCta,
   StillBackground,
@@ -16,6 +17,8 @@ import { ThemeContext, themeFor } from '../theme';
 
 export interface DailyPostStillProps {
   eventType: string;
+  /** Gün slaytı ("mixed"): gösterilmeyen etkinlik sayısı — "+N etkinlik daha". */
+  moreCount?: number;
   monthName: string;
   date: string;
   events: StillEventData[];
@@ -47,13 +50,16 @@ export const DailyPostStill: React.FC<DailyPostStillProps> = ({
   date,
   events,
   backgroundImageUrl,
+  moreCount,
 }) => {
   useBrandFonts();
   const shown = events.slice(0, 10);
   const ambient = firstImage(shown);
-  const subtitle = shown.length > 1 ? `İstanbul • ${shown.length} etkinlik` : 'İstanbul';
   // "mixed": hafta sonu karuselinin gün slaytı — tür rayı yok, her satırda kendi tür etiketi.
   const mixed = eventType === 'mixed';
+  const subtitle = mixed
+    ? `İstanbul • günün en iyi ${shown.length}'${shown.length === 10 ? 'u' : 'i'}`
+    : shown.length > 1 ? `İstanbul • ${shown.length} etkinlik` : 'İstanbul';
 
   return (
     <ThemeContext.Provider value={themeFor(date)}>
@@ -77,7 +83,11 @@ export const DailyPostStill: React.FC<DailyPostStillProps> = ({
       {/* Sol kenar: aşağıdan yukarı "KONSER" rayı — kart listesiyle aynı dikey aralık */}
       {!mixed && <TypeRail eventType={eventType} left={PAD - 10} top={PAD + HEADER_H + 24} bottom={CTA_ZONE} />}
 
-      <SaveCta bottom={CTA_BOTTOM} />
+      {mixed && moreCount && moreCount > 0 ? (
+        <MoreCta bottom={CTA_BOTTOM} count={moreCount} />
+      ) : (
+        <SaveCta bottom={CTA_BOTTOM} />
+      )}
     </AbsoluteFill>
     </ThemeContext.Provider>
   );

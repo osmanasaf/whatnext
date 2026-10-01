@@ -143,7 +143,7 @@ export const CoverStill: React.FC<CoverStillProps> = ({ date, eventCount, events
           fontFamily: FONT_BODY,
         }}
       >
-        whatnext.tr
+        @whatnext.event
       </div>
     </AbsoluteFill>
     </ThemeContext.Provider>

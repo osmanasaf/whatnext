@@ -8,7 +8,7 @@ import java.time.temporal.ChronoUnit;
 
 /**
  * Skor = başlık tekrarı (0–15) + mekân (0–10) + sanatçı/oyun/komedyen (0–10+) + kaynak popülerliği (0–20)
- * + tarih yakınlığı (0–10). Kaynak popülerliği tek gerçek talep sinyali (Biletix çok satanlar), bu yüzden
+ * + tarih yakınlığı (0–10) + turne genişliği (0–20, {@link TourIndex}). Kaynak popülerliği tek gerçek talep sinyali (Biletix çok satanlar), bu yüzden
  * en ağır bileşen; diğerleri elle seçilmiş liste veya sıklık tahmini.
  */
 public abstract class AbstractEventScoringStrategy implements EventScoringStrategy {
@@ -19,10 +19,13 @@ public abstract class AbstractEventScoringStrategy implements EventScoringStrate
 
     protected final TitlePopularityService titlePopularityService;
     protected final PopularityCatalog popularityCatalog;
+    protected final TourIndex tourIndex;
 
-    protected AbstractEventScoringStrategy(TitlePopularityService titlePopularityService, PopularityCatalog popularityCatalog) {
+    protected AbstractEventScoringStrategy(TitlePopularityService titlePopularityService, PopularityCatalog popularityCatalog,
+                                           TourIndex tourIndex) {
         this.titlePopularityService = titlePopularityService;
         this.popularityCatalog = popularityCatalog;
+        this.tourIndex = tourIndex;
     }
 
     @Override
@@ -34,6 +37,7 @@ public abstract class AbstractEventScoringStrategy implements EventScoringStrate
         score += calculateEventTypeSpecificScore(event);
         score += calculateSourcePopularityScore(event);
         score += calculateDateProximityBonus(event);
+        score += tourIndex == null ? 0 : tourIndex.score(event.getTitle());
 
         return score;
     }

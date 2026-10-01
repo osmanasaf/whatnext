@@ -10,8 +10,9 @@ import org.springframework.stereotype.Service;
 @Service
 public class DefaultEventScoringStrategy extends AbstractEventScoringStrategy {
 
-    public DefaultEventScoringStrategy(TitlePopularityService titlePopularityService, PopularityCatalog popularityCatalog) {
-        super(titlePopularityService, popularityCatalog);
+    public DefaultEventScoringStrategy(TitlePopularityService titlePopularityService, PopularityCatalog popularityCatalog,
+                                       TourIndex tourIndex) {
+        super(titlePopularityService, popularityCatalog, tourIndex);
     }
 
     @Override

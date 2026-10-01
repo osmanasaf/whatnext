@@ -20,7 +20,7 @@ import static org.mockito.Mockito.when;
 class DefaultEventScoringStrategyTest {
 
     private final TitlePopularityService titles = mock(TitlePopularityService.class);
-    private final DefaultEventScoringStrategy strategy = new DefaultEventScoringStrategy(titles, new PopularityCatalog());
+    private final DefaultEventScoringStrategy strategy = new DefaultEventScoringStrategy(titles, new PopularityCatalog(), null);
 
     {
         when(titles.calculateTitlePopularityScore(anyString(), any())).thenReturn(0);
@@ -41,8 +41,8 @@ class DefaultEventScoringStrategyTest {
         standup.setVenue(venue);
         standup.setSourcePopularity(15);
 
-        // katalog sanatçı 10 + katalog mekân 10 + Biletix çok satan 15
-        assertThat(strategy.calculateScore(standup)).isEqualTo(35);
+        // katalog sanatçı 10 + büyük salon 20 (Zorlu PSM Turkcell Sahnesi) + Biletix çok satan 15
+        assertThat(strategy.calculateScore(standup)).isEqualTo(45);
     }
 
     @Test

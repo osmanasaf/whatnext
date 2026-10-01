@@ -1,4 +1,27 @@
 {
+  "bigVenues": [
+    "Paribu Vadi",
+    "Turkcell Vadi",
+    "Volkswagen Arena",
+    "JJ Arena",
+    "Harbiye Cemil Topuzlu",
+    "Cemil Topuzlu Açıkhava",
+    "KüçükÇiftlik Park",
+    "Life Park",
+    "Ataköy Marina",
+    "Maximum Uniq Açıkhava",
+    "Kuruçeşme Açıkhava",
+    "Ülker Spor",
+    "Sinan Erdem",
+    "TİM Show Center",
+    "Bostancı Gösteri Merkezi",
+    "Congresium",
+    "Lütfi Kırdar",
+    "Atatürk Kültür Merkezi",
+    "AKM Türk Telekom Opera",
+    "Zorlu PSM - Turkcell Sahnesi",
+    "Mask Beach"
+  ],
   "topVenues": [
     "Zorlu PSM",
     "Maximum Uniq",
@@ -109,7 +132,6 @@
     "Artbat",
     "Peggy Gou",
     "Black Coffee",
-
     "Şebnem Ferah",
     "Çilekeş",
     "Kenan Doğulu",
@@ -168,7 +190,6 @@
     "Yann Tiersen",
     "Jimmy Sax",
     "Craig David",
-
     "Haluk Bilginer",
     "Demet Evgar",
     "Yılmaz Erdoğan",

@@ -7,6 +7,7 @@ import com.asaf.whatnext.mapper.EventMapper;
 import com.asaf.whatnext.models.Event;
 import com.asaf.whatnext.models.PerformingArt;
 import com.asaf.whatnext.services.scoring.EventScoringStrategy;
+import com.asaf.whatnext.services.scoring.TourIndex;
 import com.asaf.whatnext.services.templates.TemplateAssets;
 import com.asaf.whatnext.services.templates.TemplateProvider;
 import com.asaf.whatnext.utils.EventAudience;
@@ -261,9 +262,12 @@ public class ImageGenerationService {
     }
 
     private List<Event> selectMixed(LocalDate date, int concertQuota, int theaterQuota, int standupQuota, int target) {
-        List<Event> concerts = topForStory(date, EventType.CONCERT);
-        List<Event> theaters = topForStory(date, EventType.THEATER);
-        List<Event> standups = topForStory(date, EventType.STANDUP);
+        // Aynı gösterinin alt başlıklı kayıtları tek sayılır ("Hikayeden Adamlar" / "... - Kırık Kalpler Partisi");
+        // seçimden ÖNCE elenir ki boşalan yeri sıradaki etkinlik doldursun.
+        Set<String> names = new java.util.HashSet<>();
+        List<Event> concerts = distinctNames(topForStory(date, EventType.CONCERT), names);
+        List<Event> theaters = distinctNames(topForStory(date, EventType.THEATER), names);
+        List<Event> standups = distinctNames(topForStory(date, EventType.STANDUP), names);
         Set<Event> selected = new LinkedHashSet<>();
         addUpTo(selected, concerts, concertQuota);
         addUpTo(selected, theaters, theaterQuota);
@@ -281,6 +285,10 @@ public class ImageGenerationService {
         EventDuplicateKeys.dedupeSetByTitleAndDate(selected);
 
         return selected.stream().limit(target).toList();
+    }
+
+    private static List<Event> distinctNames(List<Event> events, Set<String> seen) {
+        return events.stream().filter(e -> seen.add(TourIndex.key(e.getTitle()))).collect(Collectors.toList());
     }
 
     /** Türün skora göre ilk {@code STORY_FETCH_LIMIT} etkinliği, çocuk etkinlikleri hariç. */
@@ -511,7 +519,7 @@ public class ImageGenerationService {
             // NotoSans (annotate fontu) emoji glyph'i içermiyor — resme gömülen metinde emoji "tofu"
             // kutusu olarak çıkar; emoji'ler yalnızca Instagram'ın kendi UI'sinde render olan
             // caption'larda (bkz. InstagramSchedulerService.buildDailyCaption) güvenli.
-            addCtaAnnotationExplicit(command, coordinates, "KAYDET • whatnext.tr",
+            addCtaAnnotationExplicit(command, coordinates, "KAYDET • @whatnext.event",
                     String.valueOf(ptCta), annotateNorthOffset(0, ctaBottomInset));
         }
 

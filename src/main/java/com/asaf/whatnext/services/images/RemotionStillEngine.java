@@ -82,6 +82,10 @@ public class RemotionStillEngine implements ImageRenderEngine {
         }
         Map<String, Object> props = new HashMap<>();
         props.put("eventType", request.eventType());
+        if ("mixed".equals(request.eventType())) {
+            props.put("moreCount", Math.max(0,
+                    imageGenerationService.countIstanbulEventsForDate(request.date()) - events.size()));
+        }
         props.put("monthName", monthName);
         props.put("palette", palette);
         props.put("date", request.date().toString());

@@ -553,6 +553,40 @@ export const EventRow: React.FC<{
   );
 };
 
+/**
+ * Gün slaytının altı: "+142 etkinlik daha • her gün story'lerde". Seçki 10 etkinlik; şehrin bolluğunu gösterir,
+ * geri kalanı günlük story'lere yönlendirir (2026-10-01 kullanıcı: "çok etkinlik kaçmış gibi"; whatnext.tr
+ * şimdilik kapalı olduğu için siteye yönlendirme yok).
+ */
+export const MoreCta: React.FC<{ bottom: number; count: number; size?: number }> = ({ bottom, count, size = 26 }) => {
+  const { accent, base } = useTheme();
+  return (
+    <div style={{ position: 'absolute', left: 0, right: 0, bottom, display: 'flex', justifyContent: 'center' }}>
+      <div
+        style={{
+          background: accent,
+          borderRadius: 100,
+          padding: `${Math.round(size * 0.6)}px ${Math.round(size * 1.3)}px`,
+          fontSize: size,
+          fontWeight: 800,
+          lineHeight: 1,
+          color: base,
+          fontFamily: FONT_BODY,
+          boxShadow: '0 10px 30px rgba(0,0,0,0.4)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: Math.round(size * 0.45),
+        }}
+      >
+        <span style={{ fontFamily: FONT_TITLE, fontSize: Math.round(size * 1.15) }}>+{count}</span>
+        <span>etkinlik daha</span>
+        <span style={{ opacity: 0.6 }}>•</span>
+        <span>her gün story'lerde</span>
+      </div>
+    </div>
+  );
+};
+
 export const SaveCta: React.FC<{ bottom: number; size?: number }> = ({ bottom, size = 22 }) => {
   const { accent } = useTheme();
   return (
@@ -579,7 +613,7 @@ export const SaveCta: React.FC<{ bottom: number; size?: number }> = ({ bottom, s
       <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={{ display: 'block', flexShrink: 0 }}>
         <path d="M6 3h12v18l-6-4-6 4V3z" stroke={accent} strokeWidth="2" strokeLinejoin="round" />
       </svg>
-      <span style={{ display: 'block', paddingTop: 1 }}>KAYDET • whatnext.tr</span>
+      <span style={{ display: 'block', paddingTop: 1 }}>KAYDET • @whatnext.event</span>
     </div>
   </div>
   );
@@ -601,7 +635,7 @@ export const Footer: React.FC<{ color?: string }> = ({ color = 'rgba(255,255,255
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
       <polygon points="12,2 22,8.5 22,15.5 12,22 2,15.5 2,8.5" stroke={color} strokeWidth="1.5" />
     </svg>
-    <span style={{ fontSize: 14, color, fontFamily: FONT_BODY, letterSpacing: 1 }}>whatnext.tr</span>
+    <span style={{ fontSize: 14, color, fontFamily: FONT_BODY, letterSpacing: 1 }}>@whatnext.event</span>
   </div>
 );
 

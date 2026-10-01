@@ -116,7 +116,7 @@ export const CtaStill: React.FC<{ date: string }> = ({ date }) => {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 70 }}>
         {line('🔖', 'Kaydet', 'Hafta sonu lazım olacak')}
         {line('👯', 'Etiketle', 'Kiminle gidiyorsun?')}
-        {line('🎟️', 'whatnext.tr', 'Tüm etkinlikler ve biletler')}
+        {line('📲', 'Takip et', 'Her gün yeni öneriler')}
       </div>
       <div style={{ fontSize: 30, fontWeight: 800, color: ink, fontFamily: FONT_BODY, letterSpacing: 1 }}>@whatnext.event</div>
     </AbsoluteFill>

@@ -33,6 +33,17 @@ class PopularityCatalogTest {
     }
 
     @Test
+    void bigVenueOutranksOrdinaryListedVenue() throws Exception {
+        PopularityCatalog c = catalog("{\"bigVenues\":[\"Paribu Vadi\",\"JJ Arena\"],\"topVenues\":[\"Jolly Joker\",\"Nardis Jazz Club\"]}");
+
+        assertThat(c.venueScore("Paribu Vadi Açıkhava")).isEqualTo(20);
+        assertThat(c.venueScore("JJ Arena Ataşehir")).isEqualTo(20);
+        assertThat(c.venueScore("Jolly Joker Kartal")).isEqualTo(10);
+        assertThat(c.venueScore("Nardis Jazz Club")).isEqualTo(10);
+        assertThat(c.venueScore("Bilinmeyen Bar")).isZero();
+    }
+
+    @Test
     void venueMatchIgnoresSpacesAndTurkishLetters() throws Exception {
         PopularityCatalog c = catalog("{\"topVenues\":[\"KadıköySahne\",\"Zorlu PSM\"]}");
 
@@ -46,6 +57,8 @@ class PopularityCatalogTest {
     void realConfigLoads() {
         PopularityCatalog c = new PopularityCatalog();
         assertThat(c.performerScore("Baturay Özdemir - Stand Up")).isEqualTo(10);
-        assertThat(c.venueScore("Harbiye Cemil Topuzlu Açık Hava Tiyatrosu")).isEqualTo(10);
+        // Harbiye büyük salon (bigVenues) → 20.
+        assertThat(c.venueScore("Harbiye Cemil Topuzlu Açık Hava Tiyatrosu")).isEqualTo(20);
+        assertThat(c.venueScore("Nardis Jazz Club")).isEqualTo(10);
     }
 }

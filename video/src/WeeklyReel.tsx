@@ -147,7 +147,7 @@ const OutroScreen: React.FC<{ variant: number }> = ({ variant }) => {
         </svg>
         <div style={{ marginTop: 28, fontSize: 110, color: '#f8fafc', fontFamily: FONT_TITLE, letterSpacing: 2 }}>whatnext</div>
         <div style={{ marginTop: 8, fontSize: 44, color: accent, fontFamily: FONT_BODY, fontWeight: 600, letterSpacing: 2 }}>
-          whatnext.tr
+          @whatnext.event
         </div>
         <div
           style={{
