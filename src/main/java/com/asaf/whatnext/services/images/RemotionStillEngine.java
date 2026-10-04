@@ -132,6 +132,9 @@ public class RemotionStillEngine implements ImageRenderEngine {
             }
         }
         Map<String, Object> props = new HashMap<>();
+        if ("today".equals(request.eventType())) {
+            props.put("kicker", "BUGÜN İSTANBUL'DA");
+        }
         if (days > 1) {
             LocalDate end = request.date().plusDays(days - 1);
             String range = request.date().format(DAY_MONTH_TR) + " – " + end.format(DAY_MONTH_TR);

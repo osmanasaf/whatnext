@@ -126,6 +126,30 @@ class InstagramSchedulerServiceTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void shareDailyPost_todayHook_thenConcertTheaterStandup_evenIfWeeklyCoverAlreadyPosted() throws Exception {
+        LocalDate day = LocalDate.of(2026, 10, 6);
+        // Pazartesi karuseli bu günün "cover"ını paylaşmış olabilir — günlük gönderiyi engellememeli.
+        when(instagramImageRepository.findByCreationDateBetween(day, day)).thenReturn(List.of(img(1, "2026-10-06", "cover", true)));
+        var hook = img(2, "2026-10-06", "today", false);
+        var c = img(3, "2026-10-06", "concert", false);
+        var s = img(5, "2026-10-06", "standup", false);
+        when(instagramService.createImage("today", "cover", null, day)).thenReturn(hook);
+        when(instagramService.createImage("concert", "post", "istanbul", day)).thenReturn(c);
+        when(instagramService.createImage("theater", "post", "istanbul", day)).thenReturn(null);
+        when(instagramService.createImage("standup", "post", "istanbul", day)).thenReturn(s);
+        when(eventService.findByDate(anyString())).thenReturn(List.of());
+        when(transactionTemplate.execute(org.mockito.ArgumentMatchers.any()))
+                .thenAnswer(inv -> ((org.springframework.transaction.support.TransactionCallback<?>) inv.getArgument(0)).doInTransaction(null));
+
+        instagramSchedulerService.shareDailyPost(day, false);
+
+        var captor = org.mockito.ArgumentCaptor.forClass(List.class);
+        org.mockito.Mockito.verify(instagramService).sharePost(captor.capture(), org.mockito.ArgumentMatchers.contains("Bugün İstanbul'da"));
+        assertThat(captor.getValue()).containsExactly(hook, c, s);
+    }
+
+    @Test
     void shareWeekendCarousel_skipsWhenHookAlreadyPosted() throws Exception {
         LocalDate friday = LocalDate.of(2026, 10, 2);
         when(instagramImageRepository.findByCreationDateBetween(friday, friday.plusDays(2)))

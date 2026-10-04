@@ -245,6 +245,13 @@ public class InstagramController {
         return ResponseEntity.ok(instagramSchedulerService.shareWeekendCarousel(d, force));
     }
 
+    @PostMapping("/scheduler/share-daily-post")
+    public ResponseEntity<?> shareDailyPost(@RequestParam(required = false) String date,
+                                            @RequestParam(defaultValue = "false") boolean force) {
+        LocalDate d = date != null && !date.isBlank() ? LocalDate.parse(date) : TrClock.today();
+        return ResponseEntity.ok(instagramSchedulerService.shareDailyPost(d, force));
+    }
+
     @PostMapping("/scheduler/generate-weekly-reel")
     public ResponseEntity<?> generateWeeklyReelManually() {
         try {

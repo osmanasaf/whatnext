@@ -55,7 +55,6 @@ public class InstagramService {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private final PriorityBlockingQueue<PostTask> postQueue = new PriorityBlockingQueue<>();
-    private final List<LocalDate> postedDates = new ArrayList<>();
     private final List<PostTask> failedTasks = new CopyOnWriteArrayList<>();
 
     private enum PostType {
@@ -139,13 +138,14 @@ public class InstagramService {
             return;
         }
         LocalDate date = images.get(0).getCreationDate();
+        // Aynı açılış görseli = aynı gönderi. Tarihe göre engellemek, aynı güne düşen günlük gönderi ile
+        // karuseli (ör. Cuma günlüğü + Perşembe'nin Cuma tarihli hafta sonu karuseli) birbirine kilitliyordu.
+        Long hookId = images.get(0).getId();
         boolean alreadyQueued = postQueue.stream().anyMatch(task ->
-            task.date.equals(date) && task.type == PostType.POST
+            task.type == PostType.POST && hookId != null && hookId.equals(task.images.get(0).getId())
         );
-        boolean alreadyPosted = postedDates.contains(date) &&
-            instagramImageRepository.existsByCreationDateAndPostTypeAndPostedToInstagramIsTrue(date, "cover");
-        if (alreadyQueued || alreadyPosted) {
-            System.err.println("❌ Aynı gün için zaten bir POST/COVER paylaşım kuyruğa alınmış veya paylaşılmış: " + date);
+        if (alreadyQueued || images.get(0).isPostedToInstagram()) {
+            System.err.println("❌ Bu gönderi zaten kuyrukta veya paylaşılmış: " + date + " (görsel " + hookId + ")");
             return;
         }
         boolean added = postQueue.offer(new PostTask(images, caption, date));
@@ -442,9 +442,7 @@ public class InstagramService {
                     continue;
                 }
 
-                if (success) {
-                    postedDates.add(task.date);
-                } else {
+                if (!success) {
                     failedTasks.add(task);
                 }
 

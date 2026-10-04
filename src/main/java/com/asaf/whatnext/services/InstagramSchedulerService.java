@@ -51,7 +51,6 @@ public class InstagramSchedulerService {
 
     private static final Locale TR = Locale.forLanguageTag("tr");
     private static final DateTimeFormatter DAY_MONTH_TR = DateTimeFormatter.ofPattern("d MMMM", TR);
-    private static final DateTimeFormatter TR_DATE_YEAR_FORMAT = DateTimeFormatter.ofPattern("d MMMM yyyy", new Locale("tr"));
     private static final DateTimeFormatter HHMM = DateTimeFormatter.ofPattern("HH:mm");
     private static final int CAPTION_MAX_EVENTS = 8;
 
@@ -61,7 +60,7 @@ public class InstagramSchedulerService {
 
 
     /*
-     * Paylaşım takvimi (2026-09-28): Pazar 19:00 Reel (gelecek hafta — PopularEventService Perşembe'den
+     * Paylaşım takvimi (2026-09-28; 10-04: + her gün 09:00 günün gönderisi): Pazar 19:00 Reel (gelecek hafta — PopularEventService Perşembe'den
      * itibaren sonraki haftayı seçer), Pazartesi 19:00 haftalık karusel, Perşembe 19:00 hafta sonu karuseli,
      * her gün story. Eski düzen (7 günlük karusel, 3'ü art arda) erişimi bölüyordu.
      */
@@ -85,6 +84,22 @@ public class InstagramSchedulerService {
     @Scheduled(cron = "0 0 19 ? * THU", zone = "Europe/Istanbul")
     public void scheduledWeekendCarousel() {
         LOGGER.info(shareWeekendCarousel(TrClock.today().with(DayOfWeek.FRIDAY)));
+    }
+
+    /**
+     * Günün gönderisi (2026-10-04, kullanıcı kararı): her sabah 09:00 o günün etkinlikleri — "Bugün İstanbul'da"
+     * kapağı + konser / tiyatro / stand-up slaytları, paylaşım anında üretilir.
+     */
+    @Scheduled(cron = "0 0 9 * * ?", zone = "Europe/Istanbul")
+    public void scheduledDailyPost() {
+        LOGGER.info(shareDailyPost(TrClock.today(), false));
+    }
+
+    public String shareDailyPost(LocalDate day, boolean force) {
+        List<Render> renders = List.of(new Render("concert", "post", day), new Render("theater", "post", day),
+                new Render("standup", "post", day));
+        return shareCarousel("today", day, 1, List.of(), renders,
+                transactionTemplate.execute(s -> buildDailyCaption(day)), force);
     }
 
     /** "Bu hafta İstanbul'da" kapağı + haftanın 7 gün kapağı (Pazar 16:00'da üretilenler). */
@@ -371,13 +386,14 @@ public class InstagramSchedulerService {
         List<Event> events = topEvents(targetDate, CAPTION_MAX_EVENTS);
 
         StringBuilder sb = new StringBuilder();
-        sb.append("📅 ").append(targetDate.format(TR_DATE_YEAR_FORMAT)).append(" İstanbul Etkinlikleri 🎫\n\n");
+        sb.append("📅 Bugün İstanbul'da · ").append(targetDate.format(DAY_MONTH_TR)).append(' ')
+                .append(dayName(targetDate)).append(" 🎫\n\n");
 
         if (events.isEmpty()) {
-            sb.append("🎭 Tiyatro | 🎶 Konser | 🎤 Stand-up\nBu günlerde şehirde neler var? Kaçırma!\n\n");
+            sb.append("🎭 Tiyatro | 🎶 Konser | 🎤 Stand-up\nBu akşam şehirde neler var? Kaçırma!\n\n");
         } else {
             events.forEach(e -> sb.append(eventLine(e)));
-            sb.append("\n🔖 Kaydet, hafta içinde lazım olacak!\n\n");
+            sb.append("\n👯 Bu akşam kiminle gidiyorsun? Etiketle!\n🔖 Kaydet, akşam lazım olacak\n\n");
         }
 
         sb.append("🔗 Detaylar ve biletler profilde\n").append(hashtagsFor(events));
