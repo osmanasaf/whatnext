@@ -18,10 +18,12 @@ const Kicker: React.FC<{ text: string }> = ({ text }) => {
 export interface PicksStillProps {
   date: string;
   events: (StillEventData & { dayName?: string })[];
+  kicker?: string;
+  headline?: string;
 }
 
-/** "Kaçırma": hafta sonunun en popüler 4 etkinliği, 2×2 büyük afiş. */
-export const PicksStill: React.FC<PicksStillProps> = ({ date, events }) => {
+/** "Kaçırma": bir günün en iyi 4 etkinliği, 2×2 büyük afiş (Perşembe karuselinde gün başına bir slayt). */
+export const PicksStill: React.FC<PicksStillProps> = ({ date, events, kicker = 'BU HAFTA SONU', headline = 'Kaçırma' }) => {
   useBrandFonts();
   const shown = events.slice(0, 4);
   return (
@@ -29,9 +31,9 @@ export const PicksStill: React.FC<PicksStillProps> = ({ date, events }) => {
       <AbsoluteFill>
         <StillBackground ambientImageUrl={firstImage(shown)} />
         <div style={{ position: 'absolute', left: PAD, right: PAD, top: PAD }}>
-          <Kicker text="BU HAFTA SONU" />
+          <Kicker text={kicker} />
           <div style={{ marginTop: 6, fontSize: 92, lineHeight: 1, color: '#f8fafc', fontFamily: FONT_TITLE }}>
-            Kaçırma
+            {headline}
           </div>
         </div>
         <div
@@ -116,7 +118,7 @@ export const CtaStill: React.FC<{ date: string }> = ({ date }) => {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 70 }}>
         {line('🔖', 'Kaydet', 'Hafta sonu lazım olacak')}
         {line('👯', 'Etiketle', 'Kiminle gidiyorsun?')}
-        {line('📲', 'Takip et', 'Her gün yeni öneriler')}
+        {line('📲', 'Takip et', "Her sabah 09:00'da günün tam listesi")}
       </div>
       <div style={{ fontSize: 30, fontWeight: 800, color: ink, fontFamily: FONT_BODY, letterSpacing: 1 }}>@whatnext.event</div>
     </AbsoluteFill>

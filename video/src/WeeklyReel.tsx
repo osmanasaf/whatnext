@@ -1,17 +1,49 @@
 import React from 'react';
 import { AbsoluteFill, Audio, Img, Sequence, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
-import { EventCard, EventData } from './EventCard';
+import { EventCard, EventData, stillType } from './EventCard';
 import { ReelBackground } from './ReelBackground';
 import { FONT_BODY, FONT_TITLE, useBrandFonts } from './fonts';
-import { HOOK_FRAMES, OUTRO_FRAMES, computeCardRanges } from './timing';
-import { SaveCta } from './stills/shared';
+import { DAY_FRAMES, HOOK_FRAMES, OUTRO_FRAMES, ReelLayout, computeCardRanges, groupByDay } from './timing';
+import { DateStamp, EventRow, SaveCta, StillBackground, firstImage } from './stills/shared';
 import { ThemeContext, themeFor, useTheme, withAlpha } from './theme';
 
 export interface WeeklyReelProps {
   events: EventData[];
   weekRange: string;
   backgroundVariant?: number;
+  /** Haftadan haftaya döner (Java: ISO hafta tek/çift) — profil hep aynı Reel'i göstermesin. */
+  layout?: ReelLayout;
 }
+
+/** "days" düzeni: bir günün tüm seçilmiş etkinlikleri tek ekranda, satır satır. */
+const DayScreen: React.FC<{ events: EventData[] }> = ({ events }) => {
+  const frame = useCurrentFrame();
+  const { fps } = useVideoConfig();
+  const shown = events.slice(0, 4);
+  const rows = shown.map((e) => ({ ...e, imageUrl: e.imageUrl || undefined, eventType: stillType(e.type) }));
+  return (
+    <AbsoluteFill>
+      <StillBackground ambientImageUrl={firstImage(rows)} />
+      {/* Reels arayüzünün üst ~210 / alt ~380px'i kapattığı bölgenin dışında kalır (EventCard ile aynı). */}
+      <AbsoluteFill style={{ padding: '210px 64px 380px', display: 'flex', flexDirection: 'column', gap: 48 }}>
+        <DateStamp date={events[0].startDate} scale={1.35} />
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 28 }}>
+          {rows.map((e, i) => {
+            const pop = spring({ frame: frame - 4 - i * 5, fps, config: { damping: 16, stiffness: 160 } });
+            return (
+              <div
+                key={e.id}
+                style={{ opacity: pop, transform: `translateX(${interpolate(pop, [0, 1], [80, 0])}px)` }}
+              >
+                <EventRow event={rows[i]} posterHeight={shown.length > 3 ? 200 : 240} titleSize={44} showType />
+              </div>
+            );
+          })}
+        </div>
+      </AbsoluteFill>
+    </AbsoluteFill>
+  );
+};
 
 /**
  * Haftalık dönen müzik: {@code backgroundVariant} (ISO hafta % 5) sırayla parça seçer. Yeni parça =
@@ -35,7 +67,12 @@ const HOOK_SLOTS: { x: number; y: number; rot: number }[] = [
 ];
 const HOOK_TILE_MAX = 470;
 
-const HookScreen: React.FC<{ events: EventData[]; weekRange: string; variant: number }> = ({ events, weekRange, variant }) => {
+const HookScreen: React.FC<{ events: EventData[]; weekRange: string; variant: number; layout: ReelLayout }> = ({
+  events,
+  weekRange,
+  variant,
+  layout,
+}) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const tiles = events.filter((e) => e.imageUrl).slice(0, HOOK_SLOTS.length);
@@ -111,9 +148,9 @@ const HookScreen: React.FC<{ events: EventData[]; weekRange: string; variant: nu
             fontFamily: FONT_TITLE,
           }}
         >
-          Bu hafta
+          {layout === 'days' ? 'Hafta' : 'Bu hafta'}
           <br />
-          kaçırma
+          {layout === 'days' ? 'gün gün' : 'kaçırma'}
         </div>
         <div style={{ marginTop: 22, fontSize: 40, fontWeight: 700, color: withAlpha(base, 0.85), fontFamily: FONT_BODY }}>
           {events.length} öne çıkan etkinlik
@@ -170,11 +207,14 @@ const OutroScreen: React.FC<{ variant: number }> = ({ variant }) => {
   );
 };
 
-export const WeeklyReel: React.FC<WeeklyReelProps> = ({ events, weekRange, backgroundVariant = 0 }) => {
+export const WeeklyReel: React.FC<WeeklyReelProps> = ({ events, weekRange, backgroundVariant = 0, layout = 'cards' }) => {
   useBrandFonts();
   const { durationInFrames } = useVideoConfig();
-  const cardRanges = computeCardRanges(events);
-  const outroFrom = HOOK_FRAMES + cardRanges.reduce((acc, r) => acc + r.durationInFrames, 0);
+  const days = layout === 'days' ? groupByDay(events) : [];
+  const cardRanges = layout === 'days' ? [] : computeCardRanges(events);
+  const outroFrom =
+    HOOK_FRAMES +
+    (layout === 'days' ? days.length * DAY_FRAMES : cardRanges.reduce((acc, r) => acc + r.durationInFrames, 0));
   const theme = themeFor(events[0]?.startDate, false);
 
   return (
@@ -183,8 +223,14 @@ export const WeeklyReel: React.FC<WeeklyReelProps> = ({ events, weekRange, backg
       <Audio src={staticFile(TRACKS[backgroundVariant % TRACKS.length])} loop />
 
       <Sequence from={0} durationInFrames={HOOK_FRAMES}>
-        <HookScreen events={events} weekRange={weekRange} variant={backgroundVariant} />
+        <HookScreen events={events} weekRange={weekRange} variant={backgroundVariant} layout={layout} />
       </Sequence>
+
+      {days.map((day, i) => (
+        <Sequence key={day[0].startDate} from={HOOK_FRAMES + i * DAY_FRAMES} durationInFrames={DAY_FRAMES}>
+          <DayScreen events={day} />
+        </Sequence>
+      ))}
 
       {cardRanges.map(({ event, from, durationInFrames: cardDuration }) => (
         <Sequence key={`${event.id}-${from}`} from={from} durationInFrames={cardDuration}>

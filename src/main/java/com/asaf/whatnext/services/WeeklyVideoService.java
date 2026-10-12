@@ -181,11 +181,13 @@ public class WeeklyVideoService {
                 eventMaps.add(eventMap);
             }
 
-            int backgroundVariant = TrClock.today().get(IsoFields.WEEK_OF_WEEK_BASED_YEAR) % 5;
+            int week = TrClock.today().get(IsoFields.WEEK_OF_WEEK_BASED_YEAR);
             Map<String, Object> props = new HashMap<>();
             props.put("events", eventMaps);
             props.put("weekRange", weekRange);
-            props.put("backgroundVariant", backgroundVariant);
+            props.put("backgroundVariant", week % 5);
+            // 2026-10-12 kullanıcı: "bir hafta bir şekilde bir hafta başka şekilde olsun" — kart kart / gün gün.
+            props.put("layout", week % 2 == 0 ? "cards" : "days");
 
             return remotionRunner.run("render", "WeeklyReel", props, "mp4");
         } catch (Exception e) {

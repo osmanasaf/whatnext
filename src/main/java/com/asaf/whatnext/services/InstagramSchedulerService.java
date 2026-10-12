@@ -120,9 +120,9 @@ public class InstagramSchedulerService {
     }
 
     /**
-     * "Bu hafta sonu ne yapsak?" (2026-10-01 yeni format, kullanıcı kararı): kapak + Cuma/Cumartesi/Pazar gün
-     * slaytı (günün en iyi 10'u: 4 konser + 4 tiyatro + 2 stand-up) + "Kaçırma" (en popüler 4) + kapanış CTA.
-     * Eski tür-tür 9 slayt birbirinin aynısıydı, 3. slayttan sonra kaydırma düşüyordu. Hepsi paylaşım anında üretilir.
+     * "Bu hafta sonu ne yapsak?": kapak + Cuma/Cumartesi/Pazar için birer "Kaçırma" slaytı (günün en iyi 4'ü, büyük
+     * afiş) + kapanış CTA. 2026-10-12: günlerin tam listesi artık her sabah 09:00 günlük gönderide; karusel
+     * aynı listeyi tekrar etmek yerine öne çıkanları gösterir. Hepsi paylaşım anında üretilir.
      */
     public String shareWeekendCarousel(LocalDate friday) {
         return shareWeekendCarousel(friday, false);
@@ -131,9 +131,8 @@ public class InstagramSchedulerService {
     public String shareWeekendCarousel(LocalDate friday, boolean force) {
         List<Render> renders = new ArrayList<>();
         for (int i = 0; i < 3; i++) {
-            renders.add(new Render("mixed", "post", friday.plusDays(i)));
+            renders.add(new Render("picks", "cover", friday.plusDays(i)));
         }
-        renders.add(new Render("picks", "cover", friday));
         renders.add(new Render("cta", "cover", friday));
         return shareCarousel("weekend", friday, 3, List.of(), renders,
                 transactionTemplate.execute(s -> buildWeekendCaption(friday)), force);
@@ -215,7 +214,8 @@ public class InstagramSchedulerService {
                 sb.append('\n');
             }
         }
-        sb.append("👯 Kiminle gidiyorsun? Etiketle!\n🔖 Kaydet, hafta sonu lazım olacak\n\n🔗 Detaylar ve biletler profilde\n");
+        sb.append("👯 Kiminle gidiyorsun? Etiketle!\n🔖 Kaydet, hafta sonu lazım olacak\n"
+                + "⏰ Günün tam listesi her sabah 09:00'da\n\n🔗 Detaylar ve biletler profilde\n");
         return sb.append(hashtagsFor(all)).toString();
     }
 

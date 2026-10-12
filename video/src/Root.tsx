@@ -61,7 +61,7 @@ export const RemotionRoot: React.FC = () => {
         calculateMetadata={({ props }) => {
           const p = props as unknown as WeeklyReelProps;
           return {
-            durationInFrames: computeTotalDuration(p.events ?? []),
+            durationInFrames: computeTotalDuration(p.events ?? [], p.layout),
           };
         }}
       />

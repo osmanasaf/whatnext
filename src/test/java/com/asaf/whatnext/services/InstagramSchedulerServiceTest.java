@@ -98,19 +98,17 @@ class InstagramSchedulerServiceTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void shareWeekendCarousel_rendersHook_threeDays_picks_cta_inOrder_skippingEmpty() throws Exception {
+    void shareWeekendCarousel_rendersHook_dayPicks_cta_inOrder_skippingEmpty() throws Exception {
         LocalDate friday = LocalDate.of(2026, 10, 2);
         when(instagramImageRepository.findByCreationDateBetween(friday, friday.plusDays(2))).thenReturn(List.of());
         var hook = img(1, "2026-10-02", "weekend", false);
-        var fri = img(2, "2026-10-02", "mixed", false);
-        var sun = img(4, "2026-10-04", "mixed", false);
-        var picks = img(5, "2026-10-02", "picks", false);
+        var fri = img(2, "2026-10-02", "picks", false);
+        var sun = img(4, "2026-10-04", "picks", false);
         var cta = img(6, "2026-10-02", "cta", false);
         when(instagramService.createImage("weekend", "cover", null, friday)).thenReturn(hook);
-        when(instagramService.createImage("mixed", "post", "istanbul", friday)).thenReturn(fri);
-        when(instagramService.createImage("mixed", "post", "istanbul", friday.plusDays(1))).thenReturn(null); // etkinlik yok
-        when(instagramService.createImage("mixed", "post", "istanbul", friday.plusDays(2))).thenReturn(sun);
-        when(instagramService.createImage("picks", "cover", "istanbul", friday)).thenReturn(picks);
+        when(instagramService.createImage("picks", "cover", "istanbul", friday)).thenReturn(fri);
+        when(instagramService.createImage("picks", "cover", "istanbul", friday.plusDays(1))).thenReturn(null); // afişli etkinlik yok
+        when(instagramService.createImage("picks", "cover", "istanbul", friday.plusDays(2))).thenReturn(sun);
         when(instagramService.createImage("cta", "cover", "istanbul", friday)).thenReturn(cta);
         when(eventService.findByDate(anyString())).thenReturn(List.of());
         when(transactionTemplate.execute(org.mockito.ArgumentMatchers.any()))
@@ -123,8 +121,8 @@ class InstagramSchedulerServiceTest {
 
         var captor = org.mockito.ArgumentCaptor.forClass(List.class);
         org.mockito.Mockito.verify(instagramService).sharePost(captor.capture(), org.mockito.ArgumentMatchers.contains("Bu hafta sonu ne yapsak?"));
-        assertThat(captor.getValue()).containsExactly(hook, fri, sun, picks, cta);
-        assertThat(result).contains("5 görsel");
+        assertThat(captor.getValue()).containsExactly(hook, fri, sun, cta);
+        assertThat(result).contains("4 görsel");
     }
 
     @Test

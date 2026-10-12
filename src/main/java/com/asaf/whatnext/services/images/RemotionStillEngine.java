@@ -156,37 +156,24 @@ public class RemotionStillEngine implements ImageRenderEngine {
     }
 
     /**
-     * "Kaçırma": Cuma–Pazar seçkilerinden afişli 4 farklı etkinlik — önce her günün en iyisi (dördü aynı güne
-     * yığılmasın), sonra kalan günlerin sıradaki en iyileri. Sıra puan sırası ({@code selectTopEvents}); DTO'daki
-     * popularityScore prod'da boş geldiği için ona göre sıralamak en erken etkinliği seçiyordu.
+     * "Kaçırma · Cuma": o günün afişli en iyi 4 etkinliği, büyük afişle. Perşembe karuselinde gün başına bir slayt;
+     * günün tam listesi o sabah 09:00 gönderisinde (2026-10-12 — eskiden karusel tam listeleri de taşıyordu).
+     * Sıra puan sırası ({@code selectTopEvents}); DTO'daki popularityScore prod'da boş gelir.
      */
     private File renderPicks(ImageRenderRequest request) throws IOException, InterruptedException {
-        List<List<EventSummaryDTO>> days = new ArrayList<>();
-        for (int i = 0; i < 3; i++) {
-            days.add(imageGenerationService.selectTopEvents(request.date().plusDays(i)).stream()
-                    .filter(e -> e.getImageUrl() != null && !e.getImageUrl().isBlank())
-                    .toList());
-        }
-        List<EventSummaryDTO> picks = new ArrayList<>();
-        java.util.Set<String> titles = new java.util.HashSet<>();
-        for (int rank = 0; picks.size() < 4 && rank < 10; rank++) {
-            for (List<EventSummaryDTO> day : days) {
-                if (picks.size() < 4 && day.size() > rank && titles.add(day.get(rank).getTitle())) {
-                    picks.add(day.get(rank));
-                }
-            }
-        }
+        List<EventSummaryDTO> picks = imageGenerationService.selectTopEvents(request.date()).stream()
+                .filter(e -> e.getImageUrl() != null && !e.getImageUrl().isBlank())
+                .limit(4)
+                .toList();
         if (picks.size() < 2) {
             return null;
         }
+        String dayName = request.date().getDayOfWeek().getDisplayName(TextStyle.FULL, TR);
         Map<String, Object> props = new HashMap<>();
         props.put("date", request.date().toString());
-        List<Map<String, Object>> maps = toEventMaps(picks);
-        for (int i = 0; i < picks.size(); i++) {
-            maps.get(i).put("dayName", picks.get(i).getStartDate() == null ? ""
-                    : picks.get(i).getStartDate().getDayOfWeek().getDisplayName(TextStyle.FULL, TR));
-        }
-        props.put("events", maps);
+        props.put("kicker", ("Kaçırma • " + request.date().format(DAY_MONTH_TR)).toUpperCase(TR));
+        props.put("headline", dayName.substring(0, 1).toUpperCase(TR) + dayName.substring(1));
+        props.put("events", toEventMaps(picks));
         return remotionRunner.run("still", "PicksStill", props, "png");
     }
 
