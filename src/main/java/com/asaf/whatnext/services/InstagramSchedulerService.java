@@ -4,6 +4,7 @@ import com.asaf.whatnext.models.Event;
 import com.asaf.whatnext.models.InstagramImage;
 import com.asaf.whatnext.repository.InstagramImageRepository;
 import com.asaf.whatnext.services.scoring.EventScoringStrategy;
+import com.asaf.whatnext.services.scoring.TourIndex;
 import com.asaf.whatnext.utils.EventAudience;
 import com.asaf.whatnext.utils.EventQuality;
 import com.asaf.whatnext.utils.Hashtags;
@@ -400,13 +401,19 @@ public class InstagramSchedulerService {
         return sb.toString();
     }
 
-    /** O günün İstanbul'daki en iyi {@code limit} etkinliği (çocuk ve amatör geceler hariç, skor sırası). */
+    /**
+     * O günün İstanbul'daki en iyi {@code limit} farklı etkinliği (çocuk ve amatör geceler hariç, skor sırası).
+     * Aynı gösteri birkaç kaynaktan/seansla gelir ("Hikayeden Adamlar" + "... - Kırık Kalpler Partisi") —
+     * caption'da tekrar etmesin diye seri anahtarıyla tekilleştirilir.
+     */
     private List<Event> topEvents(LocalDate date, int limit) {
+        java.util.Set<String> seen = new java.util.HashSet<>();
         return eventService.findByDate(date.toString()).stream()
                 .filter(e -> "istanbul".equalsIgnoreCase(e.getCity()))
                 .filter(e -> !EventAudience.isChildrensEvent(e))
                 .filter(e -> !EventQuality.isAmateurNight(e))
                 .sorted(Comparator.comparingInt(scoringStrategy::calculateScore).reversed())
+                .filter(e -> seen.add(TourIndex.key(e.getTitle())))
                 .limit(limit)
                 .toList();
     }

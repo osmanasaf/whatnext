@@ -58,8 +58,9 @@ class InstagramSchedulerServiceTest {
         Event withTime = concert("Feridun Düzağaç", "istanbul", LocalTime.of(21, 0), "Dorock XL Kadıköy");
         Event noTime = concert("Gülinler", "istanbul", null, null);
         Event ankara = concert("Ankara Konseri", "ankara", LocalTime.of(20, 0), "Salon");
+        Event sameShow = concert("Feridun Düzağaç - Akustik Gece", "istanbul", LocalTime.of(21, 0), "Dorock XL Kadıköy");
 
-        when(eventService.findByDate(date.toString())).thenReturn(List.of(withTime, noTime, ankara));
+        when(eventService.findByDate(date.toString())).thenReturn(List.of(withTime, noTime, ankara, sameShow));
         when(scoringStrategy.calculateScore(org.mockito.ArgumentMatchers.any())).thenReturn(0);
 
         String caption = instagramSchedulerService.buildDailyCaption(date);
@@ -69,6 +70,7 @@ class InstagramSchedulerServiceTest {
         assertThat(caption).contains("Dorock XL Kadıköy");
         assertThat(caption).contains("Gülinler");
         assertThat(caption).doesNotContain("Ankara Konseri");
+        assertThat(caption).doesNotContain("Akustik Gece"); // aynı gösteri tekrar yazılmaz
         assertThat(caption).contains("Kaydet");
         assertThat(caption).contains("#istanbul");
     }
