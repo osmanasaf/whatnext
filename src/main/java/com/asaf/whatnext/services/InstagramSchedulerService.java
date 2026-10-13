@@ -99,23 +99,27 @@ public class InstagramSchedulerService {
     public String shareDailyPost(LocalDate day, boolean force) {
         List<Render> renders = List.of(new Render("concert", "post", day), new Render("theater", "post", day),
                 new Render("standup", "post", day));
-        return shareCarousel("today", day, 1, List.of(), renders,
+        return shareCarousel("today", day, 1, renders,
                 transactionTemplate.execute(s -> buildDailyCaption(day)), force);
     }
 
-    /** "Bu hafta İstanbul'da" kapağı + haftanın 7 gün kapağı (Pazar 16:00'da üretilenler). */
+    /** "Bu hafta İstanbul'da" kapağı + her gün için "Kaçırma · Gün" slaytı (en iyi 4, adı/saati/mekânıyla). */
     public String shareWeeklyCarousel(LocalDate monday) {
         return shareWeeklyCarousel(monday, false);
     }
 
-    /** {@code force}: kapak daha önce paylaşılmış olsa da yeniden paylaş (elle düzeltme; eski gönderi elle silinir). */
+    /**
+     * {@code force}: kapak daha önce paylaşılmış olsa da yeniden paylaş (elle düzeltme; eski gönderi elle silinir).
+     * 2026-10-13: gün slaytları eskiden yalnız afiş mozaiğiydi (isim/saat yok — kullanıcı: "sadece afişler var, hoş
+     * değil"); artık Perşembe karuseliyle aynı "Kaçırma" slaytı, paylaşım anında üretilir.
+     */
     public String shareWeeklyCarousel(LocalDate monday, boolean force) {
-        List<String[]> slides = new ArrayList<>();
+        List<Render> renders = new ArrayList<>();
         for (int i = 0; i < 7; i++) {
-            slides.add(new String[]{monday.plusDays(i).toString(), "cover"});
+            renders.add(new Render("picks", "cover", monday.plusDays(i)));
         }
         // Caption Event.venue (LAZY) okur; cron thread'inde Hibernate oturumu yok — kendi transaction'ında.
-        return shareCarousel("week", monday, 7, slides, List.of(),
+        return shareCarousel("week", monday, 7, renders,
                 transactionTemplate.execute(s -> buildWeeklyCaption(monday)), force);
     }
 
@@ -134,7 +138,7 @@ public class InstagramSchedulerService {
             renders.add(new Render("picks", "cover", friday.plusDays(i)));
         }
         renders.add(new Render("cta", "cover", friday));
-        return shareCarousel("weekend", friday, 3, List.of(), renders,
+        return shareCarousel("weekend", friday, 3, renders,
                 transactionTemplate.execute(s -> buildWeekendCaption(friday)), force);
     }
 
@@ -143,11 +147,10 @@ public class InstagramSchedulerService {
     }
 
     /**
-     * Açılış kapağını ({@code hookType}) şimdi üretir; ardına {@code slides} (mevcut gün görsellerinin en yenisi,
-     * başka karuselde paylaşılmış olsa da) ve {@code renders} (şimdi üretilenler, boş dönenler atlanır) gelir.
+     * Açılış kapağını ({@code hookType}) ve {@code renders} slaytlarını şimdi üretir (boş dönenler atlanır).
      * Kapak zaten paylaşıldıysa atlar.
      */
-    private String shareCarousel(String hookType, LocalDate start, int days, List<String[]> slides,
+    private String shareCarousel(String hookType, LocalDate start, int days,
                                  List<Render> renders, String caption, boolean force) {
         String tag = "[Scheduler] " + hookType + " karuseli " + start;
         try {
@@ -160,12 +163,6 @@ public class InstagramSchedulerService {
                 return tag + ": kapak üretilemedi, paylaşılmadı.";
             }
             List<InstagramImage> images = new ArrayList<>(List.of(hook));
-            for (String[] slide : slides) {
-                existing.stream()
-                        .filter(img -> slide[0].equals(String.valueOf(img.getCreationDate())) && slide[1].equals(img.getEventType()))
-                        .max(Comparator.comparing(InstagramImage::getId))
-                        .ifPresent(images::add);
-            }
             for (Render r : renders) {
                 InstagramImage img = instagramService.createImage(r.eventType(), r.postType(), "istanbul", r.date());
                 if (img != null) {
@@ -173,7 +170,7 @@ public class InstagramSchedulerService {
                 }
             }
             if (images.size() < 2) {
-                return tag + ": gün görseli yok (Pazar 16:00 üretimi çalıştı mı?), paylaşılmadı.";
+                return tag + ": gün görseli üretilemedi (etkinlik/afiş yok mu?), paylaşılmadı.";
             }
             instagramService.sharePost(images.subList(0, Math.min(images.size(), 10)), caption);
             return tag + " kuyruğa alındı: " + images.size() + " görsel.";
@@ -283,9 +280,9 @@ public class InstagramSchedulerService {
     }
 
     /**
-     * Pazar cron ile aynı mantık: o haftanın Pazartesi + 7 gün (bugüne göre hesaplanan hafta).
+     * Elle tetikleme (eski Pazar 16:00 ön üretimi): o haftanın Pazartesi + 7 gün. 2026-10-13'ten beri cron yok —
+     * tüm karuseller ve günlük gönderi görsellerini paylaşım anında üretiyor.
      */
-    @Scheduled(cron = "0 0 16 ? * SUN", zone = "Europe/Istanbul")
     public void createWeeklyPosts() {
         LocalDate monday = scheduledWeeklyMonday(LocalDate.now());
         createWeeklyPostsForDateRange(monday, monday.plusDays(6));
