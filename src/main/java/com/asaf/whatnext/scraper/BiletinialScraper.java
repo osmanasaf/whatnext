@@ -29,7 +29,7 @@ public class BiletinialScraper extends BaseScraper {
 
     private static final String BASE_URL = "https://biletinial.com";
     private static final String SEARCH_URL_TEMPLATE = "%s/tr-tr/%s/%s?date=%s&enddate=%s";
-    private static final String EVENT_CARD_SELECTOR = "#kategori__etkinlikler li";
+    private static final String EVENT_CARD_SELECTOR = "#kategori__etkinlikler li:has(h3)"; // 2026-10 hpv2 kartı içinde etiket <li>Tiyatro</li> da var
     private static final String TITLE_SELECTOR = "h3 a";
     private static final String LOCATION_SELECTOR = "address";
     private static final String IMAGE_SELECTOR = "img[src*='merlincdn.net']";

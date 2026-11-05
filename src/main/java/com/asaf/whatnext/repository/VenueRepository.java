@@ -10,9 +10,10 @@ import java.util.List;
 
 @Repository
 public interface VenueRepository extends JpaRepository<Venue, Long> {
-    Venue findByName(String name);
+    // Aynı ad/slug ile birden fazla mekân kaydı var (kaynaklar arası); tekil sorgu NonUniqueResult fırlatıp etkinliği düşürüyordu → en eskiyi al.
+    Venue findFirstByNameOrderByIdAsc(String name);
 
-    Venue findBySlug(String slug);
+    Venue findFirstBySlugOrderByIdAsc(String slug);
     
     List<Venue> findByNameContainingIgnoreCase(String name);
     

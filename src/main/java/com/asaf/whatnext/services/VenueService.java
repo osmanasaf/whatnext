@@ -18,11 +18,11 @@ public class VenueService {
 
 
     public Venue findByName(String name) {
-        return venueRepository.findByName(name);
+        return venueRepository.findFirstByNameOrderByIdAsc(name);
     }
 
     public Venue findBySlug(String slug) {
-        return venueRepository.findBySlug(slug);
+        return venueRepository.findFirstBySlugOrderByIdAsc(slug);
     }
 
     public Venue findOrCreateVenue(String name) {

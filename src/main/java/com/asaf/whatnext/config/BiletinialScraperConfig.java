@@ -17,7 +17,7 @@ public class BiletinialScraperConfig {
     public static final BiletinialCategory DEFAULT_CATEGORY = BiletinialCategory.MUSIC;
     public static final BiletinialCity DEFAULT_CITY = BiletinialCity.ISTANBUL;
 
-    public static final String EVENT_CARD_SELECTOR = "#kategori__etkinlikler li";
+    public static final String EVENT_CARD_SELECTOR = "#kategori__etkinlikler li:has(h3)"; // 2026-10 hpv2 kartı içinde etiket <li>Tiyatro</li> da var
     public static final String EVENT_TITLE_SELECTOR = "h3 a";
     public static final String EVENT_DATE_SELECTOR = "span";
     public static final String EVENT_LOCATION_SELECTOR = "address";

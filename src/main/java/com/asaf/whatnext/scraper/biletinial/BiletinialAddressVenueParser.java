@@ -42,7 +42,9 @@ public final class BiletinialAddressVenueParser {
                     return v;
                 }
             }
+            return "";
         }
-        return "";
+        // 2026-10 hpv2 kartı: <address><span>(ikon)</span><span>Mekân</span></address> — şehir yok, metin = mekân.
+        return address.text().trim();
     }
 }

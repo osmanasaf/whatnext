@@ -20,6 +20,18 @@ class BiletinialAddressVenueParserTest {
     }
 
     @Test
+    void hpv2CardAddressIsVenueText() {
+        String html = """
+                <address>
+                  <span class="hpv2-event-card__meta-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="10" r="2.5" /></svg></span>
+                  <span>Caddebostan K&#252;lt&#252;r Merkezi B&#252;y&#252;k Salon</span>
+                </address>
+                """;
+        assertThat(BiletinialAddressVenueParser.extractVenueNameFromAddressHtml(html))
+                .isEqualTo("Caddebostan Kültür Merkezi Büyük Salon");
+    }
+
+    @Test
     void fallsBackToTextWithoutBoldCity() {
         String html = """
                 <address>
