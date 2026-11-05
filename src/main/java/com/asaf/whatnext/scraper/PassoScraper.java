@@ -104,6 +104,12 @@ public class PassoScraper extends BaseScraper {
                     break;
                 }
                 JsonNode items = body.path("valueList");
+                if (page == 0 && items.isEmpty()) {
+                    // 2026-11-05 prod (Hetzner) tüm alt türlerde 0 döndü, yerelde 1454 — yanıtı görmeden anlaşılmıyor.
+                    String raw = body.toString();
+                    logger.warn("Passo boş liste (alt tür " + sub.getKey() + "): "
+                            + raw.substring(0, Math.min(300, raw.length())));
+                }
                 for (JsonNode item : items) {
                     if (item.path("eventType").asInt(-1) != 0 || byId.containsKey(item.path("id").asLong())) {
                         continue; // seri/sezon bileti ya da başka alt türde zaten görüldü
