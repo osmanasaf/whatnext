@@ -47,17 +47,20 @@ public final class HtmlFetcher {
     }
 
     public static Document get(String url, int timeoutMs) throws IOException, InterruptedException {
-        HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+        return html(HttpRequest.newBuilder(URI.create(url))
                 .header("User-Agent", USER_AGENT)
                 .timeout(Duration.ofMillis(timeoutMs))
                 .GET()
-                .build();
+                .build());
+    }
 
+    /** Herhangi bir istek (ör. Zorlu PSM'nin form POST'u) → {@link #send} + 200 kontrolü + Jsoup. */
+    public static Document html(HttpRequest request) throws IOException, InterruptedException {
         HttpResponse<String> response = send(CLIENT, request);
         if (response.statusCode() != 200) {
-            throw new IOException("HTTP " + response.statusCode() + " — " + url);
+            throw new IOException("HTTP " + response.statusCode() + " — " + request.uri());
         }
-        return Jsoup.parse(response.body(), url);
+        return Jsoup.parse(response.body(), request.uri().toString());
     }
 
     /**

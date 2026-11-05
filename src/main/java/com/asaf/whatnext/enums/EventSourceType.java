@@ -10,5 +10,6 @@ public enum EventSourceType {
     BILETINIAL,
     BUBILET,
     BUGECE,
-    PASSO
+    PASSO,
+    ZORLU_PSM
 }
