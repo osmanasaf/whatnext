@@ -1,5 +1,7 @@
 package com.asaf.whatnext.scraper.web;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 
@@ -33,6 +35,8 @@ public final class HtmlFetcher {
 
     public static final String USER_AGENT =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36";
+
+    private static final ObjectMapper JSON = new ObjectMapper();
 
     private static final HttpClient CLIENT = HttpClient.newBuilder()
             .followRedirects(HttpClient.Redirect.NORMAL)
@@ -78,6 +82,15 @@ public final class HtmlFetcher {
         } catch (ExecutionException e) {
             throw e.getCause() instanceof IOException io ? io : new IOException(e.getCause());
         }
+    }
+
+    /** JSON API'leri (Bugece, Passo) için: {@link #send} + 200 kontrolü + ayrıştırma. */
+    public static JsonNode json(HttpRequest request) throws IOException, InterruptedException {
+        HttpResponse<String> response = send(CLIENT, request);
+        if (response.statusCode() != 200) {
+            throw new IOException("HTTP " + response.statusCode() + " — " + request.uri());
+        }
+        return JSON.readTree(response.body());
     }
 
     /** Hata durumunda {@code null} — çağıran mevcut değerini korumak istediğinde. */

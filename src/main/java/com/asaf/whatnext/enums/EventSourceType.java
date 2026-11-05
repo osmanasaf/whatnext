@@ -8,5 +8,7 @@ public enum EventSourceType {
     BILETIX,
     BILETINO,
     BILETINIAL,
-    BUBILET
+    BUBILET,
+    BUGECE,
+    PASSO
 }
